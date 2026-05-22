@@ -1,0 +1,1896 @@
+﻿<Window x:Class="AgentGroupChat.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:AgentGroupChat"
+        mc:Ignorable="d"
+        Title="Agent Group Chat"
+        Height="920"
+        Width="1500"
+        MinHeight="760"
+        MinWidth="1180"
+        Background="{DynamicResource AppWindowBackgroundBrush}">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="18" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Background="{DynamicResource AppHeroBackgroundBrush}"
+                CornerRadius="28"
+                Padding="24">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock Text="Agent Rooms"
+                               FontSize="32"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource AppHeroTextBrush}" />
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Build rooms in one place, run conversations in another, and inspect logs without leaving the main window."
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource AppHeroMutedTextBrush}" />
+                    <WrapPanel Margin="0,14,0,0">
+                        <Border Background="{DynamicResource AppHeroSurfaceBrush}"
+                                CornerRadius="14"
+                                Padding="12,7"
+                                Margin="0,0,10,0">
+                            <TextBlock Text="{Binding SelectedTheme.Name, StringFormat=Room: {0}, TargetNullValue=Room: none selected}"
+                                       Foreground="{DynamicResource AppHeroTextBrush}" />
+                        </Border>
+                        <Border Background="{DynamicResource AppHeroSurfaceBrush}"
+                                CornerRadius="14"
+                                Padding="12,7">
+                            <TextBlock Text="Five-workspace layout: Setup, Rooms, Chat, Logs, AI Models"
+                                       Foreground="{DynamicResource AppHeroTextBrush}" />
+                        </Border>
+                        <Button Margin="10,0,0,0"
+                                Width="36"
+                                Height="36"
+                                Padding="0"
+                                Click="ShowSetupGuideButton_OnClick"
+                                ToolTip="Show the setup guide again without changing your current configuration."
+                                Background="{DynamicResource AppHeroSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppHeroSurfaceBrush}"
+                                Foreground="{DynamicResource AppHeroTextBrush}">
+                            <TextBlock Text="?"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Button>
+                    </WrapPanel>
+                </StackPanel>
+
+                <Border Grid.Column="1"
+                        Background="{DynamicResource AppHeroSurfaceBrush}"
+                        CornerRadius="16"
+                        Padding="16,10"
+                        MinWidth="140">
+                    <TextBlock x:Name="StatusTextBlock"
+                               Text="Ready"
+                               HorizontalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource AppHeroStatusTextBrush}"
+                               VerticalAlignment="Center" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <TabControl x:Name="MainTabControl"
+                    Grid.Row="2"
+                    Background="Transparent"
+                    BorderThickness="0">
+            <TabItem Header="Setup Guide"
+                     Visibility="{Binding SetupGuideVisibility}">
+                <Grid Margin="8,14,8,8">
+                    <Border Background="{DynamicResource AppPanelAltBackgroundBrush}"
+                            CornerRadius="24"
+                            Padding="20"
+                            BorderBrush="{DynamicResource AppPanelBorderAltBrush}"
+                            BorderThickness="1">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="First-Time Setup"
+                                           FontSize="28"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource AppTextBrush}" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Text="This page is the recommended order for a new user. If you follow these steps top to bottom, the app should be ready without needing to hunt through every tab first."
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                <Border Margin="0,14,0,0"
+                                        Background="{DynamicResource AppSectionBackgroundBrush}"
+                                        CornerRadius="18"
+                                        Padding="16"
+                                        BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                        BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock Text="What This App Does"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Text="Agent Group Chat lets you configure AI services and models, build themed rooms of agents, and run shared conversations where each agent responds in sequence. The Chat tab is where the room talks together, while the optional speech features can narrate the conversation out loud."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Margin="0,18,0,18"
+                                        Background="{DynamicResource AppSectionBackgroundBrush}"
+                                        CornerRadius="20"
+                                        Padding="16"
+                                        BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                        BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock Text="Setup Progress"
+                                                   FontSize="20"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Text="{Binding SetupGuideProgressText}"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <ProgressBar Margin="0,10,0,0"
+                                                     Minimum="0"
+                                                     Maximum="3"
+                                                     Value="{Binding SetupGuideCompletedStepCount, Mode=OneWay}" />
+                                        <TextBlock Margin="0,12,0,0"
+                                                   Text="{Binding SetupGuideModelsChecklistText}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="Save AI settings, add a model, or pass a model connection test to complete this step."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <TextBlock Margin="0,12,0,0"
+                                                   Text="{Binding SetupGuideRoomsChecklistText}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="Create a room, add an agent, or save room changes to complete this step."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <TextBlock Margin="0,12,0,0"
+                                                   Text="{Binding SetupGuideTtsChecklistText}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="TTS is optional. Change speech settings on Chat or explicitly skip it here."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <Button Margin="0,12,0,0"
+                                                HorizontalAlignment="Left"
+                                                Content="Skip TTS For Now"
+                                                Click="SkipSetupGuideTtsButton_OnClick"
+                                                IsEnabled="{Binding CanSkipSetupGuideTts}" />
+
+                                        <TextBlock Margin="0,12,0,0"
+                                                   Text="{Binding SetupGuideCompletionMessage}"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Background="{DynamicResource AppSectionBackgroundBrush}"
+                                        CornerRadius="20"
+                                        Padding="16"
+                                        BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                        BorderThickness="1"
+                                        Margin="0,0,0,16">
+                                    <StackPanel>
+                                        <TextBlock Text="Recommended Order"
+                                                   FontSize="20"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock Margin="0,10,0,0"
+                                                   Text="1. Decide on speech first"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="Go to Chat and choose whether you want speech enabled. Pick Local, Piper, or Kokoro, then confirm the voice and speaking rate feel right before you build rooms around it."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <TextBlock Margin="0,14,0,0"
+                                                   Text="2. Configure provider services and models"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="Open Configure AI Models. Add the provider services you actually use under Connections, then add the specific model entries under Model Catalog. Connections are things like Groq, Gemini, HuggingFace, Ollama, or OpenRouter. Models are the exact targets such as Groq Fast, Groq Smart, or Gemini Flash Lite."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <TextBlock Margin="0,14,0,0"
+                                                   Text="3. Test the model before building rooms"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="Use Test Model Connection on at least one model from each service you plan to use. That catches missing API keys, bad endpoints, or unsupported local servers early."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <TextBlock Margin="0,14,0,0"
+                                                   Text="4. Create or open a room"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="Go to Rooms, create a room if needed, and define the topic, run controls, and summarizer settings. This is where the conversation structure lives."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <TextBlock Margin="0,14,0,0"
+                                                   Text="5. Add agents and assign their models"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="Still in Rooms, add the agents you want, write each prompt, and choose which configured model each agent should use. If speech is enabled, assign a voice here too."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <TextBlock Margin="0,14,0,0"
+                                                   Text="6. Run the conversation in Chat"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="Move to Chat once the room is configured. Enter the user request, run the room, and use Continue for later rounds. If anything behaves oddly, check Logs before changing prompts blindly."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0"
+                                            Background="{DynamicResource AppSectionBackgroundBrush}"
+                                            CornerRadius="20"
+                                            Padding="16"
+                                            BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                            BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock Text="Quick Tips"
+                                                       FontSize="20"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                            <TextBlock Margin="0,10,0,0"
+                                                       Text="Kokoro, Piper, and Ollama depend on local services or files being available before the app can use them."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                            <TextBlock Margin="0,10,0,0"
+                                                       Text="If a model works in the test button but not in a room, check that the agent is assigned to the intended model and not a leftover default."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                            <TextBlock Margin="0,10,0,0"
+                                                       Text="Use Logs to inspect request, response, timing, and memory behavior before changing prompts or token settings."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Column="2"
+                                            Background="{DynamicResource AppSectionBackgroundBrush}"
+                                            CornerRadius="20"
+                                            Padding="16"
+                                            BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                            BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock Text="What Lives Where"
+                                                       FontSize="20"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                            <TextBlock Margin="0,10,0,0"
+                                                       Text="Chat: user input, transcript, and speech controls."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                            <TextBlock Margin="0,10,0,0"
+                                                       Text="Configure AI Models: connections, endpoints, API keys, and model catalog entries."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                            <TextBlock Margin="0,10,0,0"
+                                                       Text="Rooms: room topic, agents, prompts, summarizer tuning, and per-agent model assignment."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                            <TextBlock Margin="0,10,0,0"
+                                                       Text="Logs: request/response inspection, timings, and hidden memory updates."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Rooms">
+                <Grid Margin="8,14,8,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="360" />
+                        <ColumnDefinition Width="18" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                            Background="{DynamicResource AppPanelBackgroundBrush}"
+                            CornerRadius="24"
+                            Padding="18"
+                            BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                            BorderThickness="1">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top">
+                            <DockPanel LastChildFill="False">
+                                <TextBlock Text="Topics / Rooms"
+                                       FontSize="26"
+                                       FontWeight="SemiBold"
+                                        Foreground="{DynamicResource AppTextBrush}"
+                                       VerticalAlignment="Center" />
+                                <Button DockPanel.Dock="Right"
+                                    Width="44"
+                                    MinWidth="44"
+                                    Padding="0"
+                                    Margin="12,0,0,0"
+                                    Content="+"
+                                    FontSize="20"
+                                    FontWeight="Bold"
+                                    ToolTip="Create a new room and open it in the editor."
+                                    Click="NewThemeButton_OnClick" />
+                            </DockPanel>
+                                <TextBlock Margin="0,6,0,14"
+                                           Text="Browse the room library as an accordion, then open the room you want to edit on the right."
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource AppMutedTextBrush}" />
+                                <TextBlock Text="Room Library File"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource AppSectionTextBrush}" />
+                                <TextBox Margin="0,8,0,8"
+                                         IsReadOnly="True"
+                                         Text="{Binding ThemeLibraryPath, Mode=OneWay}" />
+                                <WrapPanel Margin="0,0,0,14">
+                                    <Button Margin="0,0,8,0"
+                                        Style="{StaticResource IconButtonStyle}"
+                                        Content="&#xE8B7;"
+                                        ToolTip="Open in Explorer"
+                                            Tag="{Binding ThemeLibraryPath, Mode=OneWay}"
+                                            Click="OpenPathInExplorerButton_OnClick" />
+                                    <Button Style="{StaticResource IconButtonStyle}"
+                                        Margin="0"
+                                        Content="&#xE8C8;"
+                                        ToolTip="Copy Path"
+                                            Tag="{Binding ThemeLibraryPath, Mode=OneWay}"
+                                            Click="CopyPathButton_OnClick" />
+                                </WrapPanel>
+                            </StackPanel>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Themes}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type local:ThemeProfile}">
+                                            <Expander Margin="0,0,0,12"
+                                                      Background="{DynamicResource AppSectionBackgroundBrush}"
+                                                      BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                                      BorderThickness="1"
+                                                      IsExpanded="False">
+                                                <Expander.Header>
+                                                    <Grid Margin="4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                                            <TextBlock Margin="0,4,0,0"
+                                                                       Text="{Binding Topic}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1"
+                                                                Padding="12,6"
+                                                                Margin="12,0,0,0"
+                                                                Content="Open"
+                                                            ToolTip="Load this room into the editor on the right without changing its saved content yet."
+                                                                Tag="{Binding}"
+                                                                Click="SelectThemeButton_OnClick" />
+                                                    </Grid>
+                                                </Expander.Header>
+                                                <StackPanel Margin="14,10,14,14">
+                                                    <WrapPanel Margin="0,0,0,8">
+                                                        <Border Background="{DynamicResource AppBadgeBrush}"
+                                                                CornerRadius="10"
+                                                                Padding="8,3"
+                                                                Margin="0,0,8,8">
+                                                            <TextBlock Text="{Binding Agents.Count, StringFormat={}Agents: {0}}"
+                                                                       Foreground="{DynamicResource AppBadgeTextBrush}" />
+                                                        </Border>
+                                                        <Border Background="{DynamicResource AppBadgeBrush}"
+                                                                CornerRadius="10"
+                                                                Padding="8,3"
+                                                                Margin="0,0,8,8">
+                                                            <TextBlock Text="{Binding RecentTurnsWindow, StringFormat={}Recent Turns: {0}}"
+                                                                       Foreground="{DynamicResource AppBadgeTextBrush}" />
+                                                        </Border>
+                                                        <Border Background="{DynamicResource AppBadgeBrush}"
+                                                                CornerRadius="10"
+                                                                Padding="8,3"
+                                                                Margin="0,0,0,8">
+                                                            <TextBlock Text="{Binding SceneSummarizationLevel, StringFormat={}Memory Compression: {0}}"
+                                                                       Foreground="{DynamicResource AppBadgeTextBrush}" />
+                                                        </Border>
+                                                    </WrapPanel>
+
+                                                    <TextBlock Text="{Binding Topic}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                                </StackPanel>
+                                            </Expander>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+
+                        <Border Grid.Column="2"
+                            Background="{DynamicResource AppPanelAltBackgroundBrush}"
+                            CornerRadius="24"
+                            Padding="18"
+                            BorderBrush="{DynamicResource AppPanelBorderAltBrush}"
+                            BorderThickness="1">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding SelectedTheme.Name, StringFormat=Editing: {0}, TargetNullValue=Select a room to start editing}"
+                                                   FontSize="26"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Text="The room editor is split into digestible sections: room basics, run controls, summarizer tuning, and an agent studio below."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    </StackPanel>
+
+                                    <WrapPanel Grid.Column="1"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Top"
+                                               Margin="18,0,0,0">
+                                        <Button Margin="0,0,8,8"
+                                                Content="Save Library"
+                                                ToolTip="Write the current room and agent changes to the room library file."
+                                                Click="SaveThemeButton_OnClick" />
+                                        <Button Margin="0,0,8,8"
+                                                Content="Delete Room"
+                                                ToolTip="Delete the currently selected room from the library. This keeps at least one room."
+                                                Click="DeleteThemeButton_OnClick" />
+                                        <Button Margin="0,0,0,8"
+                                                Content="Clear Memories"
+                                                ToolTip="Clear long-term and shared short-term memory for every agent in the selected room."
+                                                Click="ClearAllAgentMemoriesButton_OnClick" />
+                                    </WrapPanel>
+                                </Grid>
+
+                                <Border Background="{DynamicResource AppSectionBackgroundBrush}"
+                                        CornerRadius="20"
+                                        Padding="16"
+                                    BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                        BorderThickness="1"
+                                        Margin="0,0,0,16">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Room Name"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppSectionTextBrush}" />
+                                            <TextBox Margin="0,8,0,14"
+                                                     Text="{Binding SelectedTheme.Name, UpdateSourceTrigger=PropertyChanged}" />
+
+                                            <TextBlock Text="Topic / Direction"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppSectionTextBrush}" />
+                                            <TextBox Margin="0,8,0,0"
+                                                     MinHeight="120"
+                                                     AcceptsReturn="True"
+                                                     TextWrapping="Wrap"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     Text="{Binding SelectedTheme.Topic, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Connection Settings"
+                                                       FontSize="18"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                            <TextBlock Margin="0,8,0,12"
+                                                       Text="Connections, endpoints, model IDs, and API keys now live on the Configure AI Models tab instead of inside each room."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                            <TextBlock Text="Secrets File"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                <TextBox Margin="0,8,0,8"
+                                                     IsReadOnly="True"
+                                                     Text="{Binding ConnectionSettingsPath, Mode=OneWay}" />
+                                                <WrapPanel Margin="0,0,0,10">
+                                                <Button Margin="0,0,8,0"
+                                                    Style="{StaticResource IconButtonStyle}"
+                                                    Content="&#xE8B7;"
+                                                    ToolTip="Open in Explorer"
+                                                    Tag="{Binding ConnectionSettingsPath, Mode=OneWay}"
+                                                    Click="OpenPathInExplorerButton_OnClick" />
+                                                <Button Style="{StaticResource IconButtonStyle}"
+                                                    Margin="0"
+                                                    Content="&#xE8C8;"
+                                                    ToolTip="Copy Path"
+                                                    Tag="{Binding ConnectionSettingsPath, Mode=OneWay}"
+                                                    Click="CopyPathButton_OnClick" />
+                                                </WrapPanel>
+                                            <TextBlock Text="Loaded Settings"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppSectionTextBrush}" />
+                                            <TextBlock Margin="0,8,0,0"
+                                                                               Text="{Binding Provider, StringFormat=Model: {0}}"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppTertiaryTextBrush}" />
+
+                                            <TextBlock Margin="0,16,0,0"
+                                                       Text="Appearance"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppSectionTextBrush}" />
+                                            <Grid Margin="0,8,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="12" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock Grid.Column="0"
+                                                           VerticalAlignment="Center"
+                                                           Text="Theme"
+                                                           Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                <ComboBox Grid.Column="2"
+                                                          ItemsSource="{Binding AvailableUiThemes}"
+                                                          SelectedItem="{Binding UiThemeSelection, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBlock Grid.Column="4"
+                                                           VerticalAlignment="Center"
+                                                           Text="Accent"
+                                                           Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                <ComboBox Grid.Column="6"
+                                                          ItemsSource="{Binding AvailableUiAccents}"
+                                                          SelectedItem="{Binding UiAccentSelection, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </Grid>
+                                            <TextBlock Margin="0,8,0,0"
+                                                       Text="System follows the current Windows light or dark app preference when the room window opens. Accent color stays under your control."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <Border Background="{DynamicResource AppSectionBackgroundBrush}"
+                                        CornerRadius="20"
+                                        Padding="16"
+                                        BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                        BorderThickness="1"
+                                        Margin="0,0,0,16">
+                                    <StackPanel>
+                                        <TextBlock Text="Run Controls"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock Margin="0,6,0,14"
+                                                   Text="These settings affect how the room runs on the Chat tab."
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="12" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Iterations" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                <TextBox x:Name="IterationsTextBox" Margin="0,8,0,12" Text="2" />
+
+                                                <TextBlock Text="Seconds Between Agents" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                <TextBox Margin="0,8,0,12"
+                                                         Text="{Binding SelectedTheme.AgentDelaySeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                                                                <TextBlock Text="Recent Transcript Turns"
+                                                                                                                     FontWeight="SemiBold"
+                                                                                                                     Foreground="{DynamicResource AppSectionTextBrush}"
+                                                                                                                     ToolTip="How many of the latest transcript turns are included directly in each agent prompt before older context has to come from shared room memory or durable memory." />
+                                                <TextBox Margin="0,8,0,12"
+                                                                                                                 ToolTip="How many of the latest transcript turns are included directly in each agent prompt before older context has to come from shared room memory or durable memory."
+                                                         Text="{Binding SelectedTheme.RecentTurnsWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2">
+                                                                                                <TextBlock Text="Max Tokens"
+                                                                                                                     FontWeight="SemiBold"
+                                                                                                                     Foreground="{DynamicResource AppSectionTextBrush}"
+                                                                                                                     ToolTip="Maximum completion tokens each room turn can generate. Higher values allow longer replies and give the hidden summarizers more room, but cost more time and tokens." />
+                                                                                                <TextBox Margin="0,8,0,12"
+                                                                                                                 ToolTip="Maximum completion tokens each room turn can generate. Higher values allow longer replies and give the hidden summarizers more room, but cost more time and tokens."
+                                                                                                                 Text="{Binding SelectedTheme.MaxTokens, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                                                                <TextBlock Text="User Compaction Budget"
+                                                                                                                     FontWeight="SemiBold"
+                                                                                                                     Foreground="{DynamicResource AppSectionTextBrush}"
+                                                                                                                     ToolTip="How many characters from your older turns are kept when the transcript is condensed into future prompts and memory updates." />
+                                                <TextBox Margin="0,8,0,12"
+                                                                                                                 ToolTip="How many characters from your older turns are kept when the transcript is condensed into future prompts and memory updates."
+                                                         Text="{Binding SelectedTheme.UserCompactionBudget, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                <CheckBox Margin="0,30,0,0"
+                                                          IsChecked="{Binding SelectedTheme.WaitForUserReply, Mode=TwoWay}"
+                                                          Content="Wait for user reply after the first round" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <TextBlock Margin="0,10,0,0"
+                                                   Text="Lower recent-turn and summarizer settings reduce token use. Higher values preserve more continuity at the cost of larger prompts."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Background="{DynamicResource AppSectionBackgroundBrush}"
+                                        CornerRadius="20"
+                                        Padding="16"
+                                        BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                        BorderThickness="1"
+                                        Margin="0,0,0,16">
+                                    <Border.Resources>
+                                        <Style x:Key="SummarizerEditorTextBoxStyle"
+                                               TargetType="TextBox"
+                                               BasedOn="{StaticResource {x:Type TextBox}}">
+                                            <Setter Property="IsReadOnly" Value="True" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CanEditSelectedThemeSummarizerSettings}" Value="True">
+                                                    <Setter Property="IsReadOnly" Value="False" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Resources>
+                                    <StackPanel>
+                                        <TextBlock Text="Room Memory Summarizer"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock Margin="0,8,0,12"
+                                                   Text="Tune how aggressively the hidden room-memory summarizer compresses the conversation before the next round."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <TextBlock Text="Summarizer Model" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <ComboBox Margin="0,8,0,12"
+                                                  ItemsSource="{Binding AiModels}"
+                                                  DisplayMemberPath="Name"
+                                                  SelectedValuePath="Name"
+                                                  SelectedValue="{Binding SelectedThemeSummarizerProvider, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <TextBlock Text="Compression Level" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <ComboBox Margin="0,8,0,12"
+                                                  ItemsSource="{Binding AvailableSceneSummarizationLevels}"
+                                                  SelectedItem="{Binding SelectedThemeSceneSummarizationLevel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="12" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Summarizer Max Tokens"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AppSectionTextBrush}"
+                                                                                                                     ToolTip="Maximum completion tokens available to the hidden room-memory summarizer after each round." />
+                                                <TextBox Margin="0,8,0,12"
+                                                         Style="{StaticResource SummarizerEditorTextBoxStyle}"
+                                                                                                                 ToolTip="Maximum completion tokens available to the hidden room-memory summarizer after each round."
+                                                         Text="{Binding SelectedThemeSceneSummarizerMaxTokens, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                <TextBlock Text="Max Summary Lines"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AppSectionTextBrush}"
+                                                                                                                     ToolTip="Maximum number of non-empty lines kept in the cleaned shared room memory block." />
+                                                <TextBox Margin="0,8,0,0"
+                                                         Style="{StaticResource SummarizerEditorTextBoxStyle}"
+                                                                                                                 ToolTip="Maximum number of non-empty lines kept in the cleaned shared room memory block."
+                                                         Text="{Binding SelectedThemeSceneSummarizerMaxLines, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Broader Transcript Turns"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AppSectionTextBrush}"
+                                                           ToolTip="How many older turns the summarizer can look back across in addition to the latest completed round." />
+                                                <TextBox Margin="0,8,0,12"
+                                                         Style="{StaticResource SummarizerEditorTextBoxStyle}"
+                                                         ToolTip="How many older turns the summarizer can look back across in addition to the latest completed round."
+                                                         Text="{Binding SelectedThemeSceneSummarizerBroaderTranscriptTurns, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                <TextBlock Text="Max Summary Characters"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AppSectionTextBrush}"
+                                                                                                                     ToolTip="Maximum character count retained for the cleaned shared room memory block." />
+                                                <TextBox Margin="0,8,0,0"
+                                                         Style="{StaticResource SummarizerEditorTextBoxStyle}"
+                                                                                                                 ToolTip="Maximum character count retained for the cleaned shared room memory block."
+                                                         Text="{Binding SelectedThemeSceneSummarizerMaxCharacters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <TextBlock Text="Summarizer Agent Prompt" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <TextBox Margin="0,8,0,6"
+                                                 Style="{StaticResource SummarizerEditorTextBoxStyle}"
+                                                 MinHeight="120"
+                                                 AcceptsReturn="True"
+                                                 TextWrapping="Wrap"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 Text="{Binding SelectedThemeSummarizerAgentPrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <TextBlock Text="{Binding SelectedThemeSummarizerEditorHelpText}"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Background="{DynamicResource AppSectionBackgroundBrush}"
+                                        CornerRadius="20"
+                                        Padding="16"
+                                        BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                        BorderThickness="1">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,12">
+                                            <TextBlock Text="Agents"
+                                                       FontSize="22"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock DockPanel.Dock="Right"
+                                               Text="Accordion browser + detailed editor"
+                                               Foreground="{DynamicResource AppTertiaryTextBrush}"
+                                               VerticalAlignment="Bottom" />
+                                    </DockPanel>
+
+                                    <UniformGrid Columns="4" Margin="0,0,0,14">
+                                        <Button Margin="0,0,6,0"
+                                            Content="Add Agent"
+                                            ToolTip="Create a new agent in this room and open it in the detailed editor."
+                                            Click="AddAgentButton_OnClick" />
+                                        <Button Margin="6,0,6,0"
+                                            Content="Remove Agent"
+                                            ToolTip="Remove the currently selected agent from this room. At least one agent must remain."
+                                            Click="RemoveAgentButton_OnClick" />
+                                        <Button Margin="6,0,6,0"
+                                            Content="Move Up"
+                                            ToolTip="Move the selected agent earlier in the speaking order."
+                                            Click="MoveAgentUpButton_OnClick" />
+                                        <Button Margin="6,0,0,0"
+                                            Content="Move Down"
+                                            ToolTip="Move the selected agent later in the speaking order."
+                                            Click="MoveAgentDownButton_OnClick" />
+                                    </UniformGrid>
+
+                                        <ItemsControl ItemsSource="{Binding SelectedTheme.Agents}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type local:AgentProfile}">
+                                                    <Expander Margin="0,0,0,12"
+                                                              IsExpanded="{Binding IsSelectedForEdit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Expanded="AgentExpander_OnExpanded"
+                                                              Collapsed="AgentExpander_OnCollapsed"
+                                                              Tag="{Binding}"
+                                                              Background="{DynamicResource AppPanelBackgroundBrush}"
+                                                              BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                                              BorderThickness="1">
+                                                        <Expander.Header>
+                                                            <Grid Margin="4">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding Name}"
+                                                                               FontSize="18"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="{DynamicResource AppTextBrush}" />
+                                                                    <TextBlock Margin="0,4,0,0"
+                                                                               FontSize="13"
+                                                                               Text="{Binding Provider, StringFormat=Provider: {0}}"
+                                                                               Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                                                    <TextBlock Margin="0,4,0,0"
+                                                                               Text="Disabled"
+                                                                               Foreground="{DynamicResource AppTertiaryTextBrush}">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </Expander.Header>
+                                                        <StackPanel Margin="14,10,14,14">
+                                                            <TextBlock Text="{Binding SystemPrompt}"
+                                                                       TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                                                       MaxHeight="58" />
+                                                            <WrapPanel Margin="0,10,0,0">
+                                                                <Border Background="{DynamicResource AppBadgeBrush}"
+                                                                        CornerRadius="10"
+                                                                        Padding="8,3"
+                                                                        Margin="0,0,8,8">
+                                                                    <TextBlock Text="{Binding CompactionBudget, StringFormat={}Compaction: {0}}"
+                                                                               Foreground="{DynamicResource AppBadgeTextBrush}" />
+                                                                </Border>
+                                                            </WrapPanel>
+
+                                                            <Border Background="{DynamicResource AppSectionBackgroundBrush}"
+                                                                    CornerRadius="16"
+                                                                    Padding="14"
+                                                                    BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                                                    BorderThickness="1"
+                                                                    Margin="0,14,0,0">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="Name" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                                    <TextBox Margin="0,8,0,12"
+                                                                             Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                                    <TextBlock Text="AI Model" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                                    <ComboBox Margin="0,8,0,12"
+                                                                              ItemsSource="{Binding DataContext.AiModels, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                              DisplayMemberPath="Name"
+                                                                              SelectedValuePath="Name"
+                                                                              SelectedValue="{Binding Provider, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                                    <CheckBox Margin="0,0,0,12"
+                                                                              Content="Enabled in turn loop"
+                                                                              IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                              ToolTip="When unchecked, this agent stays in the room configuration but is skipped by the conversation loop." />
+
+                                                                    <TextBlock Text="Voice" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                                    <ComboBox Margin="0,8,0,6"
+                                                                              ItemsSource="{Binding DataContext.AvailableTextToSpeechVoices, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                              SelectedItem="{Binding TextToSpeechVoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                              IsEditable="False"
+                                                                              IsTextSearchEnabled="True"
+                                                                              IsEnabled="{Binding DataContext.HasTextToSpeechVoices, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                              ToolTip="Choose the voice this agent should use when speech is enabled. Piper voices are discovered from the local Piper models folder." />
+                                                                    <TextBlock Margin="0,0,0,12"
+                                                                               Text="Leave this blank to use the default voice for the selected TTS provider."
+                                                                               TextWrapping="Wrap"
+                                                                               Foreground="{DynamicResource AppTertiaryTextBrush}" />
+
+                                                                    <TextBlock Text="Prompt / Instructions" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                                    <TextBox Margin="0,8,0,12"
+                                                                             MinHeight="150"
+                                                                             AcceptsReturn="True"
+                                                                             TextWrapping="Wrap"
+                                                                             VerticalScrollBarVisibility="Auto"
+                                                                             Text="{Binding SystemPrompt, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                                    <Grid Margin="0,0,0,12">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*" />
+                                                                            <ColumnDefinition Width="12" />
+                                                                            <ColumnDefinition Width="*" />
+                                                                        </Grid.ColumnDefinitions>
+
+                                                                        <StackPanel Grid.Column="0">
+                                                                            <TextBlock Text="Agent Compaction Budget"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Foreground="{DynamicResource AppSectionTextBrush}"
+                                                                                       ToolTip="How many characters from this agent's older turns are kept when the transcript is condensed into future prompts and hidden memory updates." />
+                                                                            <TextBox Margin="0,8,0,0"
+                                                                                     ToolTip="How many characters from this agent's older turns are kept when the transcript is condensed into future prompts and hidden memory updates."
+                                                                                     Text="{Binding CompactionBudget, UpdateSourceTrigger=PropertyChanged}" />
+                                                                        </StackPanel>
+
+                                                                        <StackPanel Grid.Column="2">
+                                                                            <TextBlock Text="Max Tokens Override"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Foreground="{DynamicResource AppSectionTextBrush}"
+                                                                                       ToolTip="Optional per-agent output cap. Leave blank to use the room Max Tokens value." />
+                                                                            <TextBox Margin="0,8,0,0"
+                                                                                     ToolTip="Optional per-agent output cap. Leave blank to use the room Max Tokens value."
+                                                                                     Text="{Binding MaxTokensOverride, TargetNullValue='', UpdateSourceTrigger=PropertyChanged}" />
+                                                                        </StackPanel>
+                                                                    </Grid>
+
+                                                                    <TextBlock Text="Short-Term Memory File" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                                        <TextBox Margin="0,8,0,8"
+                                                                             IsReadOnly="True"
+                                                                             Text="{Binding ShortTermMemoryFilePath}" />
+                                                                        <WrapPanel Margin="0,0,0,12">
+                                                                        <Button Margin="0,0,8,0"
+                                                                            Style="{StaticResource IconButtonStyle}"
+                                                                            Content="&#xE8B7;"
+                                                                            ToolTip="Open in Explorer"
+                                                                            Tag="{Binding ShortTermMemoryFilePath}"
+                                                                            Click="OpenPathInExplorerButton_OnClick" />
+                                                                        <Button Style="{StaticResource IconButtonStyle}"
+                                                                            Margin="0"
+                                                                            Content="&#xE8C8;"
+                                                                            ToolTip="Copy Path"
+                                                                            Tag="{Binding ShortTermMemoryFilePath}"
+                                                                            Click="CopyPathButton_OnClick" />
+                                                                        </WrapPanel>
+
+                                                                    <TextBlock Text="Short-Term Memory" FontWeight="SemiBold" Foreground="{DynamicResource AppSectionTextBrush}" />
+                                                                    <TextBox Margin="0,8,0,12"
+                                                                             MinHeight="130"
+                                                                             AcceptsReturn="True"
+                                                                             TextWrapping="Wrap"
+                                                                             VerticalScrollBarVisibility="Auto"
+                                                                             Text="{Binding ShortTermMemory, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                                    <UniformGrid Columns="2">
+                                                                        <Button Margin="0,0,6,0"
+                                                                                Content="Sanitize Short-Term"
+                                                                            ToolTip="Clean and deduplicate the shared room memory block for this room."
+                                                                                Click="SanitizeShortTermMemoryButton_OnClick" />
+                                                                        <Button Margin="6,0,0,0"
+                                                                                Content="Clear Short-Term"
+                                                                            ToolTip="Clear the shared room memory for this room without touching durable memory."
+                                                                                Click="ClearShortTermMemoryButton_OnClick" />
+                                                                    </UniformGrid>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </Expander>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Chat">
+                <Grid Margin="8,14,8,8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="18" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                        <Border
+                            Background="{DynamicResource AppPanelAltBackgroundBrush}"
+                            CornerRadius="24"
+                            Padding="16"
+                            BorderBrush="{DynamicResource AppPanelBorderAltBrush}"
+                            BorderThickness="1">
+                        <DockPanel>
+                            <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="420" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Text="Conversation"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppTextBrush}" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               Text="Only user and agent messages appear here. Run the selected room here. System notices, requests, timings, and memory updates live on the Logs tab."
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0"
+                                                   VerticalAlignment="Center"
+                                                   Text="Text Size"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+
+                                        <Slider Grid.Column="2"
+                                                Minimum="14"
+                                                Maximum="24"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                Value="{Binding ChatFontSize, Mode=TwoWay}" />
+
+                                        <TextBlock Grid.Column="4"
+                                                   VerticalAlignment="Center"
+                                                   Text="{Binding ChatFontSize, StringFormat={}{0:F0}px}"
+                                                   Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                    </Grid>
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="10" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <CheckBox Grid.Row="0"
+                                                  Grid.Column="0"
+                                                  VerticalAlignment="Center"
+                                                  IsChecked="{Binding TextToSpeechEnabled, Mode=TwoWay}"
+                                                  Content="Speak agent replies"
+                                                  ToolTip="Read each finished agent response aloud through the default audio device." />
+
+                                        <TextBlock Grid.Row="0"
+                                                   Grid.Column="2"
+                                                   Margin="0,1,8,0"
+                                                   VerticalAlignment="Center"
+                                                   Text="Provider"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+
+                                        <ComboBox Grid.Row="0"
+                                                  Grid.Column="3"
+                                                  ItemsSource="{Binding AvailableTextToSpeechProviders}"
+                                                  SelectedItem="{Binding TextToSpeechProviderSelection, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  ToolTip="Use Local for built-in Windows voices, Piper for local executable voices, or Kokoro for a local speech server." />
+
+                                        <TextBlock Grid.Row="2"
+                                                   Grid.Column="0"
+                                                   Margin="0,1,8,0"
+                                                   VerticalAlignment="Center"
+                                                   Text="Rate"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+
+                                        <Slider Grid.Row="2"
+                                                Grid.Column="3"
+                                                Margin="0,0,8,0"
+                                                Minimum="-5"
+                                                Maximum="5"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                Value="{Binding TextToSpeechRate, Mode=TwoWay}" />
+
+                                        <TextBlock Grid.Row="2"
+                                                   Grid.Column="4"
+                                                   VerticalAlignment="Center"
+                                                   Text="{Binding TextToSpeechRateLabel}"
+                                                   Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+
+                            <ScrollViewer x:Name="TranscriptScrollViewer" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="TranscriptItemsControl" ItemsSource="{Binding Messages}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type local:ChatMessage}">
+                                            <Border Margin="0,0,0,12"
+                                                    Padding="16"
+                                                    Background="{Binding CardBackground}"
+                                                    CornerRadius="18"
+                                                    BorderBrush="{Binding AccentBrush}"
+                                                    BorderThickness="1.5">
+                                                <StackPanel>
+                                                    <DockPanel Margin="0,0,0,8">
+                                                        <Button DockPanel.Dock="Right"
+                                                                Style="{StaticResource IconButtonStyle}"
+                                                                Click="CopyChatMessageButton_OnClick"
+                                                                ToolTip="Copy this message">
+                                                            <TextBlock Text="&#xE8C8;" />
+                                                        </Button>
+                                                        <Button DockPanel.Dock="Right"
+                                                                Margin="0,0,8,0"
+                                                                Padding="10,4"
+                                                                Click="ReplayChatMessageButton_OnClick"
+                                                                ToolTip="Replay narration from this message through the current transcript">
+                                                            <TextBlock Text="Play" />
+                                                        </Button>
+                                                        <TextBlock Text="{Binding Author}"
+                                                                   FontSize="{Binding DataContext.ChatFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                                        <TextBlock DockPanel.Dock="Right"
+                                                                   FontSize="{Binding DataContext.ChatFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                   Text="{Binding TimestampText}"
+                                                                   Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                                    </DockPanel>
+                                                    <TextBlock FontSize="{Binding DataContext.ChatFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{DynamicResource AppTextStrongBrush}">
+                                                         <Run Text="{Binding SpeechPrefix, Mode=OneWay}" />
+                                                         <Run Text="{Binding SpeechCurrent, Mode=OneWay}"
+                                                             Background="{DynamicResource AppBadgeBrush}"
+                                                             Foreground="{DynamicResource AppBadgeTextBrush}"
+                                                             FontWeight="SemiBold" />
+                                                         <Run Text="{Binding SpeechSuffix, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+
+                        <Border Grid.Row="2"
+                            Background="{DynamicResource AppPanelWarmBackgroundBrush}"
+                            CornerRadius="24"
+                            Padding="18"
+                            BorderBrush="{DynamicResource AppPanelBorderAltBrush}"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="130" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.ColumnSpan="9"
+                                       Margin="0,0,0,10"
+                                       Text="Describe the task or scene. After a conversation starts, you can click Continue with or without a new user message. Checked rooms stop after the first round and wait for your next reply; unchecked rooms continue automatically for the configured rounds. Press Ctrl+Enter to send."
+                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                            <TextBox Grid.Row="1"
+                                     x:Name="PromptTextBox"
+                                     MinHeight="120"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     PreviewKeyDown="PromptTextBox_OnPreviewKeyDown" />
+
+                            <Button Grid.Row="1"
+                                    Grid.Column="2"
+                                    x:Name="RunButton"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Click="RunButton_OnClick"
+                                    Content="{Binding RunButtonText}"
+                                    FontSize="16"
+                                    FontWeight="SemiBold" />
+
+                            <Button Grid.Row="1"
+                                    Grid.Column="4"
+                                    x:Name="PauseButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="PauseSpeechButton_OnClick"
+                                    Content="{Binding PauseButtonText}"
+                                    FontSize="16"
+                                    FontWeight="SemiBold"
+                                    IsEnabled="{Binding CanPauseSpeech}" />
+
+                                <Button Grid.Row="1"
+                                    Grid.Column="6"
+                                    x:Name="StopButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="StopButton_OnClick"
+                                    Content="STOP"
+                                    FontSize="16"
+                                    FontWeight="SemiBold"
+                                    IsEnabled="False" />
+
+                                <Button Grid.Row="1"
+                                        Grid.Column="8"
+                                        x:Name="ClearChatButton"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Click="ClearChatButton_OnClick"
+                                        Content="CLEAR CHAT"
+                                        FontSize="16"
+                                        FontWeight="SemiBold" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem x:Name="LogsTabItem" Header="Logs">
+                <ScrollViewer Margin="8,14,8,8"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              PanningMode="VerticalOnly">
+                        <Border Background="{DynamicResource AppPanelBackgroundBrush}"
+                            CornerRadius="24"
+                            Padding="18"
+                            BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.35*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Grid Grid.ColumnSpan="3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="240" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Text="Logs"
+                                               FontSize="24"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppTextBrush}" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               Text="System notices, API timings, raw request and response payloads, and hidden memory updates appear here instead of inside the transcript."
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <TextBlock Margin="0,10,0,0"
+                                               Text="Session Log File"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBox Grid.Column="0"
+                                             IsReadOnly="True"
+                                             Text="{Binding SessionLogPath, Mode=OneWay}" />
+                                        <Button Grid.Column="1"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Margin="8,0,0,0"
+                                            Content="&#xE8B7;"
+                                            ToolTip="Open in Explorer"
+                                            Tag="{Binding SessionLogPath, Mode=OneWay}"
+                                            Click="OpenPathInExplorerButton_OnClick" />
+                                        <Button Grid.Column="2"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Margin="8,0,0,0"
+                                            Content="&#xE8C8;"
+                                            ToolTip="Copy Path"
+                                            Tag="{Binding SessionLogPath, Mode=OneWay}"
+                                            Click="CopyPathButton_OnClick" />
+                                        </Grid>
+                                        <TextBlock Margin="0,10,0,0"
+                                               Text="Room Transcript File"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBox Grid.Column="0"
+                                             IsReadOnly="True"
+                                             Text="{Binding SelectedThemeConversationPath, Mode=OneWay}" />
+                                        <Button Grid.Column="1"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Margin="8,0,0,0"
+                                            Content="&#xE8B7;"
+                                            ToolTip="Open in Explorer"
+                                            Tag="{Binding SelectedThemeConversationPath, Mode=OneWay}"
+                                            Click="OpenPathInExplorerButton_OnClick" />
+                                        <Button Grid.Column="2"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Margin="8,0,0,0"
+                                            Content="&#xE8C8;"
+                                            ToolTip="Copy Path"
+                                            Tag="{Binding SelectedThemeConversationPath, Mode=OneWay}"
+                                            Click="CopyPathButton_OnClick" />
+                                        </Grid>
+                                </StackPanel>
+                            </Grid>
+
+                                <Border Grid.Row="2"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="3"
+                                    Background="{DynamicResource AppSectionBackgroundBrush}"
+                                    CornerRadius="18"
+                                    Padding="14"
+                                    BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                    BorderThickness="1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="18" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel>
+                                        <TextBlock Text="Log Filters"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <TextBlock Margin="0,4,0,10"
+                                                   Text="Use these toggles to move from system-only logging to full request and response inspection."
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}" />
+
+                                        <WrapPanel>
+                                            <CheckBox Margin="0,0,12,8"
+                                                      Content="System"
+                                                      IsChecked="{Binding ShowSystemLogs, Mode=TwoWay}" />
+                                            <CheckBox Margin="0,0,12,8"
+                                                      Content="Speech"
+                                                      IsChecked="{Binding ShowSpeechLogs, Mode=TwoWay}" />
+                                            <CheckBox Margin="0,0,12,8"
+                                                      Content="API Timing"
+                                                      IsChecked="{Binding ShowTimingLogs, Mode=TwoWay}" />
+                                            <CheckBox Margin="0,0,12,8"
+                                                      Content="Requests"
+                                                      IsChecked="{Binding ShowRequestLogs, Mode=TwoWay}" />
+                                            <CheckBox Margin="0,0,12,8"
+                                                      Content="Responses"
+                                                      IsChecked="{Binding ShowResponseLogs, Mode=TwoWay}" />
+                                            <CheckBox Margin="0,0,0,8"
+                                                      Content="Memory"
+                                                      IsChecked="{Binding ShowMemoryLogs, Mode=TwoWay}" />
+                                        </WrapPanel>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Source"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource AppSectionTextBrush}" />
+                                        <ComboBox Margin="0,8,0,0"
+                                                  ItemsSource="{Binding LogSources}"
+                                                  SelectedItem="{Binding SelectedLogSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <ListBox Grid.Row="4"
+                                     Grid.Column="0"
+                                     x:Name="LogsListBox"
+                                     ItemsSource="{Binding FilteredLogs}"
+                                     MinHeight="420"
+                                     MaxHeight="720"
+                                     ScrollViewer.CanContentScroll="False"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:LogEntry}">
+                                        <Border Margin="0,0,0,10"
+                                                Padding="14"
+                                            Background="{DynamicResource AppSectionBackgroundBrush}"
+                                                CornerRadius="16"
+                                            BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                                BorderThickness="1">
+                                            <StackPanel>
+                                                <DockPanel LastChildFill="False">
+                                                    <Button DockPanel.Dock="Right"
+                                                            Style="{StaticResource IconButtonStyle}"
+                                                            Click="CopyLogEntryButton_OnClick"
+                                                            ToolTip="Copy this log entry">
+                                                        <TextBlock Text="&#xE8C8;" />
+                                                    </Button>
+                                                    <Border DockPanel.Dock="Left"
+                                                            Background="{DynamicResource AppBadgeStrongBrush}"
+                                                            CornerRadius="10"
+                                                            Padding="8,3"
+                                                            Margin="0,0,8,0">
+                                                        <TextBlock Text="{Binding CategoryText}"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource AppBadgeTextBrush}" />
+                                                    </Border>
+                                                    <Border DockPanel.Dock="Left"
+                                                            Background="{DynamicResource AppBadgeBrush}"
+                                                            CornerRadius="10"
+                                                            Padding="8,3"
+                                                            Margin="0,0,8,0">
+                                                        <TextBlock Text="{Binding SourceText}"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource AppBadgeTextBrush}" />
+                                                    </Border>
+                                                    <TextBlock DockPanel.Dock="Right"
+                                                               Text="{Binding TimestampText}"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource AppTertiaryTextBrush}"
+                                                               VerticalAlignment="Center" />
+                                                </DockPanel>
+                                                <TextBlock Margin="0,8,0,0"
+                                                           Text="{Binding Message}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource AppTextStrongBrush}"
+                                                           FontWeight="SemiBold" />
+                                                <TextBlock Margin="0,6,0,0"
+                                                           Text="{Binding DurationText}"
+                                                           Foreground="{DynamicResource AppTertiaryTextBrush}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DurationMilliseconds}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <Expander Margin="0,8,0,0"
+                                                          Header="Details"
+                                                          IsExpanded="False">
+                                                    <Expander.Style>
+                                                        <Style TargetType="Expander">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasDetail}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Expander.Style>
+                                                    <TextBox Margin="0,8,0,0"
+                                                             IsReadOnly="True"
+                                                             AcceptsReturn="True"
+                                                             TextWrapping="Wrap"
+                                                             VerticalScrollBarVisibility="Auto"
+                                                             MinHeight="80"
+                                                             Text="{Binding Detail, Mode=OneWay}" />
+                                                </Expander>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <Grid Grid.Row="4"
+                                                                    Grid.Column="2"
+                                                                    VerticalAlignment="Top">
+                                <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="12" />
+                                                                        <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Border Background="{DynamicResource AppSectionBackgroundBrush}"
+                                        CornerRadius="18"
+                                        Padding="14"
+                                    BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                        BorderThickness="1">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="8" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="8" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="8" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="8" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel>
+                                            <TextBlock Text="Shared Room Memory"
+                                                       FontSize="18"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Text="The hidden current-state memory block that all agents share between rounds."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                        </StackPanel>
+
+                                                <TextBlock Grid.Row="2"
+                                                       Text="Memory File"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppSectionTextBrush}" />
+
+                                                <TextBox Grid.Row="4"
+                                                     IsReadOnly="True"
+                                                     Text="{Binding SelectedThemeSharedRoomMemoryPath, Mode=OneWay}" />
+
+                                                <WrapPanel Grid.Row="6">
+                                                    <Button Margin="0,0,8,0"
+                                                        Style="{StaticResource IconButtonStyle}"
+                                                        Content="&#xE8B7;"
+                                                        ToolTip="Open in Explorer"
+                                                        Tag="{Binding SelectedThemeSharedRoomMemoryPath, Mode=OneWay}"
+                                                        Click="OpenPathInExplorerButton_OnClick" />
+                                                    <Button Style="{StaticResource IconButtonStyle}"
+                                                        Margin="0"
+                                                        Content="&#xE8C8;"
+                                                        ToolTip="Copy Path"
+                                                        Tag="{Binding SelectedThemeSharedRoomMemoryPath, Mode=OneWay}"
+                                                        Click="CopyPathButton_OnClick" />
+                                                </WrapPanel>
+
+                                                <TextBox Grid.Row="8"
+                                                 IsReadOnly="True"
+                                                 AcceptsReturn="True"
+                                                 TextWrapping="Wrap"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 MinHeight="180"
+                                                 MaxHeight="260"
+                                                 Text="{Binding SharedRoomMemoryDisplay, Mode=OneWay}" />
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Row="2"
+                                    Background="{DynamicResource AppSectionBackgroundBrush}"
+                                        CornerRadius="18"
+                                        Padding="14"
+                                    BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                        BorderThickness="1">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="8" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="8" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="8" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="8" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel>
+                                            <TextBlock Text="Durable Memory"
+                                                       FontSize="18"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Text="Stable world facts and ongoing truths promoted by the hidden summarizer."
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}" />
+                                        </StackPanel>
+
+                                                <TextBlock Grid.Row="2"
+                                                       Text="Memory File"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppSectionTextBrush}" />
+
+                                                <TextBox Grid.Row="4"
+                                                     IsReadOnly="True"
+                                                     Text="{Binding SelectedThemeDurableMemoryPath, Mode=OneWay}" />
+
+                                                <WrapPanel Grid.Row="6">
+                                                    <Button Margin="0,0,8,0"
+                                                        Style="{StaticResource IconButtonStyle}"
+                                                        Content="&#xE8B7;"
+                                                        ToolTip="Open in Explorer"
+                                                        Tag="{Binding SelectedThemeDurableMemoryPath, Mode=OneWay}"
+                                                        Click="OpenPathInExplorerButton_OnClick" />
+                                                    <Button Style="{StaticResource IconButtonStyle}"
+                                                        Margin="0"
+                                                        Content="&#xE8C8;"
+                                                        ToolTip="Copy Path"
+                                                        Tag="{Binding SelectedThemeDurableMemoryPath, Mode=OneWay}"
+                                                        Click="CopyPathButton_OnClick" />
+                                                </WrapPanel>
+
+                                                <TextBox Grid.Row="8"
+                                                 IsReadOnly="True"
+                                                 AcceptsReturn="True"
+                                                 TextWrapping="Wrap"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 MinHeight="180"
+                                                 MaxHeight="260"
+                                                 Text="{Binding ThemeDurableMemoryDisplay, Mode=OneWay}" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Configure AI Models">
+                <Grid Margin="8,14,8,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="0.95*" />
+                        <ColumnDefinition Width="18" />
+                        <ColumnDefinition Width="1.15*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Background="{DynamicResource AppPanelBackgroundBrush}"
+                            CornerRadius="24"
+                            Padding="18"
+                            BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="260" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="Connections"
+                                           FontSize="24"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource AppTextBrush}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Text="Connections own the transport, endpoint, and API key. Add one connection, then point as many models at it as you need."
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource AppMutedTextBrush}" />
+                            </StackPanel>
+
+                            <ListBox Grid.Row="2"
+                                     ItemsSource="{Binding AiConnectionProfiles}"
+                                     SelectedItem="{Binding SelectedAiConnection, Mode=TwoWay}"
+                                     ScrollViewer.CanContentScroll="False"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     ScrollViewer.PanningMode="VerticalOnly">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:AiConnectionProfile}">
+                                        <Border Margin="0,0,0,10"
+                                                Padding="14"
+                                                Background="{DynamicResource AppSectionBackgroundBrush}"
+                                                CornerRadius="16"
+                                                BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                                BorderThickness="1">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AppTextBrush}" />
+                                                <TextBlock Margin="0,4,0,0"
+                                                           Text="{Binding Transport, StringFormat=Transport: {0}}"
+                                                           Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                                <TextBlock Margin="0,4,0,0"
+                                                           Text="{Binding Endpoint, TargetNullValue=(no endpoint yet)}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <UniformGrid Grid.Row="4" Columns="2">
+                                <Button Margin="0,0,6,0"
+                                        Content="Add Connection"
+                                        Click="AddAiConnectionButton_OnClick" />
+                                <Button Margin="6,0,0,0"
+                                        Content="Remove Connection"
+                                        Click="RemoveAiConnectionButton_OnClick" />
+                            </UniformGrid>
+
+                            <Border Grid.Row="6"
+                                    Background="{DynamicResource AppSectionBackgroundBrush}"
+                                    CornerRadius="18"
+                                    Padding="14"
+                                    BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Connection Details"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppTextBrush}" />
+
+                                    <TextBlock Margin="0,12,0,0"
+                                               Text="Name"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppSectionTextBrush}" />
+                                    <TextBox Margin="0,8,0,12"
+                                             Text="{Binding SelectedAiConnection.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock Text="Transport"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppSectionTextBrush}" />
+                                    <ComboBox Margin="0,8,0,12"
+                                              ItemsSource="{Binding AvailableAiConnectionTransports}"
+                                              SelectedItem="{Binding SelectedAiConnection.Transport, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock Text="Endpoint"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppSectionTextBrush}" />
+                                    <TextBox Margin="0,8,0,12"
+                                             Text="{Binding SelectedAiConnection.Endpoint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock Text="API Key"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppSectionTextBrush}" />
+                                    <TextBox Margin="0,8,0,0"
+                                             Text="{Binding SelectedAiConnection.ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock Margin="0,10,0,0"
+                                               Text="Groq, Gemini, and Hugging Face require API keys. OpenAI-compatible connections can stay keyless for local proxies if your endpoint supports that."
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Column="2"
+                            Background="{DynamicResource AppPanelAltBackgroundBrush}"
+                            CornerRadius="24"
+                            Padding="18"
+                            BorderBrush="{DynamicResource AppPanelBorderAltBrush}"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="260" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="12" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Text="Model Catalog"
+                                               FontSize="24"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppTextBrush}" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               Text="Models are filtered by the selected service on the left. Save after renaming a model so room references update to the new name."
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource AppMutedTextBrush}" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               Text="{Binding SelectedAiConnectionDisplayName, StringFormat=Showing models for: {0}}"
+                                               Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                </StackPanel>
+
+                                <Button Grid.Column="2"
+                                        Content="Save AI Settings"
+                                        Click="SaveAiSettingsButton_OnClick" />
+                            </Grid>
+
+                            <ListBox Grid.Row="2"
+                                     ItemsSource="{Binding FilteredAiModels}"
+                                     SelectedItem="{Binding SelectedAiModel, Mode=TwoWay}"
+                                     ScrollViewer.CanContentScroll="False"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     ScrollViewer.PanningMode="VerticalOnly">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:AiModelCatalogEntry}">
+                                        <Border Margin="0,0,0,10"
+                                                Padding="14"
+                                                Background="{DynamicResource AppSectionBackgroundBrush}"
+                                                CornerRadius="16"
+                                                BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                                BorderThickness="1">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AppTextBrush}" />
+                                                <TextBlock Margin="0,4,0,0"
+                                                           Text="{Binding ModelId, TargetNullValue=(no model id yet)}"
+                                                           Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                                <TextBlock Margin="0,4,0,0"
+                                                           Text="{Binding ConnectionName, StringFormat=Connection: {0}}"
+                                                           Foreground="{DynamicResource AppTertiaryTextBrush}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <WrapPanel Grid.Row="4">
+                                <Button Margin="0,0,8,8"
+                                        Content="Add Model"
+                                        Click="AddAiModelButton_OnClick" />
+                                <Button Margin="0,0,8,8"
+                                        Content="Remove Model"
+                                        Click="RemoveAiModelButton_OnClick" />
+                                <Button Margin="0,0,0,8"
+                                        Content="Test Model Connection"
+                                        Click="TestAiModelConnectionButton_OnClick" />
+                            </WrapPanel>
+
+                            <Border Grid.Row="6"
+                                    Background="{DynamicResource AppSectionBackgroundBrush}"
+                                    CornerRadius="18"
+                                    Padding="14"
+                                    BorderBrush="{DynamicResource AppPanelBorderBrush}"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Model Details"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppTextBrush}" />
+
+                                    <TextBlock Margin="0,12,0,0"
+                                               Text="Display Name"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppSectionTextBrush}" />
+                                    <TextBox Margin="0,8,0,12"
+                                             Text="{Binding SelectedAiModel.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock Text="Connection"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppSectionTextBrush}" />
+                                    <ComboBox Margin="0,8,0,12"
+                                              ItemsSource="{Binding AiConnectionProfiles}"
+                                              DisplayMemberPath="Name"
+                                              SelectedValuePath="Id"
+                                              SelectedValue="{Binding SelectedAiModel.ConnectionId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock Text="Model ID"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppSectionTextBrush}" />
+                                    <TextBox Margin="0,8,0,12"
+                                             Text="{Binding SelectedAiModel.ModelId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock Text="Notes"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppSectionTextBrush}" />
+                                    <TextBox Margin="0,8,0,0"
+                                             MinHeight="120"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             Text="{Binding SelectedAiModel.Notes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>

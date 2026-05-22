@@ -1,0 +1,136 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace AgentGroupChat.Infrastructure.Entities;
+
+[Table("AppSettings")]
+public class AppSettingsEntity
+{
+    [Key]
+    public int Id { get; set; } = 1;
+    public string UiTheme { get; set; } = "System";
+    public string UiAccent { get; set; } = "Terracotta";
+    public bool TtsEnabled { get; set; }
+    public string TtsProvider { get; set; } = "Local";
+    public string TtsVoice { get; set; } = string.Empty;
+    public int TtsRate { get; set; }
+    public string PiperExePath { get; set; } = string.Empty;
+    public string PiperModelsDir { get; set; } = string.Empty;
+    public string KokoroBaseUrl { get; set; } = "http://127.0.0.1:8000";
+    public string KokoroModel { get; set; } = "kokoro";
+    public string KokoroVoice { get; set; } = "af_heart";
+    public string KokoroLangCode { get; set; } = "a";
+    public double KokoroSpeed { get; set; } = 1.0;
+    public bool SetupModelsCompleted { get; set; }
+    public bool SetupRoomsCompleted { get; set; }
+    public string SetupTtsStatus { get; set; } = "Pending";
+    public bool HideSetupGuide { get; set; }
+}
+
+[Table("AiConnections")]
+public class AiConnectionEntity
+{
+    [Key]
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Transport { get; set; } = "OpenAI Compatible";
+    public string Endpoint { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+}
+
+[Table("AiModels")]
+public class AiModelEntity
+{
+    [Key]
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string ConnectionId { get; set; } = string.Empty;
+    public string ModelId { get; set; } = string.Empty;
+    public string Notes { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+}
+
+[Table("Rooms")]
+public class RoomEntity
+{
+    [Key]
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Topic { get; set; } = string.Empty;
+    public bool WaitForUserReply { get; set; } = true;
+    public int AgentDelaySeconds { get; set; } = 5;
+    public int MaxTokens { get; set; } = 300;
+    public int RecentTurnsWindow { get; set; } = 6;
+    public int UserCompactionBudget { get; set; } = 3200;
+    public string SummarizerModelId { get; set; } = string.Empty;
+    public string SummarizationLevel { get; set; } = "Moderate";
+    public int SummarizerMaxTokens { get; set; } = 500;
+    public int SummarizerMaxLines { get; set; } = 28;
+    public int SummarizerMaxCharacters { get; set; } = 5600;
+    public int SummarizerBroaderTurns { get; set; } = 6;
+    public string SummarizerPromptOverride { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+    public List<AgentEntity> Agents { get; set; } = new();
+}
+
+[Table("Agents")]
+public class AgentEntity
+{
+    [Key]
+    public string Id { get; set; } = string.Empty;
+    public string RoomId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string ModelId { get; set; } = string.Empty;
+    public string SystemPrompt { get; set; } = string.Empty;
+    public bool IsEnabled { get; set; } = true;
+    public int? MaxTokensOverride { get; set; }
+    public int CompactionBudget { get; set; } = 420;
+    public string AccentHex { get; set; } = "#C56A54";
+    public string BackgroundHex { get; set; } = "#F9E5DE";
+    public string TtsVoice { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+    public RoomEntity? Room { get; set; }
+}
+
+[Table("TranscriptTurns")]
+public class TranscriptTurnEntity
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public long Id { get; set; }
+    public string RoomId { get; set; } = string.Empty;
+    public int Round { get; set; }
+    public string Speaker { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public string AccentHex { get; set; } = string.Empty;
+    public string BackgroundHex { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+[Table("MemoryBlocks")]
+public class MemoryBlockEntity
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public long Id { get; set; }
+    public string RoomId { get; set; } = string.Empty;
+    public string? AgentId { get; set; }
+    public string Kind { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+[Table("LogEntries")]
+public class LogEntryEntity
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public long Id { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public string Source { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string Detail { get; set; } = string.Empty;
+    public long? DurationMs { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}

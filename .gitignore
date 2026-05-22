@@ -1,0 +1,49 @@
+# Build outputs
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+
+# .NET / Visual Studio
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+*.csproj.user
+
+# MAUI / NuGet
+*.nupkg
+project.lock.json
+project.fragment.lock.json
+
+# IDE
+.idea/
+*.swp
+*~
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Temporary / debug logs
+*.log
+dotnet-run.err
+dotnet-run.out
+dotnet-run.stderr.log
+dotnet-run.stdout.log
+
+# Test audio artifacts
+kokoro-test.wav
+
+# Copilot temp
+.copilot-temp/
+
+# Python / Kokoro-FastAPI (if checking in submodule)
+__pycache__/
+*.pyc
+.env
+*.egg-info/

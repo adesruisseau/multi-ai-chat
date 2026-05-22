@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentGroupChat.Core/AgentGroupChat.Core.csproj" />
+    <Project Path="src/AgentGroupChat.Hybrid/AgentGroupChat.Hybrid.csproj" />
+    <Project Path="src/AgentGroupChat.Infrastructure/AgentGroupChat.Infrastructure.csproj" />
+  </Folder>
+</Solution>
