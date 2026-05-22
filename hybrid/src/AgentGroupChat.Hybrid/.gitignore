@@ -1,0 +1,33 @@
+# Build outputs
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+
+# .NET / Visual Studio
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+*.csproj.user
+
+# NuGet
+*.nupkg
+project.lock.json
+project.fragment.lock.json
+
+# IDE
+.idea/
+*.swp
+*~
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Temporary
+*.log

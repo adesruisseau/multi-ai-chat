@@ -1,0 +1,237 @@
+@page "/rooms"
+@inject RoomState RoomState
+@inject AppState AppState
+@using AgentGroupChat.Hybrid.Theming
+
+<MudText Typo="Typo.h4" GutterBottom="true">Rooms</MudText>
+
+<MudGrid>
+    <MudItem xs="12">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudGrid>
+                <MudItem xs="8">
+                    <MudText Typo="Typo.h5">Room List</MudText>
+                </MudItem>
+                <MudItem xs="4" Style="margin-left: auto;">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="my-2" FullWidth="true" OnClick="AddRoom">Add Room</MudButton>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudList T="string" Dense="true" @bind-SelectedValue="_selectedRoomId">
+                    @foreach (var room in RoomState.Rooms)
+                    {
+                        <MudListItem T="string" Value="@room.Id" OnClick="() => SelectRoom(room)">
+                            @room.Name
+                        </MudListItem>
+                    }
+                </MudList>
+                 </MudItem>                   
+            </MudGrid>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12">
+        @if (RoomState.SelectedRoom is not null)
+        {
+            var room = RoomState.SelectedRoom;
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText Typo="Typo.h6">Room Settings</MudText>
+                <MudTextField @bind-Value="room.Name" Label="Name" Class="mb-2" />
+                <MudTextField @bind-Value="room.Topic" Label="Topic" Lines="3" Class="mb-2" />
+                <MudSwitch @bind-Value="room.WaitForUserReply" Label="Wait for user reply" Color="Color.Primary" />
+                <MudGrid>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="room.AgentDelaySeconds" Label="Seconds between agents" Min="1" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="room.MaxTokens" Label="Max tokens" Min="50" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="room.RecentTurnsWindow" Label="Recent transcript turns" Min="1" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="room.UserCompactionBudget" Label="User compaction budget" Min="200" />
+                    </MudItem>
+                </MudGrid>
+                <MudDivider Class="my-4" />
+                <br />
+                <MudText Typo="Typo.h5">Summarizer</MudText>
+                <MudSelect @bind-Value="room.SummarizerModelId" Label="Summarizer Model" Class="mb-2">
+                    <MudSelectItem T="string" Value="@string.Empty">(Use global default)</MudSelectItem>
+                    @foreach (var model in AppState.Models)
+                    {
+                        <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect @bind-Value="room.SummarizationLevel" Label="Compression Level" Class="mb-2">
+                    <MudSelectItem T="string" Value="@("Aggressive")">Aggressive</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Semi-Aggressive")">Semi-Aggressive</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Moderate")">Moderate</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Semi-Relaxed")">Semi-Relaxed</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Relaxed")">Relaxed</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Custom")">Custom</MudSelectItem>
+                </MudSelect>
+                @if (room.SummarizationLevel == "Custom")
+                {
+                    <MudGrid>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="room.SummarizerMaxTokens" Label="Summarizer max tokens" Min="140" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="room.SummarizerMaxLines" Label="Summarizer max lines" Min="12" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="room.SummarizerMaxCharacters" Label="Summarizer max characters" Min="1800" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="room.SummarizerBroaderTurns" Label="Broader transcript turns" Min="1" />
+                    </MudItem>
+                    </MudGrid>
+                    <MudTextField @bind-Value="room.SummarizerPromptOverride" Label="Custom summarizer prompt" Lines="12" />
+                }
+
+                <MudDivider Class="my-4" />
+                <br />
+                <MudText Typo="Typo.h5">Agents</MudText>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mb-2" OnClick="AddAgent">Add Agent</MudButton>
+                @foreach (var agent in room.Agents)
+                {
+                    <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+                        <MudGrid>
+                            <MudItem xs="6">
+                                <MudTextField @bind-Value="agent.Name" Label="Agent Name" />
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudSelect @bind-Value="agent.ModelId" Label="Model">
+                                    @foreach (var model in AppState.Models)
+                                    {
+                                        <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="agent.SystemPrompt" Label="System Prompt" Lines="12" />
+                            </MudItem>
+                            <MudItem xs="3">
+                                <MudSwitch @bind-Value="agent.IsEnabled" Label="Enabled" Color="Color.Primary" />
+                            </MudItem>
+                            <MudItem xs="3">
+                                <MudNumericField @bind-Value="agent.MaxTokensOverride" Label="Max tokens override" />
+                            </MudItem>
+                            <MudItem xs="3">
+                                <MudNumericField @bind-Value="agent.CompactionBudget" Label="Compaction budget" Min="80" />
+                            </MudItem>
+                            <MudItem xs="3">
+                                <MudTextField @bind-Value="agent.TtsVoice" Label="TTS Voice" />
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudSelect Value="agent.AccentHex" ValueChanged="@((string v) => OnAgentColorChanged(agent, v))" Label="Chat color" T="string">
+                                    @foreach (var preset in AgentColorPresets.GetPresets(_isDark))
+                                    {
+                                        <MudSelectItem T="string" Value="@preset.AccentHex">
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                                <MudIcon Icon="@Icons.Material.Filled.Circle" Style="@($"color:{preset.AccentHex}")" Size="Size.Small" />
+                                                @preset.Name
+                                            </MudStack>
+                                        </MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => RemoveAgent(agent)" style="margin-left: auto;">Remove</MudButton>
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+
+                <MudDivider Class="my-4" />
+                <MudStack Row="true" Spacing="2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveRoom">Save Room</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DeleteRoom">Delete Room</MudButton>
+                </MudStack>
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudText>Select a room from the list or add a new one.</MudText>
+            </MudPaper>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string _selectedRoomId = string.Empty;
+    private bool _isDark => AppState.Settings.UiTheme == "Dark";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RoomState.LoadAsync();
+        RoomState.OnChange += StateHasChanged;
+    }
+
+    private void SelectRoom(RoomConfig room) => RoomState.SelectRoom(room);
+
+    private async Task AddRoom()
+    {
+        var room = new RoomConfig
+        {
+            Name = $"Room {RoomState.Rooms.Count + 1}",
+            SortOrder = RoomState.Rooms.Count,
+        };
+        await RoomState.SaveRoomAsync(room);
+        RoomState.SelectRoom(room);
+
+        if (!AppState.Settings.SetupRoomsCompleted)
+        {
+            AppState.Settings.SetupRoomsCompleted = true;
+            await AppState.SaveSettingsAsync();
+        }
+    }
+
+    private void AddAgent()
+    {
+        if (RoomState.SelectedRoom is null) return;
+        RoomState.SelectedRoom.Agents.Add(new AgentConfig
+        {
+            RoomId = RoomState.SelectedRoom.Id,
+            Name = $"Agent {RoomState.SelectedRoom.Agents.Count + 1}",
+            SortOrder = RoomState.SelectedRoom.Agents.Count,
+        });
+        StateHasChanged();
+    }
+
+    private void RemoveAgent(AgentConfig agent)
+    {
+        RoomState.SelectedRoom?.Agents.Remove(agent);
+        StateHasChanged();
+    }
+
+    private void OnAgentColorChanged(AgentConfig agent, string accentHex)
+    {
+        var preset = AgentColorPresets.FindByAccent(accentHex, _isDark);
+        agent.AccentHex = preset.AccentHex;
+        agent.BackgroundHex = preset.BackgroundHex;
+    }
+
+    private async Task SaveRoom()
+    {
+        if (RoomState.SelectedRoom is null) return;
+        await RoomState.SaveRoomAsync(RoomState.SelectedRoom);
+
+        if (!AppState.Settings.SetupRoomsCompleted)
+        {
+            AppState.Settings.SetupRoomsCompleted = true;
+            await AppState.SaveSettingsAsync();
+        }
+    }
+
+    private async Task DeleteRoom()
+    {
+        if (RoomState.SelectedRoom is null) return;
+        await RoomState.DeleteRoomAsync(RoomState.SelectedRoom.Id);
+    }
+
+    public void Dispose()
+    {
+        RoomState.OnChange -= StateHasChanged;
+    }
+}

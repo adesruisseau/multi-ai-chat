@@ -1,0 +1,194 @@
+@page "/models"
+@inject AppState AppState
+@inject AgentGroupChat.Core.Services.LlmClient LlmClient
+
+<MudText Typo="Typo.h4" GutterBottom="true">AI Models</MudText>
+
+<MudGrid>
+    <MudItem xs="12">
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudText Typo="Typo.h6">AI Connections</MudText>
+            <MudText Typo="Typo.body2" Class="mb-2">Configure endpoints for your AI providers.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="AddConnection">Add Connection</MudButton>
+
+            @foreach (var conn in AppState.Connections)
+            {
+                <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+                    <MudGrid>
+                        <MudItem xs="3">
+                            <MudTextField @bind-Value="conn.Name" Label="Name" />
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudSelect @bind-Value="conn.Transport" Label="Transport" T="string">
+                                <MudSelectItem T="string" Value="@("OpenAI Compatible")">OpenAI Compatible</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Groq")">Groq</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Gemini")">Gemini</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("HuggingFace")">HuggingFace</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Ollama")">Ollama</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudTextField @bind-Value="conn.Endpoint" Label="Endpoint" />
+                        </MudItem>
+                        <MudItem xs="3">
+                            <MudTextField @bind-Value="conn.ApiKey" Label="API Key" InputType="InputType.Password" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudStack Row="true" Spacing="2">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SaveConnection(conn)">Save</MudButton>
+                                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => DeleteConnection(conn.Id)">Delete</MudButton>
+                            </MudStack>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6">Model Catalog</MudText>
+            <MudText Typo="Typo.body2" Class="mb-2">Register models that agents and the summarizer can use.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="AddModel">Add Model</MudButton>
+
+            @if (!string.IsNullOrEmpty(_testResult))
+            {
+                <MudAlert Severity="@_testSeverity" Class="mb-3" ShowCloseIcon="true" CloseIconClicked="() => _testResult = string.Empty">
+                    @_testResult
+                </MudAlert>
+            }
+
+            <MudTable Items="AppState.Models" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Connection</MudTh>
+                    <MudTh>Model ID</MudTh>
+                    <MudTh>Notes</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd><MudTextField @bind-Value="context.Name" /></MudTd>
+                    <MudTd>
+                        <MudSelect @bind-Value="context.ConnectionId" T="string">
+                            @foreach (var conn in AppState.Connections)
+                            {
+                                <MudSelectItem T="string" Value="@conn.Id">@conn.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudTd>
+                    <MudTd><MudTextField @bind-Value="context.ModelId" /></MudTd>
+                    <MudTd><MudTextField @bind-Value="context.Notes" /></MudTd>
+                    <MudTd>
+                        <MudStack Row="true" Spacing="1">
+                            <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="() => SaveModel(context)">Save</MudButton>
+                            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Primary" OnClick="() => TestModel(context)" Disabled="_isTesting">Test</MudButton>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteModel(context.Id)">Delete</MudButton>
+                        </MudStack>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        AppState.OnChange += StateHasChanged;
+        await AppState.LoadAsync();
+    }
+
+    private async Task AddConnection()
+    {
+        var conn = new AiConnection { Name = "New Connection", SortOrder = AppState.Connections.Count };
+        await AppState.SaveConnectionAsync(conn);
+    }
+
+    private async Task SaveConnection(AiConnection conn)
+    {
+        await AppState.SaveConnectionAsync(conn);
+        if (!AppState.Settings.SetupModelsCompleted)
+        {
+            AppState.Settings.SetupModelsCompleted = true;
+            await AppState.SaveSettingsAsync();
+        }
+    }
+
+    private async Task DeleteConnection(string id) => await AppState.DeleteConnectionAsync(id);
+
+    private async Task AddModel()
+    {
+        var model = new AiModel { Name = "New Model", SortOrder = AppState.Models.Count };
+        await AppState.SaveModelAsync(model);
+    }
+
+    private async Task SaveModel(AiModel model)
+    {
+        await AppState.SaveModelAsync(model);
+        if (!AppState.Settings.SetupModelsCompleted)
+        {
+            AppState.Settings.SetupModelsCompleted = true;
+            await AppState.SaveSettingsAsync();
+        }
+    }
+
+    private async Task DeleteModel(string id) => await AppState.DeleteModelAsync(id);
+
+    private bool _isTesting;
+    private string _testResult = string.Empty;
+    private Severity _testSeverity = Severity.Info;
+
+    private async Task TestModel(AiModel model)
+    {
+        var connection = AppState.Connections.FirstOrDefault(c => c.Id == model.ConnectionId);
+        if (connection is null)
+        {
+            _testResult = "No connection found for this model. Save the model with a valid connection first.";
+            _testSeverity = Severity.Warning;
+            return;
+        }
+
+        _isTesting = true;
+        _testResult = $"Testing {model.Name}...";
+        _testSeverity = Severity.Info;
+        StateHasChanged();
+
+        try
+        {
+            var provider = connection.Transport switch
+            {
+                "Groq" => LlmProvider.Groq,
+                "Gemini" => LlmProvider.Gemini,
+                "HuggingFace" => LlmProvider.HuggingFace,
+                "Ollama" => LlmProvider.Ollama,
+                _ => LlmProvider.OpenAiCompatible,
+            };
+
+            var settings = new LlmRequestSettings(
+                provider, connection.Endpoint, model.ModelId, connection.ApiKey,
+                80, connection.Transport, connection.Name);
+
+            var result = await LlmClient.CompleteAsync(settings,
+                [new LlmChatMessage("user", "Reply with exactly: CONNECTION OK")],
+                CancellationToken.None);
+
+            var preview = result.Content.Length > 180 ? result.Content[..180] + "..." : result.Content;
+            _testResult = $"Test passed for '{model.Name}'. Response: {preview}";
+            _testSeverity = Severity.Success;
+        }
+        catch (Exception ex)
+        {
+            _testResult = $"Test failed for '{model.Name}': {ex.Message}";
+            _testSeverity = Severity.Error;
+        }
+        finally
+        {
+            _isTesting = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+    }
+}
