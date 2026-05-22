@@ -1,0 +1,141 @@
+@page "/logs"
+@inject AgentGroupChat.Core.Services.LogService LogService
+@inject RoomState RoomState
+@inject AgentGroupChat.Core.Services.Interfaces.IMemoryRepository MemoryRepo
+@implements IDisposable
+
+<MudText Typo="Typo.h4" GutterBottom="true">Logs</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudText Typo="Typo.h6">Shared Room Memory</MudText>
+            @if (RoomState.SelectedRoom is null)
+            {
+                <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">Select a room to view memory.</MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Class="mb-1">Room: @RoomState.SelectedRoom.Name</MudText>
+                <pre style="white-space:pre-wrap; max-height:300px; overflow-y:auto; margin:0">@_sharedRoomMemory</pre>
+            }
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudText Typo="Typo.h6">Durable Memory</MudText>
+            @if (RoomState.SelectedRoom is null)
+            {
+                <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">Select a room to view memory.</MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Class="mb-1">Room: @RoomState.SelectedRoom.Name</MudText>
+                <pre style="white-space:pre-wrap; max-height:300px; overflow-y:auto; margin:0">@_durableMemory</pre>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudPaper Class="pa-4 mb-4" Elevation="1">
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+        <MudSelect @bind-Value="_categoryFilter" Label="Category" Class="flex-grow-1" T="string">
+            <MudSelectItem T="string" Value="@string.Empty">All</MudSelectItem>
+            <MudSelectItem T="string" Value="@("System")">System</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Speech")">Speech</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Timing")">Timing</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Request")">Request</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Response")">Response</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Memory")">Memory</MudSelectItem>
+        </MudSelect>
+        <MudSelect @bind-Value="_sourceFilter" Label="Source" Class="flex-grow-1" T="string">
+            <MudSelectItem T="string" Value="@string.Empty">All</MudSelectItem>
+            @foreach (var source in _sources)
+            {
+                <MudSelectItem T="string" Value="@source">@source</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Refresh">Refresh</MudButton>
+    </MudStack>
+</MudPaper>
+
+<MudPaper Elevation="1">
+    <MudTable Items="_entries" Dense="true" Hover="true" Striped="true" FixedHeader="true" Height="500px">
+        <HeaderContent>
+            <MudTh>Category</MudTh>
+            <MudTh>Source</MudTh>
+            <MudTh>Message</MudTh>
+            <MudTh>Duration</MudTh>
+            <MudTh>Time</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.CategoryText</MudTd>
+            <MudTd>@context.Source</MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2">@context.Message</MudText>
+                @if (context.HasDetail)
+                {
+                    <MudText Typo="Typo.caption" Style="white-space:pre-wrap">@context.Detail</MudText>
+                }
+            </MudTd>
+            <MudTd>@context.DurationText</MudTd>
+            <MudTd>@context.CreatedAt.ToString("HH:mm:ss")</MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private List<LogEntry> _entries = new();
+    private List<string> _sources = new();
+    private string _categoryFilter = string.Empty;
+    private string _sourceFilter = string.Empty;
+    private string _sharedRoomMemory = string.Empty;
+    private string _durableMemory = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        LogService.OnEntryAdded += OnEntryAdded;
+        RoomState.OnChange += OnRoomChanged;
+        await Refresh();
+        await RefreshMemory();
+    }
+
+    private async Task Refresh()
+    {
+        _sources = await LogService.GetSourcesAsync();
+        _entries = await LogService.QueryAsync(
+            string.IsNullOrWhiteSpace(_categoryFilter) ? null : _categoryFilter,
+            string.IsNullOrWhiteSpace(_sourceFilter) ? null : _sourceFilter);
+    }
+
+    private async Task RefreshMemory()
+    {
+        if (RoomState.SelectedRoom is null) return;
+        _sharedRoomMemory = await MemoryRepo.GetAsync(RoomState.SelectedRoom.Id, null, MemoryKind.SharedRoom);
+        _durableMemory = await MemoryRepo.GetAsync(RoomState.SelectedRoom.Id, null, MemoryKind.Durable);
+    }
+
+    private void OnEntryAdded(LogEntry entry)
+    {
+        InvokeAsync(async () =>
+        {
+            await Refresh();
+            StateHasChanged();
+        });
+    }
+
+    private void OnRoomChanged()
+    {
+        InvokeAsync(async () =>
+        {
+            await RefreshMemory();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        LogService.OnEntryAdded -= OnEntryAdded;
+        RoomState.OnChange -= OnRoomChanged;
+    }
+}
