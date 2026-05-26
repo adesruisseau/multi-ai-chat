@@ -5,6 +5,7 @@
 @inject AgentGroupChat.Core.Services.ConversationRunner Runner
 @inject AgentGroupChat.Core.Services.Interfaces.ITranscriptRepository TranscriptRepo
 @inject AgentGroupChat.Core.Services.SpeechService Speech
+@inject AgentGroupChat.Core.Services.LogService LogService
 @using AgentGroupChat.Core.Services
 @using AgentGroupChat.Hybrid.Theming
 @implements IDisposable
@@ -61,6 +62,7 @@ else
             <MudSpacer />
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Run" Disabled="ConvoState.IsRunning">Run</MudButton>
             <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Stop" Disabled="!ConvoState.IsRunning">Stop</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearChat" Disabled="ConvoState.IsRunning">Clear Chat</MudButton>
         </MudStack>
         <MudText Typo="Typo.caption" Class="mt-1">@ConvoState.Status</MudText>
     </MudPaper>
@@ -111,6 +113,7 @@ else
         Runner.OnAgentMessageStarted += OnRunnerAgentStarted;
         Runner.OnAgentMessageCompleted += OnRunnerAgentCompleted;
         Runner.OnStatusChanged += OnRunnerStatusChanged;
+        Runner.OnLog += OnRunnerLog;
         Speech.OnPlaybackStateChanged += OnSpeechStateChanged;
 
         // Wire TTS speech gate into conversation runner
@@ -126,6 +129,7 @@ else
     {
         // System messages are tracked internally but not shown in chat
         ConvoState.SetStatus(msg);
+        _ = LogService.LogAsync(LogCategory.System, "Runner", msg);
         InvokeAsync(StateHasChanged);
     }
 
@@ -149,6 +153,15 @@ else
     {
         ConvoState.SetStatus(status);
         InvokeAsync(StateHasChanged);
+    }
+
+    private void OnRunnerLog(string message)
+    {
+        // Determine category from message content
+        var category = message.Contains("memory", StringComparison.OrdinalIgnoreCase)
+            ? LogCategory.Memory
+            : LogCategory.Response;
+        _ = LogService.LogAsync(category, "Runner", message);
     }
 
     private async Task LoadRoom()
@@ -248,6 +261,13 @@ else
         _cts?.Cancel();
         _playbackCts?.Cancel();
         Speech.Stop();
+    }
+
+    private async Task ClearChat()
+    {
+        if (RoomState.SelectedRoom is null) return;
+        await TranscriptRepo.ClearAsync(RoomState.SelectedRoom.Id);
+        ConvoState.Clear();
     }
 
     private async Task OnKeyDown(KeyboardEventArgs e)
@@ -422,6 +442,7 @@ else
         Runner.OnAgentMessageStarted -= OnRunnerAgentStarted;
         Runner.OnAgentMessageCompleted -= OnRunnerAgentCompleted;
         Runner.OnStatusChanged -= OnRunnerStatusChanged;
+        Runner.OnLog -= OnRunnerLog;
         Speech.OnPlaybackStateChanged -= OnSpeechStateChanged;
         Runner.OnSpeechGate = null;
         _cts?.Dispose();

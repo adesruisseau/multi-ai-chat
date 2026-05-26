@@ -9,7 +9,15 @@
 <MudGrid>
     <MudItem xs="12" md="6">
         <MudPaper Class="pa-4 mb-4" Elevation="1">
-            <MudText Typo="Typo.h6">Shared Room Memory</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText Typo="Typo.h6">Shared Room Memory</MudText>
+                <MudSpacer />
+                @if (RoomState.SelectedRoom is not null)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
+                               OnClick="ClearSharedRoomMemory">Clear</MudButton>
+                }
+            </MudStack>
             @if (RoomState.SelectedRoom is null)
             {
                 <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">Select a room to view memory.</MudText>
@@ -23,7 +31,15 @@
     </MudItem>
     <MudItem xs="12" md="6">
         <MudPaper Class="pa-4 mb-4" Elevation="1">
-            <MudText Typo="Typo.h6">Durable Memory</MudText>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText Typo="Typo.h6">Durable Memory</MudText>
+                <MudSpacer />
+                @if (RoomState.SelectedRoom is not null)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
+                               OnClick="ClearDurableMemory">Clear</MudButton>
+                }
+            </MudStack>
             @if (RoomState.SelectedRoom is null)
             {
                 <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">Select a room to view memory.</MudText>
@@ -38,24 +54,29 @@
 </MudGrid>
 
 <MudPaper Class="pa-4 mb-4" Elevation="1">
-    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
-        <MudSelect @bind-Value="_categoryFilter" Label="Category" Class="flex-grow-1" T="string">
-            <MudSelectItem T="string" Value="@string.Empty">All</MudSelectItem>
-            <MudSelectItem T="string" Value="@("System")">System</MudSelectItem>
-            <MudSelectItem T="string" Value="@("Speech")">Speech</MudSelectItem>
-            <MudSelectItem T="string" Value="@("Timing")">Timing</MudSelectItem>
-            <MudSelectItem T="string" Value="@("Request")">Request</MudSelectItem>
-            <MudSelectItem T="string" Value="@("Response")">Response</MudSelectItem>
-            <MudSelectItem T="string" Value="@("Memory")">Memory</MudSelectItem>
-        </MudSelect>
-        <MudSelect @bind-Value="_sourceFilter" Label="Source" Class="flex-grow-1" T="string">
+    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="flex-wrap">
+        @foreach (var cat in _allCategories)
+        {
+            var isActive = _activeCategories.Contains(cat);
+            <MudTooltip Text="@cat">
+                <MudIconButton Icon="@CategoryIcon(cat)"
+                               Color="@(isActive ? CategoryColor(cat) : Color.Default)"
+                               Variant="@(isActive ? Variant.Filled : Variant.Outlined)"
+                               Size="Size.Small"
+                               OnClick="@(() => ToggleCategory(cat))" />
+            </MudTooltip>
+        }
+        <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+        <MudSelect Value="_sourceFilter" Label="Source" Style="max-width:180px" T="string"
+                   ValueChanged="OnSourceFilterChanged">
             <MudSelectItem T="string" Value="@string.Empty">All</MudSelectItem>
             @foreach (var source in _sources)
             {
                 <MudSelectItem T="string" Value="@source">@source</MudSelectItem>
             }
         </MudSelect>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Refresh">Refresh</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Refresh" Size="Size.Small">Refresh</MudButton>
     </MudStack>
 </MudPaper>
 
@@ -85,9 +106,12 @@
 </MudPaper>
 
 @code {
+    private const int MaxLogEntries = 50;
+    private static readonly string[] _allCategories = Enum.GetNames<LogCategory>();
+    private readonly HashSet<string> _activeCategories = new(Enum.GetNames<LogCategory>());
+
     private List<LogEntry> _entries = new();
     private List<string> _sources = new();
-    private string _categoryFilter = string.Empty;
     private string _sourceFilter = string.Empty;
     private string _sharedRoomMemory = string.Empty;
     private string _durableMemory = string.Empty;
@@ -103,16 +127,88 @@
     private async Task Refresh()
     {
         _sources = await LogService.GetSourcesAsync();
-        _entries = await LogService.QueryAsync(
-            string.IsNullOrWhiteSpace(_categoryFilter) ? null : _categoryFilter,
-            string.IsNullOrWhiteSpace(_sourceFilter) ? null : _sourceFilter);
+
+        if (_activeCategories.Count == _allCategories.Length)
+        {
+            // All active = no category filter
+            _entries = await LogService.QueryAsync(
+                null,
+                string.IsNullOrWhiteSpace(_sourceFilter) ? null : _sourceFilter,
+                MaxLogEntries);
+        }
+        else if (_activeCategories.Count == 0)
+        {
+            _entries = new();
+        }
+        else
+        {
+            // Fetch per active category then merge and trim
+            var merged = new List<LogEntry>();
+            foreach (var cat in _activeCategories)
+            {
+                merged.AddRange(await LogService.QueryAsync(
+                    cat,
+                    string.IsNullOrWhiteSpace(_sourceFilter) ? null : _sourceFilter,
+                    MaxLogEntries));
+            }
+            _entries = merged.OrderBy(e => e.Id).TakeLast(MaxLogEntries).ToList();
+        }
     }
+
+    private async Task ToggleCategory(string category)
+    {
+        if (!_activeCategories.Remove(category))
+            _activeCategories.Add(category);
+        await Refresh();
+    }
+
+    private async Task OnSourceFilterChanged(string value)
+    {
+        _sourceFilter = value;
+        await Refresh();
+    }
+
+    private static string CategoryIcon(string category) => category switch
+    {
+        "System"   => Icons.Material.Filled.Settings,
+        "Speech"   => Icons.Material.Filled.RecordVoiceOver,
+        "Timing"   => Icons.Material.Filled.Timer,
+        "Request"  => Icons.Material.Filled.CallMade,
+        "Response" => Icons.Material.Filled.CallReceived,
+        "Memory"   => Icons.Material.Filled.Psychology,
+        _          => Icons.Material.Filled.Info,
+    };
+
+    private static Color CategoryColor(string category) => category switch
+    {
+        "System"   => Color.Info,
+        "Speech"   => Color.Success,
+        "Timing"   => Color.Warning,
+        "Request"  => Color.Primary,
+        "Response" => Color.Secondary,
+        "Memory"   => Color.Tertiary,
+        _          => Color.Default,
+    };
 
     private async Task RefreshMemory()
     {
         if (RoomState.SelectedRoom is null) return;
         _sharedRoomMemory = await MemoryRepo.GetAsync(RoomState.SelectedRoom.Id, null, MemoryKind.SharedRoom);
         _durableMemory = await MemoryRepo.GetAsync(RoomState.SelectedRoom.Id, null, MemoryKind.Durable);
+    }
+
+    private async Task ClearSharedRoomMemory()
+    {
+        if (RoomState.SelectedRoom is null) return;
+        await MemoryRepo.SaveAsync(RoomState.SelectedRoom.Id, null, MemoryKind.SharedRoom, string.Empty);
+        _sharedRoomMemory = string.Empty;
+    }
+
+    private async Task ClearDurableMemory()
+    {
+        if (RoomState.SelectedRoom is null) return;
+        await MemoryRepo.SaveAsync(RoomState.SelectedRoom.Id, null, MemoryKind.Durable, string.Empty);
+        _durableMemory = string.Empty;
     }
 
     private void OnEntryAdded(LogEntry entry)
