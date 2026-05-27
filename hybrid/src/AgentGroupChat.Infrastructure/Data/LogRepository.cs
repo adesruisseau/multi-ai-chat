@@ -16,6 +16,11 @@ public sealed class LogRepository : ILogRepository
         await _db.SaveChangesAsync();
     }
 
+    public async Task ClearAsync()
+    {
+        await _db.LogEntries.ExecuteDeleteAsync();
+    }
+
     public async Task<List<LogEntry>> QueryAsync(string? category, string? source, int limit)
     {
         var query = _db.LogEntries.AsNoTracking().AsQueryable();

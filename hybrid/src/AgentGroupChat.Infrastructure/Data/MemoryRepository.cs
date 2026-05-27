@@ -20,6 +20,30 @@ public sealed class MemoryRepository : IMemoryRepository
         return entity?.Content ?? string.Empty;
     }
 
+    public async Task<IReadOnlyList<MemoryBlock>> GetBlocksAsync(string roomId)
+    {
+        var entities = await _db.MemoryBlocks
+            .AsNoTracking()
+            .Where(m => m.RoomId == roomId)
+            .OrderBy(m => m.AgentId)
+            .ThenBy(m => m.Kind)
+            .ToListAsync();
+
+        return entities
+            .Select(entity => new MemoryBlock
+            {
+                Id = entity.Id,
+                RoomId = entity.RoomId,
+                AgentId = entity.AgentId,
+                Kind = Enum.TryParse<MemoryKind>(entity.Kind, true, out var kind)
+                    ? kind
+                    : MemoryKind.SharedRoom,
+                Content = entity.Content ?? string.Empty,
+                UpdatedAt = entity.UpdatedAt,
+            })
+            .ToList();
+    }
+
     public async Task SaveAsync(string roomId, string? agentId, MemoryKind kind, string content)
     {
         var kindStr = kind.ToString();

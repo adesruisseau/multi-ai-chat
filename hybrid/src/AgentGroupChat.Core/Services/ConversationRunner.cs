@@ -45,7 +45,8 @@ public sealed class ConversationRunner
         LlmRequestSettings baseSummarizerSettings,
         int maxIterations,
         int completedRounds,
-        CancellationToken ct)
+        CancellationToken ct,
+        int startFromAgentIndex = 0)
     {
         var enabledAgents = room.Agents.Where(a => a.IsEnabled).ToList();
         if (enabledAgents.Count == 0)
@@ -55,27 +56,40 @@ public sealed class ConversationRunner
 
         for (var iteration = 1; iteration <= maxIterations; iteration++)
         {
-            OnSystemMessage?.Invoke($"Round {iteration} of {maxIterations}.");
+            var agentStart = (iteration == 1) ? startFromAgentIndex : 0;
+            OnSystemMessage?.Invoke(agentStart > 0
+                ? $"Resuming round {iteration} of {maxIterations} from agent {agentStart + 1}."
+                : $"Round {iteration} of {maxIterations}.");
             var roundAnchor = sessionTurns.Count;
 
-            for (var agentIndex = 0; agentIndex < enabledAgents.Count; agentIndex++)
+            Task<(string Response, string FutureNote, LlmCompletionResult RawResult)>? prefetchTask = null;
+
+            for (var agentIndex = agentStart; agentIndex < enabledAgents.Count; agentIndex++)
             {
                 ct.ThrowIfCancellationRequested();
 
                 var agent = enabledAgents[agentIndex];
-                OnStatusChanged?.Invoke($"{agent.Name} thinking");
-                OnAgentMessageStarted?.Invoke(agent, "Thinking...");
+                string response;
+                string futureNote;
+                LlmCompletionResult rawResult;
 
-                var sharedRoomMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
-                var durableMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.Durable);
-                var recentTurns = sessionTurns.TakeLast(Math.Max(1, room.RecentTurnsWindow)).ToList();
+                if (prefetchTask is not null)
+                {
+                    // Use the prefetched result — "Thinking..." was already shown
+                    (response, futureNote, rawResult) = await prefetchTask;
+                    prefetchTask = null;
+                }
+                else
+                {
+                    // No prefetch available — execute normally
+                    OnStatusChanged?.Invoke($"{agent.Name} thinking");
+                    OnAgentMessageStarted?.Invoke(agent, "Thinking...");
 
-                var prompt = _promptComposer.BuildAgentPrompt(
-                    room, agent, iteration, maxIterations, sharedRoomMemory, durableMemory, recentTurns);
-                var agentSettings = settingsResolver(agent);
+                    (response, futureNote, rawResult) = await ExecuteAgentTurnInternalAsync(
+                        room, agent, settingsResolver, sessionTurns, iteration, maxIterations, ct);
+                }
 
-                var (response, rawResult) = await _turnExecutor.ExecuteAgentTurnAsync(agent, agentSettings, prompt, ct);
-
+                // Persist transcript
                 var turn = new TranscriptTurn
                 {
                     RoomId = room.Id,
@@ -87,15 +101,32 @@ public sealed class ConversationRunner
                 };
                 await _transcriptRepo.AppendAsync(turn);
                 sessionTurns.Add(turn);
+                await UpdateAgentShortMemoryAsync(room, agent, futureNote);
 
                 OnAgentMessageCompleted?.Invoke(agent, response);
                 OnLog?.Invoke($"{agent.Name}: {rawResult.UsageSummary ?? "no usage info"}");
 
-                // Wait for TTS speech to finish before proceeding
+                // Speech gate with lookahead prefetch for the next agent
                 if (OnSpeechGate is not null)
                 {
                     OnStatusChanged?.Invoke($"{agent.Name} speaking");
-                    await OnSpeechGate(agent, response, ct);
+
+                    // Start speech (will run concurrently with prefetch below)
+                    var speechTask = OnSpeechGate(agent, response, ct);
+
+                    // While this agent speaks, fire the next agent's API call
+                    if (agentIndex + 1 < enabledAgents.Count)
+                    {
+                        var nextAgent = enabledAgents[agentIndex + 1];
+                        OnAgentMessageStarted?.Invoke(nextAgent, "Thinking...");
+                        OnStatusChanged?.Invoke($"{nextAgent.Name} thinking");
+
+                        prefetchTask = ExecuteAgentTurnInternalAsync(
+                            room, nextAgent, settingsResolver, sessionTurns, iteration, maxIterations, ct);
+                    }
+
+                    // Wait for speech to finish before showing the next agent's result
+                    await speechTask;
                 }
 
                 if (agentIndex == enabledAgents.Count - 1)
@@ -110,7 +141,7 @@ public sealed class ConversationRunner
                         room, baseSummarizerSettings, roundTurns, sessionTurns,
                         shouldPromoteDurable, s => OnLog?.Invoke(s), ct);
                 }
-                else if (room.AgentDelaySeconds > 0)
+                else if (room.AgentDelaySeconds > 0 && OnSpeechGate is null)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(room.AgentDelaySeconds), ct);
                 }
@@ -126,5 +157,86 @@ public sealed class ConversationRunner
 
         OnSystemMessage?.Invoke("Run complete.");
         OnStatusChanged?.Invoke("Complete");
+    }
+
+    private async Task<(string Response, string FutureNote, LlmCompletionResult RawResult)> ExecuteAgentTurnInternalAsync(
+        RoomConfig room,
+        AgentConfig agent,
+        Func<AgentConfig, LlmRequestSettings> settingsResolver,
+        List<TranscriptTurn> sessionTurns,
+        int iteration,
+        int maxIterations,
+        CancellationToken ct)
+    {
+        var enabledAgents = room.Agents.Where(a => a.IsEnabled).ToList();
+        var agentIndex = enabledAgents.FindIndex(a => a.Id == agent.Id);
+        var includeDurableMemory = agentIndex == enabledAgents.Count - 1;
+        var sharedRoomMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
+        var durableMemory = includeDurableMemory
+            ? await _memoryRepo.GetAsync(room.Id, null, MemoryKind.Durable)
+            : string.Empty;
+        var agentLongMemory = await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentLong);
+        var agentShortMemory = await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentShort);
+        var recentTurns = SelectRecentTurns(sessionTurns, agentIndex, enabledAgents.Count, room.RecentTurnsWindow);
+
+        var prompt = _promptComposer.BuildAgentPrompt(
+            room, agent, iteration, maxIterations,
+            sharedRoomMemory, durableMemory, agentLongMemory, agentShortMemory,
+            recentTurns, includeDurableMemory);
+        var agentSettings = settingsResolver(agent);
+
+        return await _turnExecutor.ExecuteAgentTurnAsync(agent, agentSettings, prompt, ct);
+    }
+
+    private static List<TranscriptTurn> SelectRecentTurns(
+        IReadOnlyList<TranscriptTurn> sessionTurns,
+        int agentIndex,
+        int enabledAgentCount,
+        int configuredWindow)
+    {
+        if (sessionTurns.Count == 0)
+            return [];
+
+        var window = Math.Max(1, configuredWindow);
+        var turnsToTake = agentIndex switch
+        {
+            < 0 => Math.Min(window, 2),
+            var index when index == enabledAgentCount - 1 => Math.Clamp(window, 2, 4),
+            _ => Math.Clamp(Math.Min(window, agentIndex + 1), 1, 3),
+        };
+
+        return sessionTurns.TakeLast(turnsToTake).ToList();
+    }
+
+    private async Task UpdateAgentShortMemoryAsync(
+        RoomConfig room,
+        AgentConfig agent,
+        string futureNote)
+    {
+        var existingShortMemory = await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentShort);
+        if (string.IsNullOrWhiteSpace(futureNote))
+        {
+            if (!string.IsNullOrWhiteSpace(existingShortMemory))
+                OnLog?.Invoke($"Preserved {agent.Name} short memory: missing future note.");
+            return;
+        }
+
+        var maxLength = Math.Clamp(agent.CompactionBudget > 0 ? agent.CompactionBudget : 420, 180, 900);
+        var shortMemory = PromptComposer.SanitizeStructuredMemoryBlock(futureNote, 10, maxLength);
+        if (string.IsNullOrWhiteSpace(shortMemory))
+        {
+            if (!string.IsNullOrWhiteSpace(existingShortMemory))
+                OnLog?.Invoke($"Preserved {agent.Name} short memory: future note was empty after sanitization.");
+            return;
+        }
+
+        if (shortMemory.Length > maxLength)
+            shortMemory = shortMemory[..maxLength].Trim();
+
+        if (string.Equals(existingShortMemory, shortMemory, StringComparison.Ordinal))
+            return;
+
+        await _memoryRepo.SaveAsync(room.Id, agent.Id, MemoryKind.AgentShort, shortMemory);
+        OnLog?.Invoke($"Updated {agent.Name} short memory ({shortMemory.Length} chars).");
     }
 }

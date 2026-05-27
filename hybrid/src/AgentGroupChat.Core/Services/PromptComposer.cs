@@ -19,7 +19,10 @@ public sealed class PromptComposer
         int maxIterations,
         string sharedRoomMemory,
         string durableMemory,
-        IReadOnlyList<TranscriptTurn> recentTurns)
+        string agentLongMemory,
+        string agentShortMemory,
+        IReadOnlyList<TranscriptTurn> recentTurns,
+        bool includeDurableMemory)
     {
         var participants = string.Join(
             " -> ",
@@ -29,10 +32,17 @@ public sealed class PromptComposer
             recentTurns.Select(t => $"{t.Speaker}:\n{t.Content}"));
         var durable = string.IsNullOrWhiteSpace(durableMemory)
             ? "(No durable world memory yet.)"
-            : TakeTail(durableMemory, 3200);
+            : TakeTail(durableMemory, 1600);
         var shared = string.IsNullOrWhiteSpace(sharedRoomMemory)
             ? "(No recent shared room memory yet.)"
-            : TakeTail(sharedRoomMemory, 2600);
+            : TakeTail(sharedRoomMemory, includeDurableMemory ? 2000 : 1400);
+        var privateMemory = BuildAgentPrivateMemory(agent, agentLongMemory, agentShortMemory);
+        var durableSection = includeDurableMemory
+            ? $"\n<durable_theme_memory>\n{durable}\n</durable_theme_memory>\n"
+            : string.Empty;
+        var actorFocusInstruction = includeDurableMemory
+            ? "- You are later in the round. Synthesize the latest participant actions when advancing the conversation."
+            : "- Focus on one concrete move from your own perspective instead of restating the whole scene.";
 
         return $"""
 You are participating in a multi-agent conversation.
@@ -45,25 +55,39 @@ Current round: {iteration} of {maxIterations}
 You are: {agent.Name}
 </context>
 
-<durable_theme_memory>
-{durable}
-</durable_theme_memory>
+<agent_private_memory>
+{privateMemory}
+</agent_private_memory>
+
+{durableSection}
 
 <shared_room_memory>
 {shared}
 </shared_room_memory>
 
 <recent_transcript>
-{transcript}
+{(string.IsNullOrWhiteSpace(transcript) ? "(No recent transcript yet.)" : transcript)}
 </recent_transcript>
 
-Reply requirements:
+Output format:
+- Return exactly two XML blocks and no other text.
+- `<reply>` contains the visible in-character response for this turn.
+- `<future_note>` contains a short private scratchpad for your future self and is never shown to other participants.
+- Always close both XML blocks. If you have no useful scratchpad, emit `<future_note></future_note>` rather than omitting or truncating it.
+- Keep `<future_note>` concrete and brief. Use only the sections that matter, with short bullets under bracketed headers like `[Listening For]`, `[Considering]`, `[Likely Next Lever]`, and `[Emotional Posture]`.
+
+Turn requirements:
 - Stay consistent with your own system prompt.
-- Respond only as {agent.Name}. 
+- Inside `<reply>`, respond only as {agent.Name}. 
 - Continue naturally from the latest conversation turn.
-- Use durable theme memory for stable facts and shared room memory for current state.
+- Use agent-private memory for your own priorities and unresolved personal state.
+- Use shared room memory for current tactical context.
+- Use durable theme memory only when it is included and only for stable facts that matter now.
 - Use the transcript for immediate continuity and voice.
-- Do not repeat transcript headings, XML tags, memory labels, or prompt scaffolding.
+- Rely on the recent transcript window below instead of reconstructing omitted history.
+{actorFocusInstruction}
+- In `<future_note>`, capture what you are listening for, weighing, or likely to do next instead of summarizing the whole scene.
+- Inside `<reply>`, do not repeat transcript headings, memory labels, or prompt scaffolding.
 - Do not output phrases like 'Recent transcript window:' or restate the full transcript unless absolutely necessary.
 """;
     }
@@ -304,6 +328,41 @@ Rules:
 
     private static bool IsCustomLevel(string? value) =>
         string.Equals(NormalizeLevel(value), "Custom", StringComparison.Ordinal);
+
+    private static string BuildAgentPrivateMemory(
+        AgentConfig agent,
+        string agentLongMemory,
+        string agentShortMemory)
+    {
+        var privateBudget = Math.Clamp(
+            agent.CompactionBudget > 0 ? agent.CompactionBudget : 420,
+            120, 900);
+        var hasShortMemory = !string.IsNullOrWhiteSpace(agentShortMemory);
+        var hasLongMemory = !string.IsNullOrWhiteSpace(agentLongMemory);
+        var longBudget = hasShortMemory && hasLongMemory
+            ? Math.Clamp(privateBudget / 3, 80, 320)
+            : privateBudget;
+        var shortBudget = hasShortMemory && hasLongMemory
+            ? Math.Clamp(privateBudget - longBudget, 120, 600)
+            : privateBudget;
+        var sections = new List<string>();
+
+        if (hasShortMemory)
+        {
+            sections.Add($"[Short-Term]\n{TakeTail(agentShortMemory, shortBudget)}");
+        }
+
+        if (hasLongMemory)
+        {
+            sections.Add($"[Long-Term]\n{TakeTail(agentLongMemory, longBudget)}");
+        }
+
+        if (sections.Count == 0)
+            return "(No agent-private memory yet.)";
+
+        var combined = string.Join("\n\n", sections);
+        return combined.Length <= privateBudget ? combined : combined[..privateBudget].Trim();
+    }
 
     private static string TakeTail(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[^maxLength..];

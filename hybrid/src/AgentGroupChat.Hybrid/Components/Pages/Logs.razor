@@ -25,6 +25,7 @@
             else
             {
                 <MudText Typo="Typo.caption" Class="mb-1">Room: @RoomState.SelectedRoom.Name</MudText>
+                <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(FindMemoryBlock(null, MemoryKind.SharedRoom))</MudText>
                 <pre style="white-space:pre-wrap; max-height:300px; overflow-y:auto; margin:0">@_sharedRoomMemory</pre>
             }
         </MudPaper>
@@ -47,11 +48,64 @@
             else
             {
                 <MudText Typo="Typo.caption" Class="mb-1">Room: @RoomState.SelectedRoom.Name</MudText>
+                <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(FindMemoryBlock(null, MemoryKind.Durable))</MudText>
                 <pre style="white-space:pre-wrap; max-height:300px; overflow-y:auto; margin:0">@_durableMemory</pre>
             }
         </MudPaper>
     </MudItem>
 </MudGrid>
+
+<MudPaper Class="pa-4 mb-4" Elevation="1">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+        <MudText Typo="Typo.h6">Agent Memory Inspector</MudText>
+        <MudSpacer />
+        @if (RoomState.SelectedRoom is not null)
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@($"{_memoryBlocks.Count(b => !string.IsNullOrWhiteSpace(b.Content))} stored blocks")</MudChip>
+        }
+    </MudStack>
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+        Short-term scratchpads come from each agent's last few self-turns. Long-term memory stays available for future promotion and manual inspection.
+    </MudText>
+
+    @if (RoomState.SelectedRoom is null)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Select a room to inspect agent memory.</MudText>
+    }
+    else if (RoomState.SelectedRoom.Agents.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary">This room has no agents yet.</MudText>
+    }
+    else
+    {
+        @foreach (var agent in RoomState.SelectedRoom.Agents)
+        {
+            var shortBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentShort);
+            var longBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentLong);
+
+            <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+                    <MudText Typo="Typo.subtitle1">@agent.Name</MudText>
+                    <MudSpacer />
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@BuildAgentMemorySummary(shortBlock, longBlock)</MudChip>
+                </MudStack>
+
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.caption" Class="mb-1">Short-Term Scratchpad</MudText>
+                        <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(shortBlock)</MudText>
+                        <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(shortBlock, "(No short-term scratchpad yet.)")</pre>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.caption" Class="mb-1">Long-Term Agent Memory</MudText>
+                        <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(longBlock)</MudText>
+                        <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(longBlock, "(No long-term agent memory yet.)")</pre>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        }
+    }
+</MudPaper>
 
 <MudPaper Class="pa-4 mb-4" Elevation="1">
     <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="flex-wrap">
@@ -76,27 +130,43 @@
             }
         </MudSelect>
         <MudSpacer />
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Refresh" Size="Size.Small">Refresh</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RefreshAll" Size="Size.Small">Refresh</MudButton>
     </MudStack>
 </MudPaper>
 
 <MudPaper Elevation="1">
     <MudTable Items="_entries" Dense="true" Hover="true" Striped="true" FixedHeader="true" Height="500px">
         <HeaderContent>
-            <MudTh>Category</MudTh>
-            <MudTh>Source</MudTh>
+            <MudTh Style="width:90px">Category</MudTh>
+            <MudTh Style="width:110px">Source</MudTh>
             <MudTh>Message</MudTh>
-            <MudTh>Duration</MudTh>
-            <MudTh>Time</MudTh>
+            <MudTh Style="width:80px">Duration</MudTh>
+            <MudTh Style="width:80px">Time</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd>@context.CategoryText</MudTd>
             <MudTd>@context.Source</MudTd>
             <MudTd>
-                <MudText Typo="Typo.body2">@context.Message</MudText>
                 @if (context.HasDetail)
                 {
-                    <MudText Typo="Typo.caption" Style="white-space:pre-wrap">@context.Detail</MudText>
+                    <MudStack Spacing="0">
+                        <MudLink Typo="Typo.body2" Color="Color.Primary" OnClick="@(() => ToggleDetail(context.Id))"
+                                 Style="cursor:pointer">
+                            @context.Message
+                            <MudIcon Icon="@(_expandedIds.Contains(context.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                                     Size="Size.Small" Class="ml-1" />
+                        </MudLink>
+                        @if (_expandedIds.Contains(context.Id))
+                        {
+                            <MudPaper Class="pa-2 mt-1" Elevation="0" Style="background:var(--mud-palette-background-gray); max-height:400px; overflow-y:auto;">
+                                <pre style="white-space:pre-wrap; margin:0; font-size:0.8rem;">@context.Detail</pre>
+                            </MudPaper>
+                        }
+                    </MudStack>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2">@context.Message</MudText>
                 }
             </MudTd>
             <MudTd>@context.DurationText</MudTd>
@@ -109,9 +179,11 @@
     private const int MaxLogEntries = 50;
     private static readonly string[] _allCategories = Enum.GetNames<LogCategory>();
     private readonly HashSet<string> _activeCategories = new(Enum.GetNames<LogCategory>());
+    private readonly HashSet<long> _expandedIds = new();
 
     private List<LogEntry> _entries = new();
     private List<string> _sources = new();
+    private List<MemoryBlock> _memoryBlocks = new();
     private string _sourceFilter = string.Empty;
     private string _sharedRoomMemory = string.Empty;
     private string _durableMemory = string.Empty;
@@ -120,8 +192,7 @@
     {
         LogService.OnEntryAdded += OnEntryAdded;
         RoomState.OnChange += OnRoomChanged;
-        await Refresh();
-        await RefreshMemory();
+        await RefreshAll();
     }
 
     private async Task Refresh()
@@ -168,6 +239,12 @@
         await Refresh();
     }
 
+    private void ToggleDetail(long id)
+    {
+        if (!_expandedIds.Remove(id))
+            _expandedIds.Add(id);
+    }
+
     private static string CategoryIcon(string category) => category switch
     {
         "System"   => Icons.Material.Filled.Settings,
@@ -190,32 +267,82 @@
         _          => Color.Default,
     };
 
+    private async Task RefreshAll()
+    {
+        await Refresh();
+        await RefreshMemory();
+    }
+
     private async Task RefreshMemory()
     {
-        if (RoomState.SelectedRoom is null) return;
-        _sharedRoomMemory = await MemoryRepo.GetAsync(RoomState.SelectedRoom.Id, null, MemoryKind.SharedRoom);
-        _durableMemory = await MemoryRepo.GetAsync(RoomState.SelectedRoom.Id, null, MemoryKind.Durable);
+        if (RoomState.SelectedRoom is null)
+        {
+            _memoryBlocks = new();
+            _sharedRoomMemory = string.Empty;
+            _durableMemory = string.Empty;
+            return;
+        }
+
+        _memoryBlocks = (await MemoryRepo.GetBlocksAsync(RoomState.SelectedRoom.Id)).ToList();
+        _sharedRoomMemory = FindMemoryBlock(null, MemoryKind.SharedRoom)?.Content ?? string.Empty;
+        _durableMemory = FindMemoryBlock(null, MemoryKind.Durable)?.Content ?? string.Empty;
     }
 
     private async Task ClearSharedRoomMemory()
     {
         if (RoomState.SelectedRoom is null) return;
         await MemoryRepo.SaveAsync(RoomState.SelectedRoom.Id, null, MemoryKind.SharedRoom, string.Empty);
-        _sharedRoomMemory = string.Empty;
+        await RefreshMemory();
     }
 
     private async Task ClearDurableMemory()
     {
         if (RoomState.SelectedRoom is null) return;
         await MemoryRepo.SaveAsync(RoomState.SelectedRoom.Id, null, MemoryKind.Durable, string.Empty);
-        _durableMemory = string.Empty;
+        await RefreshMemory();
     }
+
+    private MemoryBlock? FindMemoryBlock(string? agentId, MemoryKind kind) =>
+        _memoryBlocks.FirstOrDefault(block => block.AgentId == agentId && block.Kind == kind);
+
+    private static string BuildMemoryMeta(MemoryBlock? block)
+    {
+        if (block is null || string.IsNullOrWhiteSpace(block.Content))
+            return "No stored content yet.";
+
+        return $"{block.Content.Length} chars • updated {block.UpdatedAt.LocalDateTime:g}";
+    }
+
+    private static string BuildAgentMemorySummary(MemoryBlock? shortBlock, MemoryBlock? longBlock)
+    {
+        var blockCount = 0;
+        var totalChars = 0;
+
+        if (!string.IsNullOrWhiteSpace(shortBlock?.Content))
+        {
+            blockCount++;
+            totalChars += shortBlock.Content.Length;
+        }
+
+        if (!string.IsNullOrWhiteSpace(longBlock?.Content))
+        {
+            blockCount++;
+            totalChars += longBlock.Content.Length;
+        }
+
+        return blockCount == 0 ? "No private memory" : $"{blockCount} blocks • {totalChars} chars";
+    }
+
+    private static string RenderMemory(MemoryBlock? block, string emptyText) =>
+        string.IsNullOrWhiteSpace(block?.Content) ? emptyText : block.Content;
 
     private void OnEntryAdded(LogEntry entry)
     {
         InvokeAsync(async () =>
         {
             await Refresh();
+            if (entry.Category == LogCategory.Memory)
+                await RefreshMemory();
             StateHasChanged();
         });
     }

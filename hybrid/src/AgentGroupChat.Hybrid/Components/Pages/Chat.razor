@@ -3,6 +3,7 @@
 @inject AppState AppState
 @inject ConversationState ConvoState
 @inject AgentGroupChat.Core.Services.ConversationRunner Runner
+@inject AgentGroupChat.Core.Services.Interfaces.IMemoryRepository MemoryRepo
 @inject AgentGroupChat.Core.Services.Interfaces.ITranscriptRepository TranscriptRepo
 @inject AgentGroupChat.Core.Services.SpeechService Speech
 @inject AgentGroupChat.Core.Services.LogService LogService
@@ -62,7 +63,8 @@ else
             <MudSpacer />
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Run" Disabled="ConvoState.IsRunning">Run</MudButton>
             <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Stop" Disabled="!ConvoState.IsRunning">Stop</MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearChat" Disabled="ConvoState.IsRunning">Clear Chat</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearRoom" Disabled="ConvoState.IsRunning">Clear Room</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearLogs" Disabled="ConvoState.IsRunning">Clear Logs</MudButton>
         </MudStack>
         <MudText Typo="Typo.caption" Class="mt-1">@ConvoState.Status</MudText>
     </MudPaper>
@@ -94,6 +96,24 @@ else
                 </MudButton> *@
             }
         </MudStack>
+        @if (AppState.Settings.TtsProvider == "Kokoro")
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="TestKokoro" Disabled="_kokoroTesting">
+                    @(_kokoroTesting ? "Testing..." : "Test Kokoro")
+                </MudButton>
+                @if (!string.IsNullOrEmpty(_kokoroTestResult))
+                {
+                    <MudText Typo="Typo.caption" Color="@(_kokoroTestOk ? Color.Success : Color.Error)">@_kokoroTestResult</MudText>
+                }
+                @if (!_kokoroTestOk && !string.IsNullOrEmpty(_kokoroTestResult))
+                {
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Warning" OnClick="StartKokoroService">
+                        Start Service
+                    </MudButton>
+                }
+            </MudStack>
+        }
     </MudPaper>
 }
 
@@ -104,6 +124,9 @@ else
     private CancellationTokenSource? _cts;
     private CancellationTokenSource? _playbackCts;
     private bool _isPlayingFrom;
+    private bool _kokoroTesting;
+    private string _kokoroTestResult = string.Empty;
+    private bool _kokoroTestOk;
 
 
     protected override async Task OnInitializedAsync()
@@ -141,9 +164,24 @@ else
 
     private void OnRunnerAgentCompleted(AgentConfig agent, string msg)
     {
-        // Replace the "Thinking..." placeholder in-place
-        var last = ConvoState.Messages.LastOrDefault(m => m.Speaker == agent.Name);
-        if (last is not null) last.Content = msg;
+        // Find the "Thinking..." placeholder specifically for this agent
+        var placeholder = ConvoState.Messages.LastOrDefault(
+            m => m.Speaker == agent.Name && m.Content == "Thinking...");
+        if (placeholder is not null)
+        {
+            placeholder.Content = msg;
+        }
+        else
+        {
+            // No placeholder found (edge case) — add as a new message
+            ConvoState.Messages.Add(new ChatMessage
+            {
+                Speaker = agent.Name,
+                Content = msg,
+                AccentHex = agent.AccentHex,
+                BackgroundHex = agent.BackgroundHex,
+            });
+        }
         ConvoState.SessionTurns.Add(new TranscriptTurn { Speaker = agent.Name, Content = msg });
         ConvoState.NotifyChanged();
         InvokeAsync(StateHasChanged);
@@ -223,34 +261,46 @@ else
             return;
         }
 
+        // Clean up any stale "Thinking..." placeholders from a previous failed run
+        ConvoState.Messages.RemoveAll(m => m.Content == "Thinking...");
+
         ConvoState.IsRunning = true;
         ConvoState.SetStatus("Running");
         _cts = new CancellationTokenSource();
 
         try
         {
+            // Determine which agent to resume from based on the last transcript turn
+            var resumeIndex = ComputeResumeAgentIndex(room);
+
             await Runner.RunAsync(
                 room,
                 agent => ResolveSettings(agent),
                 ResolveSettings(null),
                 _iterations,
                 ConvoState.CompletedRounds,
-                _cts.Token);
+                _cts.Token,
+                resumeIndex);
 
             ConvoState.CompletedRounds += _iterations;
         }
         catch (OperationCanceledException)
         {
             ConvoState.AddSystemMessage("Stopped.");
+            _ = LogService.LogAsync(LogCategory.System, "Runner", "Run cancelled by user.");
         }
         catch (Exception ex)
         {
             ConvoState.AddSystemMessage($"Error: {ex.Message}");
+            _ = LogService.LogAsync(LogCategory.System, "Runner", $"Run failed: {ex.GetType().Name}", ex.Message);
         }
         finally
         {
+            // Clean up any leftover "Thinking..." placeholders from failed/cancelled turns
+            ConvoState.Messages.RemoveAll(m => m.Content == "Thinking...");
             ConvoState.IsRunning = false;
             ConvoState.SetStatus("Ready");
+            ConvoState.NotifyChanged();
             _cts?.Dispose();
             _cts = null;
         }
@@ -263,11 +313,17 @@ else
         Speech.Stop();
     }
 
-    private async Task ClearChat()
+    private async Task ClearRoom()
     {
         if (RoomState.SelectedRoom is null) return;
         await TranscriptRepo.ClearAsync(RoomState.SelectedRoom.Id);
+        await MemoryRepo.ClearAllForRoomAsync(RoomState.SelectedRoom.Id);
         ConvoState.Clear();
+    }
+
+    private async Task ClearLogs()
+    {
+        await LogService.ClearAsync();
     }
 
     private async Task OnKeyDown(KeyboardEventArgs e)
@@ -297,17 +353,172 @@ else
             _ => LlmProvider.OpenAiCompatible,
         };
 
+        var maxCompletionTokens = agent?.MaxTokensOverride
+            ?? (agent is null
+                ? (RoomState.SelectedRoom?.SummarizerMaxTokens >= 140
+                    ? RoomState.SelectedRoom.SummarizerMaxTokens
+                    : RoomState.SelectedRoom?.MaxTokens)
+                : RoomState.SelectedRoom?.MaxTokens)
+            ?? 300;
+
         return new LlmRequestSettings(
             provider,
             connection.Endpoint,
             catalogEntry.ModelId,
             connection.ApiKey,
-            agent?.MaxTokensOverride ?? RoomState.SelectedRoom?.MaxTokens ?? 300,
+            maxCompletionTokens,
             connection.Transport,
             connection.Name);
     }
 
+    /// <summary>
+    /// Looks at the last transcript entries to figure out which enabled agent
+    /// should go next. If Agent 1 already spoke but Agent 2 hasn't, returns
+    /// the index of Agent 2 so the round resumes from there.
+    /// Returns 0 if a fresh round should start.
+    /// </summary>
+    private int ComputeResumeAgentIndex(RoomConfig room)
+    {
+        var enabledAgents = room.Agents.Where(a => a.IsEnabled).ToList();
+        if (enabledAgents.Count <= 1) return 0;
+
+        var turns = ConvoState.SessionTurns;
+        if (turns.Count == 0) return 0;
+
+        // Walk backward through the transcript to find which agents spoke
+        // in the current (incomplete) round. Stop at the first user message
+        // or when we've seen more agent turns than there are agents.
+        var spokenThisRound = new List<string>();
+        for (int i = turns.Count - 1; i >= 0; i--)
+        {
+            var t = turns[i];
+            if (t.Speaker == "You") break;
+            if (enabledAgents.Any(a => a.Name == t.Speaker))
+                spokenThisRound.Insert(0, t.Speaker);
+            if (spokenThisRound.Count >= enabledAgents.Count) break;
+        }
+
+        if (spokenThisRound.Count == 0) return 0;
+        if (spokenThisRound.Count >= enabledAgents.Count) return 0; // full round completed
+
+        // Find the last agent who spoke, then return the next one's index
+        var lastSpeaker = spokenThisRound[^1];
+        var lastIdx = enabledAgents.FindIndex(a => a.Name == lastSpeaker);
+        if (lastIdx < 0) return 0;
+
+        var nextIdx = lastIdx + 1;
+        return nextIdx < enabledAgents.Count ? nextIdx : 0;
+    }
+
     private void OnConvoChanged() => InvokeAsync(StateHasChanged);
+
+    // ─── Kokoro Test ───────────────────────────────────────────────
+
+    private async Task TestKokoro()
+    {
+        _kokoroTesting = true;
+        _kokoroTestResult = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var s = AppState.Settings;
+            var baseUrl = string.IsNullOrWhiteSpace(s.KokoroBaseUrl) ? "http://127.0.0.1:8880" : s.KokoroBaseUrl;
+            var endpoint = baseUrl.TrimEnd('/') + "/v1/audio/speech";
+
+            var payload = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                model = string.IsNullOrWhiteSpace(s.KokoroModel) ? "kokoro" : s.KokoroModel,
+                input = "Test.",
+                voice = string.IsNullOrWhiteSpace(s.KokoroVoice) ? "af_heart" : s.KokoroVoice,
+                response_format = "wav",
+                speed = 1.0,
+            });
+
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+            {
+                Content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json"),
+            };
+            using var response = await http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _kokoroTestOk = true;
+                _kokoroTestResult = "Kokoro is running.";
+            }
+            else
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                _kokoroTestOk = false;
+                _kokoroTestResult = $"Error {(int)response.StatusCode}: {Truncate(body, 120)}";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _kokoroTestOk = false;
+            _kokoroTestResult = "Cannot connect — Kokoro service is not running.";
+        }
+        catch (TaskCanceledException)
+        {
+            _kokoroTestOk = false;
+            _kokoroTestResult = "Connection timed out — Kokoro may still be starting.";
+        }
+        catch (Exception ex)
+        {
+            _kokoroTestOk = false;
+            _kokoroTestResult = $"Error: {Truncate(ex.Message, 120)}";
+        }
+        finally
+        {
+            _kokoroTesting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void StartKokoroService()
+    {
+        try
+        {
+            var kokoroDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "AgentGroupChat", "Kokoro-FastAPI");
+
+            // Fallback: look relative to the app's base directory
+            if (!Directory.Exists(kokoroDir))
+            {
+                var candidate = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Kokoro-FastAPI"));
+                if (Directory.Exists(candidate)) kokoroDir = candidate;
+            }
+
+            var scriptPath = Path.Combine(kokoroDir, "start-cpu.ps1");
+            if (!File.Exists(scriptPath))
+            {
+                _kokoroTestOk = false;
+                _kokoroTestResult = $"start-cpu.ps1 not found at {kokoroDir}";
+                return;
+            }
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "powershell",
+                Arguments = $"-ExecutionPolicy Bypass -File \"{scriptPath}\"",
+                WorkingDirectory = kokoroDir,
+                UseShellExecute = true,
+            };
+            System.Diagnostics.Process.Start(psi);
+            _kokoroTestOk = false;
+            _kokoroTestResult = "Kokoro service starting in a new window — wait a moment then test again.";
+        }
+        catch (Exception ex)
+        {
+            _kokoroTestOk = false;
+            _kokoroTestResult = $"Failed to start: {Truncate(ex.Message, 120)}";
+        }
+    }
+
+    private static string Truncate(string text, int maxLength) =>
+        text.Length <= maxLength ? text : text[..maxLength] + "...";
 
     // ─── TTS ───────────────────────────────────────────────────────
 

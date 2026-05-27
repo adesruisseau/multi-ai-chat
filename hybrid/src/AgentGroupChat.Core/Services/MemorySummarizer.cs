@@ -51,22 +51,39 @@ public sealed class MemorySummarizer
                     room, profile, existingRoomMemory, existingDurableMemory, roundTurns, sessionTurns)),
             };
             var roomResult = await _llmClient.CompleteAsync(roomSettings, roomMessages, ct);
-            var roomMemory = PromptComposer.ExtractTaggedContent(roomResult.Content, "shared_room_memory");
-            if (string.IsNullOrWhiteSpace(roomMemory))
-                roomMemory = PromptComposer.ExtractTaggedContent(roomResult.Content, "scene_summary");
-            if (string.IsNullOrWhiteSpace(roomMemory))
-                roomMemory = BuildFallback(room, sessionTurns, profile);
+            var roomMemory = TryExtractTrustedMemoryBlock(
+                roomResult, profile.MaxLines, profile.MaxCharacters,
+                out var roomRejectReason, "shared_room_memory", "scene_summary");
 
-            roomMemory = PromptComposer.SanitizeStructuredMemoryBlock(roomMemory, profile.MaxLines, profile.MaxCharacters);
-            await _memoryRepo.SaveAsync(room.Id, null, MemoryKind.SharedRoom, roomMemory);
-            onLog?.Invoke($"Updated shared room memory ({roomMemory.Length} chars).");
+            if (!string.IsNullOrWhiteSpace(roomMemory))
+            {
+                await _memoryRepo.SaveAsync(room.Id, null, MemoryKind.SharedRoom, roomMemory);
+                onLog?.Invoke($"Updated shared room memory ({roomMemory.Length} chars).");
+            }
+            else if (string.IsNullOrWhiteSpace(existingRoomMemory))
+            {
+                var fallback = BuildFallback(room, sessionTurns, profile);
+                await _memoryRepo.SaveAsync(room.Id, null, MemoryKind.SharedRoom, fallback);
+                onLog?.Invoke($"Room memory fallback used: {roomRejectReason}");
+            }
+            else
+            {
+                onLog?.Invoke($"Shared room memory preserved: {roomRejectReason}");
+            }
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
-            var fallback = BuildFallback(room, sessionTurns, profile);
-            await _memoryRepo.SaveAsync(room.Id, null, MemoryKind.SharedRoom, fallback);
-            onLog?.Invoke($"Room memory fallback used: {ex.Message}");
+            if (string.IsNullOrWhiteSpace(existingRoomMemory))
+            {
+                var fallback = BuildFallback(room, sessionTurns, profile);
+                await _memoryRepo.SaveAsync(room.Id, null, MemoryKind.SharedRoom, fallback);
+                onLog?.Invoke($"Room memory fallback used: {ex.Message}");
+            }
+            else
+            {
+                onLog?.Invoke($"Shared room memory preserved after failure: {ex.Message}");
+            }
         }
 
         if (!shouldPromoteDurable) return;
@@ -86,12 +103,16 @@ public sealed class MemorySummarizer
                     room, existingDurableMemory, sharedRoomMemory, roundTurns, sessionTurns, room.RecentTurnsWindow)),
             };
             var durableResult = await _llmClient.CompleteAsync(durableSettings, durableMessages, ct);
-            var durableMemory = PromptComposer.ExtractTaggedContent(durableResult.Content, "durable_memory");
+            var durableMemory = TryExtractTrustedMemoryBlock(
+                durableResult, 32, 8200, out var durableRejectReason, "durable_memory");
             if (!string.IsNullOrWhiteSpace(durableMemory))
             {
-                durableMemory = PromptComposer.SanitizeStructuredMemoryBlock(durableMemory, 32, 8200);
                 await _memoryRepo.SaveAsync(room.Id, null, MemoryKind.Durable, durableMemory);
                 onLog?.Invoke($"Updated durable memory ({durableMemory.Length} chars).");
+            }
+            else
+            {
+                onLog?.Invoke($"Durable memory preserved: {durableRejectReason}");
             }
         }
         catch (OperationCanceledException) { throw; }
@@ -99,6 +120,61 @@ public sealed class MemorySummarizer
         {
             onLog?.Invoke($"Durable memory update failed: {ex.Message}");
         }
+    }
+
+    private static string? TryExtractTrustedMemoryBlock(
+        LlmCompletionResult result,
+        int maxLines,
+        int maxCharacters,
+        out string rejectReason,
+        params string[] tagNames)
+    {
+        if (HasUnsafeCompletionReason(result.CompletionReason))
+        {
+            rejectReason = $"completion finished with '{result.CompletionReason}'";
+            return null;
+        }
+
+        foreach (var tagName in tagNames)
+        {
+            if (!HasCompleteTaggedSection(result.Content, tagName))
+                continue;
+
+            var value = PromptComposer.ExtractTaggedContent(result.Content, tagName);
+            if (string.IsNullOrWhiteSpace(value))
+                continue;
+
+            var sanitized = PromptComposer.SanitizeStructuredMemoryBlock(value, maxLines, maxCharacters);
+            if (!string.IsNullOrWhiteSpace(sanitized))
+            {
+                rejectReason = string.Empty;
+                return sanitized;
+            }
+        }
+
+        rejectReason = $"missing complete tagged output ({string.Join(", ", tagNames)})";
+        return null;
+    }
+
+    private static bool HasUnsafeCompletionReason(string? completionReason)
+    {
+        if (string.IsNullOrWhiteSpace(completionReason))
+            return false;
+
+        var normalized = completionReason.Trim()
+            .Replace('-', '_')
+            .Replace(' ', '_')
+            .ToUpperInvariant();
+
+        return normalized is not "STOP" and not "END_TURN";
+    }
+
+    private static bool HasCompleteTaggedSection(string value, string tagName)
+    {
+        var openTag = $"<{tagName}>";
+        var closeTag = $"</{tagName}>";
+        return value.Contains(openTag, StringComparison.OrdinalIgnoreCase)
+            && value.Contains(closeTag, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string BuildFallback(RoomConfig room, IReadOnlyList<TranscriptTurn> sessionTurns, SceneSummarizerProfile profile)

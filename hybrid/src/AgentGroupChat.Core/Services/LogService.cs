@@ -30,4 +30,7 @@ public sealed class LogService
 
     public Task<List<string>> GetSourcesAsync()
         => _logRepo.GetSourcesAsync();
+
+    public Task ClearAsync()
+        => _logRepo.ClearAsync();
 }
