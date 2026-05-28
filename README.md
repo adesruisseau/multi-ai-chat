@@ -24,3 +24,7 @@ root/hybrid/src/AgentGroupChat.Hybrid/AgentGroupChat.Hybrid.csproj
 
 
 
+1. Configure your AI agent services
+2. Configure a 'Room'
+3. Go to the Chat, send an initial prompt (or empty) and let it go.
+4. You can intervene if the agents start drifting (work in progress)
