@@ -53,6 +53,9 @@ public sealed class ConversationRunner
             throw new InvalidOperationException("Enable at least one agent before running.");
 
         var sessionTurns = await _transcriptRepo.GetAsync(room.Id);
+        var userMemoryRefreshed = await TryRefreshMemoryFromPendingUserTurnsAsync(
+            room, baseSummarizerSettings, enabledAgents, sessionTurns,
+            startFromAgentIndex, ct);
 
         for (var iteration = 1; iteration <= maxIterations; iteration++)
         {
@@ -132,7 +135,8 @@ public sealed class ConversationRunner
                 if (agentIndex == enabledAgents.Count - 1)
                 {
                     var roundTurns = sessionTurns.Skip(roundAnchor).ToList();
-                    var shouldPromoteDurable = string.IsNullOrWhiteSpace(
+                    var shouldPromoteDurable = (userMemoryRefreshed && iteration == 1)
+                        || string.IsNullOrWhiteSpace(
                             await _memoryRepo.GetAsync(room.Id, null, MemoryKind.Durable))
                         || (completedRounds + iteration) % 3 == 0;
 
@@ -157,6 +161,45 @@ public sealed class ConversationRunner
 
         OnSystemMessage?.Invoke("Run complete.");
         OnStatusChanged?.Invoke("Complete");
+    }
+
+    private async Task<bool> TryRefreshMemoryFromPendingUserTurnsAsync(
+        RoomConfig room,
+        LlmRequestSettings baseSummarizerSettings,
+        IReadOnlyList<AgentConfig> enabledAgents,
+        IReadOnlyList<TranscriptTurn> sessionTurns,
+        int startFromAgentIndex,
+        CancellationToken ct)
+    {
+        if (startFromAgentIndex != 0 || sessionTurns.Count == 0)
+            return false;
+
+        var agentNames = new HashSet<string>(
+            enabledAgents.Select(a => a.Name),
+            StringComparer.OrdinalIgnoreCase);
+        if (agentNames.Contains(sessionTurns[^1].Speaker))
+            return false;
+
+        var seedTurns = sessionTurns
+            .Reverse()
+            .TakeWhile(t => !agentNames.Contains(t.Speaker))
+            .Reverse()
+            .Where(t => !string.IsNullOrWhiteSpace(t.Content))
+            .ToList();
+        if (seedTurns.Count == 0)
+            return false;
+
+        OnStatusChanged?.Invoke("Refreshing memory from user input...");
+        OnLog?.Invoke($"Refreshing scene and durable memory from {seedTurns.Count} pending user turn(s) before agents respond.");
+        await _memorySummarizer.RefreshAsync(
+            room,
+            baseSummarizerSettings,
+            seedTurns,
+            sessionTurns,
+            shouldPromoteDurable: true,
+            s => OnLog?.Invoke(s),
+            ct);
+        return true;
     }
 
     private async Task<(string Response, string FutureNote, LlmCompletionResult RawResult)> ExecuteAgentTurnInternalAsync(
