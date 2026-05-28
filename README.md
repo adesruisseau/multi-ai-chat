@@ -25,6 +25,16 @@ root/hybrid/src/AgentGroupChat.Hybrid/AgentGroupChat.Hybrid.csproj
 
 
 1. Configure your AI agent services
-2. Configure a 'Room'
-3. Go to the Chat, send an initial prompt (or empty) and let it go.
-4. You can intervene if the agents start drifting (work in progress)
+   - Determine your AI service providers, create accounts, generate API keys
+3. Configure a 'Room'
+   - Setup name, topic
+   - Add up to 4 agents
+   - Give agents specific prompts
+       - e.g. 'Creative Studio Room: 1 agent is a devil's advocate, 1 agent is an optimist, and 1 agent finds the common-ground'
+       - 'DnD Room: 2 agents are players, 1 agent is the DM of a game of DnD'
+       - 'Interview Room: 2 agents roleplay in a round-table interview style, asking the user questions'
+       - so on and so forth
+5. Go to the Chat, send an initial prompt (or empty) and let it go.
+   - TTS is enabled, but STT is not implemented yet.
+7. Intervene if the agents start drifting (work in progress)
+8. View the shared room memory, agent memory, and logs in the Logs tab.
