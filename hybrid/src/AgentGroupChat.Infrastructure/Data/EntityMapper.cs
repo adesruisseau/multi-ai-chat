@@ -92,26 +92,32 @@ public static class EntityMapper
     public static RoomConfig ToDomain(RoomEntity e) => new()
     {
         Id = e.Id, Name = e.Name, Topic = e.Topic,
-        WaitForUserReply = e.WaitForUserReply, AgentDelaySeconds = e.AgentDelaySeconds,
+        WaitForUserReply = e.WaitForUserReply, PauseAfterEveryReply = e.PauseAfterEveryReply,
+        AgentDelaySeconds = e.AgentDelaySeconds,
         MaxTokens = e.MaxTokens, RecentTurnsWindow = e.RecentTurnsWindow,
         UserCompactionBudget = e.UserCompactionBudget, SummarizerModelId = e.SummarizerModelId,
         SummarizationLevel = e.SummarizationLevel, SummarizerMaxTokens = e.SummarizerMaxTokens,
         SummarizerMaxLines = e.SummarizerMaxLines, SummarizerMaxCharacters = e.SummarizerMaxCharacters,
         SummarizerBroaderTurns = e.SummarizerBroaderTurns,
-        SummarizerPromptOverride = e.SummarizerPromptOverride, SortOrder = e.SortOrder,
+        SummarizerPromptOverride = e.SummarizerPromptOverride,
+        MemoryModelId = e.MemoryModelId, MaxArchivedScenes = e.MaxArchivedScenes,
+        EnableSceneArchive = e.EnableSceneArchive, SortOrder = e.SortOrder,
         Agents = e.Agents.Select(ToDomain).OrderBy(a => a.SortOrder).ToList(),
     };
 
     public static RoomEntity ToEntity(RoomConfig d) => new()
     {
         Id = d.Id, Name = d.Name, Topic = d.Topic,
-        WaitForUserReply = d.WaitForUserReply, AgentDelaySeconds = d.AgentDelaySeconds,
+        WaitForUserReply = d.WaitForUserReply, PauseAfterEveryReply = d.PauseAfterEveryReply,
+        AgentDelaySeconds = d.AgentDelaySeconds,
         MaxTokens = d.MaxTokens, RecentTurnsWindow = d.RecentTurnsWindow,
         UserCompactionBudget = d.UserCompactionBudget, SummarizerModelId = d.SummarizerModelId,
         SummarizationLevel = d.SummarizationLevel, SummarizerMaxTokens = d.SummarizerMaxTokens,
         SummarizerMaxLines = d.SummarizerMaxLines, SummarizerMaxCharacters = d.SummarizerMaxCharacters,
         SummarizerBroaderTurns = d.SummarizerBroaderTurns,
-        SummarizerPromptOverride = d.SummarizerPromptOverride, SortOrder = d.SortOrder,
+        SummarizerPromptOverride = d.SummarizerPromptOverride,
+        MemoryModelId = d.MemoryModelId, MaxArchivedScenes = d.MaxArchivedScenes,
+        EnableSceneArchive = d.EnableSceneArchive, SortOrder = d.SortOrder,
         Agents = d.Agents.Select(ToEntity).ToList(),
     };
 
@@ -140,5 +146,21 @@ public static class EntityMapper
     {
         Category = d.Category.ToString(), Source = d.Source, Message = d.Message,
         Detail = d.Detail, DurationMs = d.DurationMs, CreatedAt = d.CreatedAt,
+    };
+
+    public static SceneArchive ToDomain(SceneArchiveEntity e) => new()
+    {
+        Id = e.Id, RoomId = e.RoomId, RoundNumber = e.RoundNumber,
+        Label = e.Label, KeyEntities = e.KeyEntities,
+        SharedRoomSnapshot = e.SharedRoomSnapshot, DurableSnapshot = e.DurableSnapshot,
+        IsMajor = e.IsMajor, CreatedAt = e.CreatedAt,
+    };
+
+    public static SceneArchiveEntity ToEntity(SceneArchive d) => new()
+    {
+        RoomId = d.RoomId, RoundNumber = d.RoundNumber,
+        Label = d.Label, KeyEntities = d.KeyEntities,
+        SharedRoomSnapshot = d.SharedRoomSnapshot, DurableSnapshot = d.DurableSnapshot,
+        IsMajor = d.IsMajor, CreatedAt = d.CreatedAt,
     };
 }

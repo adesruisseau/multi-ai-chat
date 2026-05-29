@@ -38,6 +38,7 @@ public static class MauiProgram
 		builder.Services.AddScoped<ISettingsRepository, SettingsRepository>();
 		builder.Services.AddScoped<ITranscriptRepository, TranscriptRepository>();
 		builder.Services.AddScoped<IMemoryRepository, MemoryRepository>();
+		builder.Services.AddScoped<ISceneArchiveRepository, SceneArchiveRepository>();
 		builder.Services.AddScoped<ILogRepository, LogRepository>();
 
 		// Legacy migration
@@ -52,6 +53,7 @@ public static class MauiProgram
 		builder.Services.AddScoped<TurnExecutor>();
 		builder.Services.AddScoped<MemorySummarizer>();
 		builder.Services.AddScoped<ConversationRunner>();
+		builder.Services.AddScoped<SceneRetrievalService>();
 		builder.Services.AddScoped<LogService>();
 
 		// State containers

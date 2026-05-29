@@ -13,23 +13,24 @@
 
 <MudText Typo="Typo.h4" GutterBottom="true">Chat</MudText>
 
+<MudPaper Class="pa-4 mb-4" Elevation="1">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudSelect @bind-Value="_selectedRoomId" Label="Room" Class="flex-grow-1" T="string">
+            @foreach (var room in RoomState.Rooms)
+            {
+                <MudSelectItem T="string" Value="@room.Id">@room.Name</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton OnClick="LoadRoom" Variant="Variant.Outlined">Load</MudButton>
+    </MudStack>
+</MudPaper>
+
 @if (RoomState.SelectedRoom is null)
 {
-    <MudAlert Severity="Severity.Info">Select a room from the Rooms tab first.</MudAlert>
+    <MudAlert Severity="Severity.Info">Select a room above and click Load to start chatting.</MudAlert>
 }
 else
 {
-    <MudPaper Class="pa-4 mb-4" Elevation="1">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-            <MudSelect @bind-Value="_selectedRoomId" Label="Room" Class="flex-grow-1" T="string">
-                @foreach (var room in RoomState.Rooms)
-                {
-                    <MudSelectItem T="string" Value="@room.Id">@room.Name</MudSelectItem>
-                }
-            </MudSelect>
-            <MudButton OnClick="LoadRoom" Variant="Variant.Outlined">Load</MudButton>
-        </MudStack>
-    </MudPaper>
 
     <MudPaper Class="pa-4 mb-4" Elevation="1" Style="max-height:500px; overflow-y:auto;">
         @{ var isDark = AppState.Settings.UiTheme == "Dark"; }
@@ -57,7 +58,8 @@ else
     </MudPaper>
 
     <MudPaper Class="pa-4 mb-4" Elevation="1">
-        <MudTextField @bind-Value="_userInput" Label="Your message" Class="mb-3" OnKeyDown="OnKeyDown" Lines="4" />
+        <MudTextField @bind-Value="_userInput" Label="Your message" Class="mb-3" OnKeyDown="OnKeyDown" Lines="4"
+                      Immediate="true" />
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudNumericField @bind-Value="_iterations" Label="Rounds" Min="1" Style="max-width:100px" />
             <MudSpacer />
@@ -142,9 +144,17 @@ else
         // Wire TTS speech gate into conversation runner
         Runner.OnSpeechGate = OnSpeechGateAsync;
 
+        if (RoomState.Rooms.Count == 0)
+            await RoomState.LoadAsync();
+
         if (RoomState.SelectedRoom is not null)
         {
             _selectedRoomId = RoomState.SelectedRoom.Id;
+            await LoadRoom();
+        }
+        else if (RoomState.Rooms.Count > 0)
+        {
+            _selectedRoomId = RoomState.Rooms[0].Id;
         }
     }
 
@@ -328,8 +338,11 @@ else
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter" && !ConvoState.IsRunning)
+        if (e.Key == "Enter" && !e.ShiftKey && !ConvoState.IsRunning)
+        {
+            await Task.Yield();
             await Run();
+        }
     }
 
     private LlmRequestSettings ResolveSettings(AgentConfig? agent)

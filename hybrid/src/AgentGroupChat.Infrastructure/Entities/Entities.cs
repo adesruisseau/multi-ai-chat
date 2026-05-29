@@ -59,6 +59,7 @@ public class RoomEntity
     public string Name { get; set; } = string.Empty;
     public string Topic { get; set; } = string.Empty;
     public bool WaitForUserReply { get; set; } = true;
+    public bool PauseAfterEveryReply { get; set; }
     public int AgentDelaySeconds { get; set; } = 5;
     public int MaxTokens { get; set; } = 300;
     public int RecentTurnsWindow { get; set; } = 6;
@@ -70,6 +71,9 @@ public class RoomEntity
     public int SummarizerMaxCharacters { get; set; } = 5600;
     public int SummarizerBroaderTurns { get; set; } = 6;
     public string SummarizerPromptOverride { get; set; } = string.Empty;
+    public string MemoryModelId { get; set; } = string.Empty;
+    public int MaxArchivedScenes { get; set; } = 40;
+    public bool EnableSceneArchive { get; set; } = true;
     public int SortOrder { get; set; }
     public List<AgentEntity> Agents { get; set; } = new();
 }
@@ -132,5 +136,21 @@ public class LogEntryEntity
     public string Message { get; set; } = string.Empty;
     public string Detail { get; set; } = string.Empty;
     public long? DurationMs { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+[Table("SceneArchives")]
+public class SceneArchiveEntity
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public long Id { get; set; }
+    public string RoomId { get; set; } = string.Empty;
+    public int RoundNumber { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public string KeyEntities { get; set; } = string.Empty;
+    public string SharedRoomSnapshot { get; set; } = string.Empty;
+    public string DurableSnapshot { get; set; } = string.Empty;
+    public bool IsMajor { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

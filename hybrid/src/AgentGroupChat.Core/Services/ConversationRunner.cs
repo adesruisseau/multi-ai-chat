@@ -11,19 +11,22 @@ public sealed class ConversationRunner
     private readonly MemorySummarizer _memorySummarizer;
     private readonly ITranscriptRepository _transcriptRepo;
     private readonly IMemoryRepository _memoryRepo;
+    private readonly SceneRetrievalService _sceneRetrievalService;
 
     public ConversationRunner(
         PromptComposer promptComposer,
         TurnExecutor turnExecutor,
         MemorySummarizer memorySummarizer,
         ITranscriptRepository transcriptRepo,
-        IMemoryRepository memoryRepo)
+        IMemoryRepository memoryRepo,
+        SceneRetrievalService sceneRetrievalService)
     {
         _promptComposer = promptComposer;
         _turnExecutor = turnExecutor;
         _memorySummarizer = memorySummarizer;
         _transcriptRepo = transcriptRepo;
         _memoryRepo = memoryRepo;
+        _sceneRetrievalService = sceneRetrievalService;
     }
 
     public event Action<string>? OnSystemMessage;
@@ -65,6 +68,24 @@ public sealed class ConversationRunner
                 : $"Round {iteration} of {maxIterations}.");
             var roundAnchor = sessionTurns.Count;
 
+            IReadOnlyList<SceneArchive>? roundRecalledScenes = null;
+            if (room.EnableSceneArchive)
+            {
+                try
+                {
+                    var retrievalMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
+                    var retrievalTurns = sessionTurns.TakeLast(Math.Max(room.RecentTurnsWindow, 3)).ToList();
+                    roundRecalledScenes = await _sceneRetrievalService.RetrieveAsync(
+                        room, baseSummarizerSettings, retrievalMemory ?? "", retrievalTurns,
+                        maxRecall: 2, s => OnLog?.Invoke(s), ct);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    OnLog?.Invoke($"Scene retrieval skipped: {ex.Message}");
+                }
+            }
+
             Task<(string Response, string FutureNote, LlmCompletionResult RawResult)>? prefetchTask = null;
 
             for (var agentIndex = agentStart; agentIndex < enabledAgents.Count; agentIndex++)
@@ -79,7 +100,18 @@ public sealed class ConversationRunner
                 if (prefetchTask is not null)
                 {
                     // Use the prefetched result — "Thinking..." was already shown
-                    (response, futureNote, rawResult) = await prefetchTask;
+                    try
+                    {
+                        (response, futureNote, rawResult) = await prefetchTask;
+                    }
+                    catch
+                    {
+                        // Prefetch failed (e.g. rate limit) — retry normally
+                        prefetchTask = null;
+                        OnStatusChanged?.Invoke($"{agent.Name} thinking");
+                        (response, futureNote, rawResult) = await ExecuteAgentTurnInternalAsync(
+                            room, agent, settingsResolver, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
+                    }
                     prefetchTask = null;
                 }
                 else
@@ -89,7 +121,7 @@ public sealed class ConversationRunner
                     OnAgentMessageStarted?.Invoke(agent, "Thinking...");
 
                     (response, futureNote, rawResult) = await ExecuteAgentTurnInternalAsync(
-                        room, agent, settingsResolver, sessionTurns, iteration, maxIterations, ct);
+                        room, agent, settingsResolver, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
                 }
 
                 // Persist transcript
@@ -118,18 +150,34 @@ public sealed class ConversationRunner
                     var speechTask = OnSpeechGate(agent, response, ct);
 
                     // While this agent speaks, fire the next agent's API call
-                    if (agentIndex + 1 < enabledAgents.Count)
+                    // Skip prefetch if PauseAfterEveryReply is on (user wants to interject)
+                    if (agentIndex + 1 < enabledAgents.Count && !room.PauseAfterEveryReply)
                     {
                         var nextAgent = enabledAgents[agentIndex + 1];
                         OnAgentMessageStarted?.Invoke(nextAgent, "Thinking...");
                         OnStatusChanged?.Invoke($"{nextAgent.Name} thinking");
 
-                        prefetchTask = ExecuteAgentTurnInternalAsync(
-                            room, nextAgent, settingsResolver, sessionTurns, iteration, maxIterations, ct);
+                        try
+                        {
+                            prefetchTask = ExecuteAgentTurnInternalAsync(
+                                room, nextAgent, settingsResolver, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
+                        }
+                        catch
+                        {
+                            prefetchTask = null;
+                        }
                     }
 
                     // Wait for speech to finish before showing the next agent's result
                     await speechTask;
+                }
+
+                // PauseAfterEveryReply: pause after each agent, let user interject
+                if (room.PauseAfterEveryReply && agentIndex < enabledAgents.Count - 1)
+                {
+                    OnSystemMessage?.Invoke("Agent replied. Add a message or click Continue.");
+                    OnStatusChanged?.Invoke("Waiting for you");
+                    return;
                 }
 
                 if (agentIndex == enabledAgents.Count - 1)
@@ -209,7 +257,8 @@ public sealed class ConversationRunner
         List<TranscriptTurn> sessionTurns,
         int iteration,
         int maxIterations,
-        CancellationToken ct)
+        CancellationToken ct,
+        IReadOnlyList<SceneArchive>? roundRecalledScenes = null)
     {
         var enabledAgents = room.Agents.Where(a => a.IsEnabled).ToList();
         var agentIndex = enabledAgents.FindIndex(a => a.Id == agent.Id);
@@ -222,10 +271,14 @@ public sealed class ConversationRunner
         var agentShortMemory = await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentShort);
         var recentTurns = SelectRecentTurns(sessionTurns, agentIndex, enabledAgents.Count, room.RecentTurnsWindow);
 
+        var agentRecalledScenes = roundRecalledScenes is { Count: > 0 }
+            ? (includeDurableMemory ? roundRecalledScenes.Take(2).ToList() : roundRecalledScenes.Take(1).ToList())
+            : null;
+
         var prompt = _promptComposer.BuildAgentPrompt(
             room, agent, iteration, maxIterations,
             sharedRoomMemory, durableMemory, agentLongMemory, agentShortMemory,
-            recentTurns, includeDurableMemory);
+            recentTurns, includeDurableMemory, agentRecalledScenes);
         var agentSettings = settingsResolver(agent);
 
         return await _turnExecutor.ExecuteAgentTurnAsync(agent, agentSettings, prompt, ct);

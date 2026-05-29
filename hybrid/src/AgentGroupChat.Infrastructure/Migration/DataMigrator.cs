@@ -19,6 +19,7 @@ public sealed class DataMigrator
     public async Task<bool> MigrateIfNeededAsync()
     {
         await _db.Database.EnsureCreatedAsync();
+        await EvolveSchemaAsync();
 
         if (!_legacy.HasLegacyData()) return false;
         if (await _db.Rooms.AnyAsync()) return false; // already migrated
@@ -60,5 +61,85 @@ public sealed class DataMigrator
         }
 
         return true;
+    }
+
+    private async Task EvolveSchemaAsync()
+    {
+        var conn = _db.Database.GetDbConnection();
+        await conn.OpenAsync();
+        try
+        {
+            await AddColumnIfMissingAsync(conn, "Rooms", "MemoryModelId", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "MaxArchivedScenes", "INTEGER NOT NULL DEFAULT 40");
+            await AddColumnIfMissingAsync(conn, "Rooms", "EnableSceneArchive", "INTEGER NOT NULL DEFAULT 1");
+            await AddColumnIfMissingAsync(conn, "Rooms", "PauseAfterEveryReply", "INTEGER NOT NULL DEFAULT 0");
+
+            await CreateTableIfMissingAsync(conn, "SceneArchives", """
+                CREATE TABLE "SceneArchives" (
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "RoomId" TEXT NOT NULL DEFAULT '',
+                    "RoundNumber" INTEGER NOT NULL DEFAULT 0,
+                    "Label" TEXT NOT NULL DEFAULT '',
+                    "KeyEntities" TEXT NOT NULL DEFAULT '',
+                    "SharedRoomSnapshot" TEXT NOT NULL DEFAULT '',
+                    "DurableSnapshot" TEXT NOT NULL DEFAULT '',
+                    "IsMajor" INTEGER NOT NULL DEFAULT 0,
+                    "CreatedAt" TEXT NOT NULL DEFAULT '0001-01-01T00:00:00+00:00'
+                )
+                """);
+
+            await CreateIndexIfMissingAsync(conn, "IX_SceneArchives_RoomId",
+                "CREATE INDEX \"IX_SceneArchives_RoomId\" ON \"SceneArchives\" (\"RoomId\")");
+            await CreateIndexIfMissingAsync(conn, "IX_SceneArchives_RoomId_RoundNumber",
+                "CREATE INDEX \"IX_SceneArchives_RoomId_RoundNumber\" ON \"SceneArchives\" (\"RoomId\", \"RoundNumber\")");
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    private static async Task AddColumnIfMissingAsync(
+        System.Data.Common.DbConnection conn, string table, string column, string definition)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info(\"{table}\")";
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+        reader.Close();
+
+        using var alter = conn.CreateCommand();
+        alter.CommandText = $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {definition}";
+        await alter.ExecuteNonQueryAsync();
+    }
+
+    private static async Task CreateTableIfMissingAsync(
+        System.Data.Common.DbConnection conn, string table, string createSql)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='{table}'";
+        var exists = Convert.ToInt64(await cmd.ExecuteScalarAsync()) > 0;
+        if (exists) return;
+
+        using var create = conn.CreateCommand();
+        create.CommandText = createSql;
+        await create.ExecuteNonQueryAsync();
+    }
+
+    private static async Task CreateIndexIfMissingAsync(
+        System.Data.Common.DbConnection conn, string indexName, string createSql)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='{indexName}'";
+        var exists = Convert.ToInt64(await cmd.ExecuteScalarAsync()) > 0;
+        if (exists) return;
+
+        using var create = conn.CreateCommand();
+        create.CommandText = createSql;
+        await create.ExecuteNonQueryAsync();
     }
 }

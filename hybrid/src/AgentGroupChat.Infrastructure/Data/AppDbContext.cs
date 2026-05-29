@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<TranscriptTurnEntity> TranscriptTurns => Set<TranscriptTurnEntity>();
     public DbSet<MemoryBlockEntity> MemoryBlocks => Set<MemoryBlockEntity>();
     public DbSet<LogEntryEntity> LogEntries => Set<LogEntryEntity>();
+    public DbSet<SceneArchiveEntity> SceneArchives => Set<SceneArchiveEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,5 +37,11 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<LogEntryEntity>()
             .HasIndex(l => l.Source);
+
+        modelBuilder.Entity<SceneArchiveEntity>()
+            .HasIndex(s => s.RoomId);
+
+        modelBuilder.Entity<SceneArchiveEntity>()
+            .HasIndex(s => new { s.RoomId, s.RoundNumber });
     }
 }

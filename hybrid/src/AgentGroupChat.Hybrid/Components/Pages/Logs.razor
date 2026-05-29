@@ -2,6 +2,7 @@
 @inject AgentGroupChat.Core.Services.LogService LogService
 @inject RoomState RoomState
 @inject AgentGroupChat.Core.Services.Interfaces.IMemoryRepository MemoryRepo
+@inject AgentGroupChat.Core.Services.Interfaces.ISceneArchiveRepository SceneArchiveRepo
 @implements IDisposable
 
 <MudText Typo="Typo.h4" GutterBottom="true">Logs</MudText>
@@ -108,6 +109,75 @@
 </MudPaper>
 
 <MudPaper Class="pa-4 mb-4" Elevation="1">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+        <MudText Typo="Typo.h6">Scene Archive</MudText>
+        <MudSpacer />
+        @if (RoomState.SelectedRoom is not null)
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@($"{_sceneArchives.Count} archived scenes")</MudChip>
+            @if (_sceneArchives.Count > 0)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
+                           OnClick="ClearSceneArchives">Clear All</MudButton>
+            }
+        }
+    </MudStack>
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+        Snapshots of shared room and durable memory archived before each scene transition. Used for long-horizon recall.
+    </MudText>
+
+    @if (RoomState.SelectedRoom is null)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Select a room to view scene archives.</MudText>
+    }
+    else if (_sceneArchives.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary">No archived scenes yet. Scenes are archived during memory refresh at durable-promotion checkpoints.</MudText>
+    }
+    else
+    {
+        <MudTable Items="_sceneArchives" Dense="true" Hover="true" Striped="true" FixedHeader="true" Height="400px">
+            <HeaderContent>
+                <MudTh Style="width:60px">Round</MudTh>
+                <MudTh>Label</MudTh>
+                <MudTh>Key Entities</MudTh>
+                <MudTh Style="width:50px">Major</MudTh>
+                <MudTh Style="width:80px">Size</MudTh>
+                <MudTh Style="width:100px">Created</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.RoundNumber</MudTd>
+                <MudTd>
+                    <MudLink Typo="Typo.body2" Color="Color.Primary" Style="cursor:pointer"
+                             OnClick="@(() => ToggleSceneDetail(context.Id))">
+                        @context.Label
+                        <MudIcon Icon="@(_expandedSceneIds.Contains(context.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                                 Size="Size.Small" Class="ml-1" />
+                    </MudLink>
+                    @if (_expandedSceneIds.Contains(context.Id))
+                    {
+                        <MudPaper Class="pa-2 mt-1" Elevation="0" Style="background:var(--mud-palette-background-gray); max-height:300px; overflow-y:auto;">
+                            <MudText Typo="Typo.caption" Class="mb-1" Color="Color.Info">Shared Room Snapshot</MudText>
+                            <pre style="white-space:pre-wrap; margin:0; font-size:0.8rem;">@context.SharedRoomSnapshot</pre>
+                            @if (!string.IsNullOrWhiteSpace(context.DurableSnapshot))
+                            {
+                                <MudDivider Class="my-2" />
+                                <MudText Typo="Typo.caption" Class="mb-1" Color="Color.Info">Durable Snapshot</MudText>
+                                <pre style="white-space:pre-wrap; margin:0; font-size:0.8rem;">@context.DurableSnapshot</pre>
+                            }
+                        </MudPaper>
+                    }
+                </MudTd>
+                <MudTd><MudText Typo="Typo.body2" Style="font-size:0.8rem">@(string.IsNullOrWhiteSpace(context.KeyEntities) ? "—" : context.KeyEntities)</MudText></MudTd>
+                <MudTd>@(context.IsMajor ? "✓" : "")</MudTd>
+                <MudTd><MudText Typo="Typo.body2" Style="font-size:0.8rem">@($"{context.SharedRoomSnapshot.Length + context.DurableSnapshot.Length} chars")</MudText></MudTd>
+                <MudTd><MudText Typo="Typo.body2" Style="font-size:0.8rem">@context.CreatedAt.LocalDateTime.ToString("MM/dd HH:mm")</MudText></MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudPaper>
+
+<MudPaper Class="pa-4 mb-4" Elevation="1">
     <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="flex-wrap">
         @foreach (var cat in _allCategories)
         {
@@ -180,10 +250,12 @@
     private static readonly string[] _allCategories = Enum.GetNames<LogCategory>();
     private readonly HashSet<string> _activeCategories = new(Enum.GetNames<LogCategory>());
     private readonly HashSet<long> _expandedIds = new();
+    private readonly HashSet<long> _expandedSceneIds = new();
 
     private List<LogEntry> _entries = new();
     private List<string> _sources = new();
     private List<MemoryBlock> _memoryBlocks = new();
+    private IReadOnlyList<SceneArchive> _sceneArchives = new List<SceneArchive>();
     private string _sourceFilter = string.Empty;
     private string _sharedRoomMemory = string.Empty;
     private string _durableMemory = string.Empty;
@@ -280,12 +352,27 @@
             _memoryBlocks = new();
             _sharedRoomMemory = string.Empty;
             _durableMemory = string.Empty;
+            _sceneArchives = new List<SceneArchive>();
             return;
         }
 
         _memoryBlocks = (await MemoryRepo.GetBlocksAsync(RoomState.SelectedRoom.Id)).ToList();
         _sharedRoomMemory = FindMemoryBlock(null, MemoryKind.SharedRoom)?.Content ?? string.Empty;
         _durableMemory = FindMemoryBlock(null, MemoryKind.Durable)?.Content ?? string.Empty;
+        _sceneArchives = await SceneArchiveRepo.GetByRoomAsync(RoomState.SelectedRoom.Id);
+    }
+
+    private async Task ClearSceneArchives()
+    {
+        if (RoomState.SelectedRoom is null) return;
+        await SceneArchiveRepo.DeleteAllForRoomAsync(RoomState.SelectedRoom.Id);
+        await RefreshMemory();
+    }
+
+    private void ToggleSceneDetail(long id)
+    {
+        if (!_expandedSceneIds.Remove(id))
+            _expandedSceneIds.Add(id);
     }
 
     private async Task ClearSharedRoomMemory()

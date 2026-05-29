@@ -6,6 +6,7 @@ public sealed class RoomConfig
     public string Name { get; set; } = string.Empty;
     public string Topic { get; set; } = string.Empty;
     public bool WaitForUserReply { get; set; } = true;
+    public bool PauseAfterEveryReply { get; set; }
     public int AgentDelaySeconds { get; set; } = 5;
     public int MaxTokens { get; set; } = 300;
     public int RecentTurnsWindow { get; set; } = 6;
@@ -17,6 +18,9 @@ public sealed class RoomConfig
     public int SummarizerMaxCharacters { get; set; } = 5600;
     public int SummarizerBroaderTurns { get; set; } = 6;
     public string SummarizerPromptOverride { get; set; } = string.Empty;
+    public string MemoryModelId { get; set; } = string.Empty;
+    public int MaxArchivedScenes { get; set; } = 40;
+    public bool EnableSceneArchive { get; set; } = true;
     public int SortOrder { get; set; }
     public List<AgentConfig> Agents { get; set; } = new();
 }

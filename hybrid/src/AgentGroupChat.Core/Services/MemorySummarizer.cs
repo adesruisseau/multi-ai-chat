@@ -9,15 +9,18 @@ public sealed class MemorySummarizer
     private readonly LlmClient _llmClient;
     private readonly PromptComposer _promptComposer;
     private readonly IMemoryRepository _memoryRepo;
+    private readonly ISceneArchiveRepository _sceneArchiveRepo;
 
     public MemorySummarizer(
         LlmClient llmClient,
         PromptComposer promptComposer,
-        IMemoryRepository memoryRepo)
+        IMemoryRepository memoryRepo,
+        ISceneArchiveRepository sceneArchiveRepo)
     {
         _llmClient = llmClient;
         _promptComposer = promptComposer;
         _memoryRepo = memoryRepo;
+        _sceneArchiveRepo = sceneArchiveRepo;
     }
 
     public async Task RefreshAsync(
@@ -33,6 +36,13 @@ public sealed class MemorySummarizer
 
         var existingRoomMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
         var existingDurableMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.Durable);
+
+        if (room.EnableSceneArchive && shouldPromoteDurable && !string.IsNullOrWhiteSpace(existingRoomMemory))
+        {
+            await TryArchiveSceneAsync(room, baseSummarizerSettings, existingRoomMemory,
+                existingDurableMemory, roundTurns, onLog, ct);
+        }
+
         var profile = _promptComposer.GetSummarizerProfile(room);
 
         var roomSettings = baseSummarizerSettings with
@@ -194,4 +204,97 @@ public sealed class MemorySummarizer
             }.Concat(recentTurns)),
             profile.MaxLines, profile.MaxCharacters);
     }
+
+    private async Task TryArchiveSceneAsync(
+        RoomConfig room,
+        LlmRequestSettings settings,
+        string sharedRoomSnapshot,
+        string? durableSnapshot,
+        IReadOnlyList<TranscriptTurn> roundTurns,
+        Action<string>? onLog,
+        CancellationToken ct)
+    {
+        var roundNumber = roundTurns.Count > 0 ? roundTurns.Max(t => t.Round) : 0;
+        if (roundNumber <= 0)
+        {
+            onLog?.Invoke("Scene archive skipped: no valid round number.");
+            return;
+        }
+
+        var existingArchives = await _sceneArchiveRepo.GetByRoomAsync(room.Id);
+        if (existingArchives.Any(a => a.RoundNumber == roundNumber))
+        {
+            onLog?.Invoke($"Scene archive skipped: round {roundNumber} already archived.");
+            return;
+        }
+
+        string label;
+        string keyEntities;
+
+        try
+        {
+            var labelSettings = settings with
+            {
+                MaxCompletionTokens = Math.Min(settings.MaxCompletionTokens, 200),
+            };
+            var messages = new List<LlmChatMessage>
+            {
+                new("system", BuildSceneLabelingSystemPrompt()),
+                new("user", BuildSceneLabelingUserPrompt(sharedRoomSnapshot, durableSnapshot)),
+            };
+            var result = await _llmClient.CompleteAsync(labelSettings, messages, ct);
+            label = PromptComposer.ExtractTaggedContent(result.Content, "scene_label");
+            keyEntities = PromptComposer.ExtractTaggedContent(result.Content, "key_entities");
+
+            if (string.IsNullOrWhiteSpace(label))
+                label = $"Round {roundNumber} snapshot";
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            label = $"Round {roundNumber} snapshot";
+            keyEntities = string.Empty;
+            onLog?.Invoke($"Scene labeling failed, using fallback: {ex.Message}");
+        }
+
+        var archive = new SceneArchive
+        {
+            RoomId = room.Id,
+            RoundNumber = roundNumber,
+            Label = label.Length > 200 ? label[..200] : label,
+            KeyEntities = (keyEntities ?? string.Empty).Length > 500
+                ? keyEntities![..500]
+                : keyEntities ?? string.Empty,
+            SharedRoomSnapshot = sharedRoomSnapshot,
+            DurableSnapshot = durableSnapshot ?? string.Empty,
+            IsMajor = true,
+        };
+
+        await _sceneArchiveRepo.AppendAsync(archive);
+        await _sceneArchiveRepo.PruneAsync(room.Id, room.MaxArchivedScenes);
+        onLog?.Invoke($"Archived scene: \"{label}\" (round {roundNumber})");
+    }
+
+    private static string BuildSceneLabelingSystemPrompt() => """
+        You are a scene indexer. Create a short label and entity list for the current scene state.
+
+        Return exactly two tagged sections and nothing else:
+        <scene_label>short descriptive label (5-15 words, noun-heavy, retrieval-friendly)</scene_label>
+        <key_entities>comma-separated proper nouns, locations, items, factions</key_entities>
+
+        Rules:
+        - The label should capture what happened, not describe the format.
+        - Key entities should list only proper nouns and important named things.
+        - Do not write prose, explanations, or reasoning.
+        """;
+
+    private static string BuildSceneLabelingUserPrompt(string sharedRoom, string? durable) => $"""
+        Current shared room memory being archived:
+        {sharedRoom}
+
+        Current durable memory for reference:
+        {(string.IsNullOrWhiteSpace(durable) ? "(none)" : durable)}
+
+        Create a label and entity list for this scene.
+        """;
 }

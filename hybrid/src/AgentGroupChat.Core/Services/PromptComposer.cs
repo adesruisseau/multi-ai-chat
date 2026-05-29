@@ -22,8 +22,10 @@ public sealed class PromptComposer
         string agentLongMemory,
         string agentShortMemory,
         IReadOnlyList<TranscriptTurn> recentTurns,
-        bool includeDurableMemory)
+        bool includeDurableMemory,
+        IReadOnlyList<SceneArchive>? recalledScenes = null)
     {
+        var hasRecalledContext = recalledScenes is { Count: > 0 };
         var participants = string.Join(
             " -> ",
             room.Agents.Where(a => a.IsEnabled).Select(a => a.Name));
@@ -35,10 +37,14 @@ public sealed class PromptComposer
             : TakeTail(durableMemory, 1600);
         var shared = string.IsNullOrWhiteSpace(sharedRoomMemory)
             ? "(No recent shared room memory yet.)"
-            : TakeTail(sharedRoomMemory, includeDurableMemory ? 2000 : 1400);
+            : TakeTail(sharedRoomMemory, (includeDurableMemory ? 2000 : 1400) - (hasRecalledContext ? 400 : 0));
         var privateMemory = BuildAgentPrivateMemory(agent, agentLongMemory, agentShortMemory);
         var durableSection = includeDurableMemory
             ? $"\n<durable_theme_memory>\n{durable}\n</durable_theme_memory>\n"
+            : string.Empty;
+        var recalledSection = BuildRecalledContextSection(recalledScenes);
+        var recalledInstruction = hasRecalledContext
+            ? "- Use recalled context only when it directly informs your response. Do not restate recalled details unless they materially change what you say."
             : string.Empty;
         var actorFocusInstruction = includeDurableMemory
             ? "- You are later in the round. Synthesize the latest participant actions when advancing the conversation."
@@ -60,7 +66,7 @@ You are: {agent.Name}
 </agent_private_memory>
 
 {durableSection}
-
+{recalledSection}
 <shared_room_memory>
 {shared}
 </shared_room_memory>
@@ -86,6 +92,7 @@ Turn requirements:
 - Use the transcript for immediate continuity and voice.
 - Rely on the recent transcript window below instead of reconstructing omitted history.
 {actorFocusInstruction}
+{recalledInstruction}
 - In `<future_note>`, capture what you are listening for, weighing, or likely to do next instead of summarizing the whole scene.
 - Inside `<reply>`, do not repeat transcript headings, memory labels, or prompt scaffolding.
 - Do not output phrases like 'Recent transcript window:' or restate the full transcript unless absolutely necessary.
@@ -366,4 +373,32 @@ Rules:
 
     private static string TakeTail(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[^maxLength..];
+
+    private static string BuildRecalledContextSection(IReadOnlyList<SceneArchive>? scenes)
+    {
+        if (scenes is null || scenes.Count == 0) return string.Empty;
+
+        var entries = new List<string>();
+        var totalLength = 0;
+        const int budget = 1200;
+
+        foreach (var scene in scenes)
+        {
+            var header = $"[Round {scene.RoundNumber}: {scene.Label}]";
+            var snapshot = scene.SharedRoomSnapshot;
+            if (snapshot.Length > 500)
+                snapshot = snapshot[..500].Trim();
+
+            var entry = $"{header}\n{snapshot}";
+            if (totalLength + entry.Length > budget && entries.Count > 0)
+                break;
+
+            entries.Add(entry);
+            totalLength += entry.Length;
+        }
+
+        if (entries.Count == 0) return string.Empty;
+
+        return $"\n<recalled_context>\n{string.Join("\n\n", entries)}\n</recalled_context>\n";
+    }
 }

@@ -37,6 +37,13 @@
                 <MudTextField @bind-Value="room.Name" Label="Name" Class="mb-2" />
                 <MudTextField @bind-Value="room.Topic" Label="Topic" Lines="3" Class="mb-2" />
                 <MudSwitch @bind-Value="room.WaitForUserReply" Label="Wait for user reply" Color="Color.Primary" />
+                @if (room.WaitForUserReply)
+                {
+                    <MudRadioGroup @bind-Value="room.PauseAfterEveryReply" Class="mb-2">
+                        <MudRadio Value="false" Color="Color.Primary" T="bool">Pause at end of round</MudRadio>
+                        <MudRadio Value="true" Color="Color.Primary" T="bool">Pause after every agent reply</MudRadio>
+                    </MudRadioGroup>
+                }
                 <MudGrid>
                     <MudItem xs="6">
                         <MudNumericField @bind-Value="room.AgentDelaySeconds" Label="Seconds between agents" Min="1" />
