@@ -47,7 +47,7 @@ public sealed class LegacyJsonDataSource : ILegacyDataSource
             TtsRate = GetInt(raw, "textToSpeechRate"),
             PiperExePath = GetString(raw, "piperExecutablePath", ""),
             PiperModelsDir = GetString(raw, "piperModelsDirectory", ""),
-            KokoroBaseUrl = GetString(raw, "kokoroBaseUrl", "http://127.0.0.1:8000"),
+            KokoroBaseUrl = GetString(raw, "kokoroBaseUrl", "http://127.0.0.1:8880"),
             KokoroModel = GetString(raw, "kokoroModel", "kokoro"),
             KokoroVoice = GetString(raw, "kokoroVoice", "af_heart"),
             KokoroLangCode = GetString(raw, "kokoroLanguageCode", "a"),

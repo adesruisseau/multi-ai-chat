@@ -10,9 +10,10 @@ public sealed class AppSettings
     public int TtsRate { get; set; }
     public string PiperExePath { get; set; } = string.Empty;
     public string PiperModelsDir { get; set; } = string.Empty;
-    public string KokoroBaseUrl { get; set; } = "http://127.0.0.1:8000";
+    public string KokoroBaseUrl { get; set; } = "http://127.0.0.1:8880";
     public string KokoroModel { get; set; } = "kokoro";
     public string KokoroVoice { get; set; } = "af_heart";
+    public string KokoroUserVoice { get; set; } = string.Empty;
     public string KokoroLangCode { get; set; } = "a";
     public double KokoroSpeed { get; set; } = 1.0;
     public bool SetupModelsCompleted { get; set; }

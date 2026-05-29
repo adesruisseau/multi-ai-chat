@@ -69,10 +69,33 @@ public sealed class DataMigrator
         await conn.OpenAsync();
         try
         {
+            await AddColumnIfMissingAsync(conn, "Rooms", "EnableSceneImageGeneration", "INTEGER NOT NULL DEFAULT 0");
+            await AddColumnIfMissingAsync(conn, "Rooms", "SceneImageStyleNotes", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "SceneImageNegativePrompt", "TEXT NOT NULL DEFAULT ''");
             await AddColumnIfMissingAsync(conn, "Rooms", "MemoryModelId", "TEXT NOT NULL DEFAULT ''");
             await AddColumnIfMissingAsync(conn, "Rooms", "MaxArchivedScenes", "INTEGER NOT NULL DEFAULT 40");
             await AddColumnIfMissingAsync(conn, "Rooms", "EnableSceneArchive", "INTEGER NOT NULL DEFAULT 1");
             await AddColumnIfMissingAsync(conn, "Rooms", "PauseAfterEveryReply", "INTEGER NOT NULL DEFAULT 0");
+            await AddColumnIfMissingAsync(conn, "Rooms", "EnablePrivilegedActions", "INTEGER NOT NULL DEFAULT 0");
+            await AddColumnIfMissingAsync(conn, "Rooms", "EnableNpcSpawning", "INTEGER NOT NULL DEFAULT 0");
+            await AddColumnIfMissingAsync(conn, "Rooms", "PrivilegedAgentId", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "NpcModelId", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "NpcDefaultMaleVoice", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "NpcDefaultFemaleVoice", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "NpcMaxTokens", "INTEGER");
+            await AddColumnIfMissingAsync(conn, "Rooms", "NpcCompactionBudget", "INTEGER NOT NULL DEFAULT 300");
+            await AddColumnIfMissingAsync(conn, "Rooms", "NpcBaseInstructions", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "MaxConcurrentNpcs", "INTEGER NOT NULL DEFAULT 2");
+
+            await AddColumnIfMissingAsync(conn, "Agents", "AppearanceSummary", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Agents", "IsNpc", "INTEGER NOT NULL DEFAULT 0");
+            await AddColumnIfMissingAsync(conn, "Agents", "SpawnedByAgentId", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Agents", "IsTemporarilySuspended", "INTEGER NOT NULL DEFAULT 0");
+            await AddColumnIfMissingAsync(conn, "Agents", "SuspendedByAgentId", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Agents", "SuspendedUntilRound", "INTEGER");
+            await AddColumnIfMissingAsync(conn, "Agents", "SuspensionReason", "TEXT NOT NULL DEFAULT ''");
+
+            await AddColumnIfMissingAsync(conn, "AppSettings", "KokoroUserVoice", "TEXT NOT NULL DEFAULT ''");
 
             await CreateTableIfMissingAsync(conn, "SceneArchives", """
                 CREATE TABLE "SceneArchives" (

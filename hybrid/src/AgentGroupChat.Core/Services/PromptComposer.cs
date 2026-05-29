@@ -26,9 +26,10 @@ public sealed class PromptComposer
         IReadOnlyList<SceneArchive>? recalledScenes = null)
     {
         var hasRecalledContext = recalledScenes is { Count: > 0 };
+        var activeParticipants = room.Agents.Where(IsActiveAgent).OrderBy(a => a.SortOrder).ToList();
         var participants = string.Join(
             " -> ",
-            room.Agents.Where(a => a.IsEnabled).Select(a => a.Name));
+            activeParticipants.Select(a => a.Name));
         var transcript = string.Join(
             "\n\n",
             recentTurns.Select(t => $"{t.Speaker}:\n{t.Content}"));
@@ -38,17 +39,32 @@ public sealed class PromptComposer
         var shared = string.IsNullOrWhiteSpace(sharedRoomMemory)
             ? "(No recent shared room memory yet.)"
             : TakeTail(sharedRoomMemory, (includeDurableMemory ? 2000 : 1400) - (hasRecalledContext ? 400 : 0));
-        var privateMemory = BuildAgentPrivateMemory(agent, agentLongMemory, agentShortMemory);
+        var (offSceneNotice, cleanedShortMemory) = ExtractStructuredSection(agentShortMemory, "[Off-Scene Notice]");
+        var privateMemory = BuildAgentPrivateMemory(agent, agentLongMemory, cleanedShortMemory);
         var durableSection = includeDurableMemory
             ? $"\n<durable_theme_memory>\n{durable}\n</durable_theme_memory>\n"
             : string.Empty;
         var recalledSection = BuildRecalledContextSection(recalledScenes);
+        var inactiveParticipantsSection = BuildInactiveParticipantsSection(room, agent);
+        var privilegedActionsSection = BuildPrivilegedActionsSection(room, agent);
+        var offSceneSection = string.IsNullOrWhiteSpace(offSceneNotice)
+            ? string.Empty
+            : $"\n<offscene_notice>\n{TakeTail(offSceneNotice, 600)}\n</offscene_notice>\n";
         var recalledInstruction = hasRecalledContext
             ? "- Use recalled context only when it directly informs your response. Do not restate recalled details unless they materially change what you say."
             : string.Empty;
         var actorFocusInstruction = includeDurableMemory
             ? "- You are later in the round. Synthesize the latest participant actions when advancing the conversation."
             : "- Focus on one concrete move from your own perspective instead of restating the whole scene.";
+        var inactiveParticipantsInstruction = string.IsNullOrWhiteSpace(inactiveParticipantsSection)
+            ? string.Empty
+            : "- Treat participants listed in inactive_participants as off-scene. Do not address them as present, put dialogue in their mouths, or assume they witnessed this round.";
+        var offSceneInstruction = string.IsNullOrWhiteSpace(offSceneNotice)
+            ? string.Empty
+            : "- You were off-scene for prior rounds. Do not act as if you directly witnessed events that occurred while you were absent unless they were explicitly conveyed to you.";
+        var privilegedActionInstruction = string.IsNullOrWhiteSpace(privilegedActionsSection)
+            ? string.Empty
+            : "- If you request a privileged action, place it only inside a nested <privileged_actions> block within <future_note>. Never place privileged-action tags in <reply>.";
 
         return $"""
 You are participating in a multi-agent conversation.
@@ -61,6 +77,7 @@ Current round: {iteration} of {maxIterations}
 You are: {agent.Name}
 </context>
 
+{privilegedActionsSection}{inactiveParticipantsSection}{offSceneSection}
 <agent_private_memory>
 {privateMemory}
 </agent_private_memory>
@@ -93,6 +110,9 @@ Turn requirements:
 - Rely on the recent transcript window below instead of reconstructing omitted history.
 {actorFocusInstruction}
 {recalledInstruction}
+{inactiveParticipantsInstruction}
+{offSceneInstruction}
+{privilegedActionInstruction}
 - In `<future_note>`, capture what you are listening for, weighing, or likely to do next instead of summarizing the whole scene.
 - Inside `<reply>`, do not repeat transcript headings, memory labels, or prompt scaffolding.
 - Do not output phrases like 'Recent transcript window:' or restate the full transcript unless absolutely necessary.
@@ -292,6 +312,46 @@ Rules:
         return end < 0 ? value[start..].Trim() : value[start..end].Trim();
     }
 
+    public static (string Section, string Remaining) ExtractStructuredSection(string value, string sectionHeader)
+    {
+        if (string.IsNullOrWhiteSpace(value) || string.IsNullOrWhiteSpace(sectionHeader))
+            return (string.Empty, value);
+
+        var lines = value.Replace("\r", string.Empty).Split('\n');
+        var extracted = new List<string>();
+        var remaining = new List<string>();
+        var inSection = false;
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd();
+            var trimmed = line.Trim();
+
+            if (string.Equals(trimmed, sectionHeader, StringComparison.OrdinalIgnoreCase))
+            {
+                inSection = true;
+                continue;
+            }
+
+            if (inSection && trimmed.StartsWith("[") && trimmed.EndsWith("]") && !string.Equals(trimmed, sectionHeader, StringComparison.OrdinalIgnoreCase))
+            {
+                inSection = false;
+            }
+
+            if (inSection)
+            {
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                    extracted.Add(trimmed);
+            }
+            else if (!string.IsNullOrWhiteSpace(trimmed))
+            {
+                remaining.Add(trimmed);
+            }
+        }
+
+        return (string.Join("\n", extracted).Trim(), string.Join("\n", remaining).Trim());
+    }
+
     public static string SanitizeStructuredMemoryBlock(string value, int maxLines, int maxCharacters)
     {
         var cleanedLines = new List<string>();
@@ -373,6 +433,49 @@ Rules:
 
     private static string TakeTail(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[^maxLength..];
+
+    private static bool IsActiveAgent(AgentConfig agent) =>
+        agent.IsEnabled && !agent.IsTemporarilySuspended;
+
+    private static string BuildInactiveParticipantsSection(RoomConfig room, AgentConfig currentAgent)
+    {
+        var inactiveAgents = room.Agents
+            .Where(a => a.IsEnabled && !a.IsNpc && a.IsTemporarilySuspended && a.Id != currentAgent.Id)
+            .OrderBy(a => a.SortOrder)
+            .ToList();
+        if (inactiveAgents.Count == 0) return string.Empty;
+
+        var lines = inactiveAgents.Select(a => $"- {a.Name}: {FormatSuspensionDescriptor(a)}");
+        return $"\n<inactive_participants>\n{string.Join("\n", lines)}\n</inactive_participants>\n";
+    }
+
+    private static string BuildPrivilegedActionsSection(RoomConfig room, AgentConfig agent)
+    {
+        if (!room.EnablePrivilegedActions || agent.IsNpc || !string.Equals(agent.Id, room.PrivilegedAgentId, StringComparison.Ordinal))
+            return string.Empty;
+
+        var activeNpcs = room.Agents
+            .Where(a => a.IsEnabled && a.IsNpc)
+            .OrderBy(a => a.SortOrder)
+            .Select(a => a.Name)
+            .ToList();
+        var activeNpcsText = activeNpcs.Count == 0 ? "(none)" : string.Join(", ", activeNpcs);
+        var npcInstructions = room.EnableNpcSpawning
+            ? $"- Use `<spawn_npc name=\"Name\" gender=\"male|female\">description</spawn_npc>` to add a new long-running NPC.\n- Use `<dismiss_npc name=\"Name\">reason</dismiss_npc>` to remove an active NPC.\n- Active NPCs: {activeNpcsText}.\n- Active NPC slots: {activeNpcs.Count}/{Math.Max(1, room.MaxConcurrentNpcs)}.\n- Only spawn NPCs who should remain in play for multiple rounds."
+            : "- NPC spawning is disabled for this room.";
+
+        return $"\n<npc_management>\nYou may request privileged lifecycle changes by placing them inside a nested `<privileged_actions>` block within `<future_note>`.\n{npcInstructions}\n- Use `<suspend_agent name=\"Name\" rounds=\"N\">reason</suspend_agent>` to remove a permanent character from the active roster for N upcoming rounds.\n- Use `<resume_agent name=\"Name\">reason</resume_agent>` to return a suspended permanent character to play next round.\n- Only suspend permanent characters who are genuinely off-scene, asleep, separated, or otherwise unavailable.\n- Do not suspend yourself.\n- Use at most two privileged lifecycle actions in one turn.\n- Do not place privileged-action tags in `<reply>`.\n</npc_management>\n";
+    }
+
+    private static string FormatSuspensionDescriptor(AgentConfig agent)
+    {
+        var reason = string.IsNullOrWhiteSpace(agent.SuspensionReason)
+            ? "off-scene and not participating this round"
+            : agent.SuspensionReason.Trim().TrimEnd('.');
+        return agent.SuspendedUntilRound.HasValue
+            ? $"{reason} (until round {agent.SuspendedUntilRound.Value})."
+            : $"{reason} (until resumed).";
+    }
 
     private static string BuildRecalledContextSection(IReadOnlyList<SceneArchive>? scenes)
     {

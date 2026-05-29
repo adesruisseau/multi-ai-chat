@@ -47,7 +47,7 @@ else
                 <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
                     <div style="flex:1; min-width:0;">
                         <MudText Typo="Typo.subtitle2" Style="@($"color:{borderColor}")">@msg.Speaker</MudText>
-                        <MudText Typo="Typo.body2">@msg.Content</MudText>
+                        <MudText Typo="Typo.body2" Style="white-space: pre-wrap">@msg.Content</MudText>
                     </div>
                     <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small"
                                    OnClick="@(() => PlayFromMessage(idx))" Disabled="_isPlayingFrom"
@@ -115,6 +115,42 @@ else
                     </MudButton>
                 }
             </MudStack>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
+                @if (_kokoroVoices.Count > 0)
+                {
+                    <MudSelect Value="AppState.Settings.KokoroVoice" Label="Default Agent Voice" T="string" Style="max-width:220px"
+                               ValueChanged="OnDefaultVoiceChanged">
+                        @foreach (var v in _kokoroVoices)
+                        {
+                            <MudSelectItem T="string" Value="@v">@v</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-3"
+                               OnClick="TestDefaultVoice" Disabled="_previewingVoice">
+                        @(_previewingVoice ? "Playing..." : "Test")
+                    </MudButton>
+                    <MudSelect Value="AppState.Settings.KokoroUserVoice" Label="Your Voice" T="string" Style="max-width:220px"
+                               ValueChanged="OnUserVoiceChanged">
+                        <MudSelectItem T="string" Value="@string.Empty">(Same as default)</MudSelectItem>
+                        @foreach (var v in _kokoroVoices)
+                        {
+                            <MudSelectItem T="string" Value="@v">@v</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-3"
+                               OnClick="TestUserVoice" Disabled="_previewingVoice">
+                        @(_previewingVoice ? "Playing..." : "Test")
+                    </MudButton>
+                }
+                else
+                {
+                    <MudTextField Value="AppState.Settings.KokoroVoice" Label="Default Agent Voice" T="string" Style="max-width:220px"
+                                  ValueChanged="OnDefaultVoiceChanged" />
+                }
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-3" OnClick="RefreshVoices">
+                    Refresh Voices
+                </MudButton>
+            </MudStack>
         }
     </MudPaper>
 }
@@ -129,6 +165,8 @@ else
     private bool _kokoroTesting;
     private string _kokoroTestResult = string.Empty;
     private bool _kokoroTestOk;
+    private List<string> _kokoroVoices = new();
+    private bool _previewingVoice;
 
 
     protected override async Task OnInitializedAsync()
@@ -156,6 +194,8 @@ else
         {
             _selectedRoomId = RoomState.Rooms[0].Id;
         }
+
+        _ = RefreshVoices();
     }
 
     private void OnRunnerSystemMessage(string msg)
@@ -261,7 +301,10 @@ else
             var ttsSettings = BuildSpeechSettings();
             if (ttsSettings.Enabled)
             {
-                await Speech.SpeakAsync(ttsSettings, _userInput, ttsSettings.KokoroVoice, CancellationToken.None);
+                var userVoice = string.IsNullOrWhiteSpace(AppState.Settings.KokoroUserVoice)
+                    ? ttsSettings.KokoroVoice
+                    : AppState.Settings.KokoroUserVoice;
+                await Speech.SpeakAsync(ttsSettings, _userInput, userVoice, CancellationToken.None);
             }
 
             _userInput = string.Empty;
@@ -392,7 +435,7 @@ else
     /// </summary>
     private int ComputeResumeAgentIndex(RoomConfig room)
     {
-        var enabledAgents = room.Agents.Where(a => a.IsEnabled).ToList();
+        var enabledAgents = room.Agents.Where(a => a.IsEnabled && !a.IsTemporarilySuspended).ToList();
         if (enabledAgents.Count <= 1) return 0;
 
         var turns = ConvoState.SessionTurns;
@@ -562,12 +605,77 @@ else
     {
         AppState.Settings.TtsProvider = provider;
         await AppState.SaveSettingsAsync();
+        await RefreshVoices();
     }
 
     private async Task OnTtsRateChanged(int rate)
     {
         AppState.Settings.TtsRate = rate;
         await AppState.SaveSettingsAsync();
+    }
+
+    private async Task OnDefaultVoiceChanged(string voice)
+    {
+        AppState.Settings.KokoroVoice = voice;
+        await AppState.SaveSettingsAsync();
+    }
+
+    private async Task OnUserVoiceChanged(string voice)
+    {
+        AppState.Settings.KokoroUserVoice = voice;
+        await AppState.SaveSettingsAsync();
+    }
+
+    private async Task RefreshVoices()
+    {
+        if (!AppState.Settings.TtsProvider.Equals("Kokoro", StringComparison.OrdinalIgnoreCase))
+        {
+            _kokoroVoices.Clear();
+            return;
+        }
+        var voices = await Speech.FetchKokoroVoicesAsync(AppState.Settings.KokoroBaseUrl);
+        _kokoroVoices = voices.ToList();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task TestDefaultVoice()
+    {
+        if (_previewingVoice) return;
+        _previewingVoice = true;
+        StateHasChanged();
+        try
+        {
+            var voice = AppState.Settings.KokoroVoice;
+            var wav = await Speech.SynthesizePreviewAsync(AppState.Settings.KokoroBaseUrl, voice);
+            if (wav is not null)
+                await Speech.PlayPreviewAsync(wav, CancellationToken.None);
+        }
+        finally
+        {
+            _previewingVoice = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task TestUserVoice()
+    {
+        if (_previewingVoice) return;
+        _previewingVoice = true;
+        StateHasChanged();
+        try
+        {
+            var voice = string.IsNullOrWhiteSpace(AppState.Settings.KokoroUserVoice)
+                ? AppState.Settings.KokoroVoice
+                : AppState.Settings.KokoroUserVoice;
+            var wav = await Speech.SynthesizePreviewAsync(AppState.Settings.KokoroBaseUrl, voice);
+            if (wav is not null)
+                await Speech.PlayPreviewAsync(wav, CancellationToken.None);
+        }
+        finally
+        {
+            _previewingVoice = false;
+            StateHasChanged();
+        }
     }
 
     private async Task PlayFromMessage(int startIndex)
@@ -592,7 +700,11 @@ else
                 if (msg.IsSystem || string.IsNullOrWhiteSpace(msg.Content)) continue;
 
                 var voice = settings.KokoroVoice;
-                if (!msg.IsUser && room is not null)
+                if (msg.IsUser && !string.IsNullOrWhiteSpace(AppState.Settings.KokoroUserVoice))
+                {
+                    voice = AppState.Settings.KokoroUserVoice;
+                }
+                else if (!msg.IsUser && room is not null)
                 {
                     var agent = room.Agents.FirstOrDefault(a => a.Name == msg.Speaker);
                     if (agent is not null && !string.IsNullOrWhiteSpace(agent.TtsVoice))

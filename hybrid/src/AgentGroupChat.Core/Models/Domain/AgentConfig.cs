@@ -13,5 +13,12 @@ public sealed class AgentConfig
     public string AccentHex { get; set; } = "#C56A54";
     public string BackgroundHex { get; set; } = "#F9E5DE";
     public string TtsVoice { get; set; } = string.Empty;
+    public string AppearanceSummary { get; set; } = string.Empty;
+    public bool IsNpc { get; set; }
+    public string SpawnedByAgentId { get; set; } = string.Empty;
+    public bool IsTemporarilySuspended { get; set; }
+    public string SuspendedByAgentId { get; set; } = string.Empty;
+    public int? SuspendedUntilRound { get; set; }
+    public string SuspensionReason { get; set; } = string.Empty;
     public int SortOrder { get; set; }
 }

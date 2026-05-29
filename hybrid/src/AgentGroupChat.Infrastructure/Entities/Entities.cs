@@ -16,9 +16,10 @@ public class AppSettingsEntity
     public int TtsRate { get; set; }
     public string PiperExePath { get; set; } = string.Empty;
     public string PiperModelsDir { get; set; } = string.Empty;
-    public string KokoroBaseUrl { get; set; } = "http://127.0.0.1:8000";
+    public string KokoroBaseUrl { get; set; } = "http://127.0.0.1:8880";
     public string KokoroModel { get; set; } = "kokoro";
     public string KokoroVoice { get; set; } = "af_heart";
+    public string KokoroUserVoice { get; set; } = string.Empty;
     public string KokoroLangCode { get; set; } = "a";
     public double KokoroSpeed { get; set; } = 1.0;
     public bool SetupModelsCompleted { get; set; }
@@ -71,9 +72,22 @@ public class RoomEntity
     public int SummarizerMaxCharacters { get; set; } = 5600;
     public int SummarizerBroaderTurns { get; set; } = 6;
     public string SummarizerPromptOverride { get; set; } = string.Empty;
+    public bool EnableSceneImageGeneration { get; set; }
+    public string SceneImageStyleNotes { get; set; } = string.Empty;
+    public string SceneImageNegativePrompt { get; set; } = string.Empty;
     public string MemoryModelId { get; set; } = string.Empty;
     public int MaxArchivedScenes { get; set; } = 40;
     public bool EnableSceneArchive { get; set; } = true;
+    public bool EnablePrivilegedActions { get; set; }
+    public bool EnableNpcSpawning { get; set; }
+    public string PrivilegedAgentId { get; set; } = string.Empty;
+    public string NpcModelId { get; set; } = string.Empty;
+    public string NpcDefaultMaleVoice { get; set; } = string.Empty;
+    public string NpcDefaultFemaleVoice { get; set; } = string.Empty;
+    public int? NpcMaxTokens { get; set; }
+    public int NpcCompactionBudget { get; set; } = 300;
+    public string NpcBaseInstructions { get; set; } = string.Empty;
+    public int MaxConcurrentNpcs { get; set; } = 2;
     public int SortOrder { get; set; }
     public List<AgentEntity> Agents { get; set; } = new();
 }
@@ -93,6 +107,13 @@ public class AgentEntity
     public string AccentHex { get; set; } = "#C56A54";
     public string BackgroundHex { get; set; } = "#F9E5DE";
     public string TtsVoice { get; set; } = string.Empty;
+    public string AppearanceSummary { get; set; } = string.Empty;
+    public bool IsNpc { get; set; }
+    public string SpawnedByAgentId { get; set; } = string.Empty;
+    public bool IsTemporarilySuspended { get; set; }
+    public string SuspendedByAgentId { get; set; } = string.Empty;
+    public int? SuspendedUntilRound { get; set; }
+    public string SuspensionReason { get; set; } = string.Empty;
     public int SortOrder { get; set; }
     public RoomEntity? Room { get; set; }
 }

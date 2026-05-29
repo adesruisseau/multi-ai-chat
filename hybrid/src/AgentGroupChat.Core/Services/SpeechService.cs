@@ -613,6 +613,54 @@ public sealed class SpeechService : IDisposable
         return string.IsNullOrWhiteSpace(s.KokoroLangCode) ? "a" : s.KokoroLangCode.Trim().ToLowerInvariant();
     }
 
+    // ─── Voice listing ────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<string>> FetchKokoroVoicesAsync(string baseUrl, CancellationToken ct = default)
+    {
+        try
+        {
+            var url = (string.IsNullOrWhiteSpace(baseUrl) ? "http://127.0.0.1:8880" : baseUrl).TrimEnd('/') + "/v1/audio/voices";
+            using var response = await _httpClient.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode) return [];
+            var json = await response.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("voices", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                return arr.EnumerateArray().Select(v => v.GetString() ?? "").Where(v => v.Length > 0).Order().ToList();
+        }
+        catch { }
+        return [];
+    }
+
+    public async Task<byte[]?> SynthesizePreviewAsync(string baseUrl, string voice, CancellationToken ct = default)
+    {
+        try
+        {
+            var url = (string.IsNullOrWhiteSpace(baseUrl) ? "http://127.0.0.1:8880" : baseUrl).TrimEnd('/') + "/v1/audio/speech";
+            var payload = JsonSerializer.Serialize(new
+            {
+                model = "kokoro",
+                input = "Hello, this is a voice preview.",
+                voice = string.IsNullOrWhiteSpace(voice) ? "af_heart" : voice,
+                response_format = "wav",
+                speed = 1.0,
+            });
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json"),
+            };
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (!response.IsSuccessStatusCode) return null;
+            return NormalizeWav(await response.Content.ReadAsByteArrayAsync(ct));
+        }
+        catch { return null; }
+    }
+
+    public async Task PlayPreviewAsync(byte[] wavData, CancellationToken ct)
+    {
+        Stop();
+        await PlayKokoroAsync(wavData, ct);
+    }
+
     private void SetPlaybackState(bool active, bool paused)
     {
         IsSpeaking = active; IsPaused = paused;

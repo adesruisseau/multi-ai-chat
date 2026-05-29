@@ -18,6 +18,7 @@ public static class EntityMapper
         KokoroBaseUrl = e.KokoroBaseUrl,
         KokoroModel = e.KokoroModel,
         KokoroVoice = e.KokoroVoice,
+        KokoroUserVoice = e.KokoroUserVoice,
         KokoroLangCode = e.KokoroLangCode,
         KokoroSpeed = e.KokoroSpeed,
         SetupModelsCompleted = e.SetupModelsCompleted,
@@ -39,6 +40,7 @@ public static class EntityMapper
         e.KokoroBaseUrl = d.KokoroBaseUrl;
         e.KokoroModel = d.KokoroModel;
         e.KokoroVoice = d.KokoroVoice;
+        e.KokoroUserVoice = d.KokoroUserVoice;
         e.KokoroLangCode = d.KokoroLangCode;
         e.KokoroSpeed = d.KokoroSpeed;
         e.SetupModelsCompleted = d.SetupModelsCompleted;
@@ -77,7 +79,14 @@ public static class EntityMapper
         SystemPrompt = e.SystemPrompt, IsEnabled = e.IsEnabled,
         MaxTokensOverride = e.MaxTokensOverride, CompactionBudget = e.CompactionBudget,
         AccentHex = e.AccentHex, BackgroundHex = e.BackgroundHex,
-        TtsVoice = e.TtsVoice, SortOrder = e.SortOrder,
+        TtsVoice = e.TtsVoice, AppearanceSummary = e.AppearanceSummary,
+        IsNpc = e.IsNpc,
+        SpawnedByAgentId = e.SpawnedByAgentId,
+        IsTemporarilySuspended = e.IsTemporarilySuspended,
+        SuspendedByAgentId = e.SuspendedByAgentId,
+        SuspendedUntilRound = e.SuspendedUntilRound,
+        SuspensionReason = e.SuspensionReason,
+        SortOrder = e.SortOrder,
     };
 
     public static AgentEntity ToEntity(AgentConfig d) => new()
@@ -86,7 +95,14 @@ public static class EntityMapper
         SystemPrompt = d.SystemPrompt, IsEnabled = d.IsEnabled,
         MaxTokensOverride = d.MaxTokensOverride, CompactionBudget = d.CompactionBudget,
         AccentHex = d.AccentHex, BackgroundHex = d.BackgroundHex,
-        TtsVoice = d.TtsVoice, SortOrder = d.SortOrder,
+        TtsVoice = d.TtsVoice, AppearanceSummary = d.AppearanceSummary,
+        IsNpc = d.IsNpc,
+        SpawnedByAgentId = d.SpawnedByAgentId,
+        IsTemporarilySuspended = d.IsTemporarilySuspended,
+        SuspendedByAgentId = d.SuspendedByAgentId,
+        SuspendedUntilRound = d.SuspendedUntilRound,
+        SuspensionReason = d.SuspensionReason,
+        SortOrder = d.SortOrder,
     };
 
     public static RoomConfig ToDomain(RoomEntity e) => new()
@@ -100,8 +116,22 @@ public static class EntityMapper
         SummarizerMaxLines = e.SummarizerMaxLines, SummarizerMaxCharacters = e.SummarizerMaxCharacters,
         SummarizerBroaderTurns = e.SummarizerBroaderTurns,
         SummarizerPromptOverride = e.SummarizerPromptOverride,
+        EnableSceneImageGeneration = e.EnableSceneImageGeneration,
+        SceneImageStyleNotes = e.SceneImageStyleNotes,
+        SceneImageNegativePrompt = e.SceneImageNegativePrompt,
         MemoryModelId = e.MemoryModelId, MaxArchivedScenes = e.MaxArchivedScenes,
-        EnableSceneArchive = e.EnableSceneArchive, SortOrder = e.SortOrder,
+        EnableSceneArchive = e.EnableSceneArchive,
+        EnablePrivilegedActions = e.EnablePrivilegedActions,
+        EnableNpcSpawning = e.EnableNpcSpawning,
+        PrivilegedAgentId = e.PrivilegedAgentId,
+        NpcModelId = e.NpcModelId,
+        NpcDefaultMaleVoice = e.NpcDefaultMaleVoice,
+        NpcDefaultFemaleVoice = e.NpcDefaultFemaleVoice,
+        NpcMaxTokens = e.NpcMaxTokens,
+        NpcCompactionBudget = e.NpcCompactionBudget,
+        NpcBaseInstructions = e.NpcBaseInstructions,
+        MaxConcurrentNpcs = e.MaxConcurrentNpcs,
+        SortOrder = e.SortOrder,
         Agents = e.Agents.Select(ToDomain).OrderBy(a => a.SortOrder).ToList(),
     };
 
@@ -116,8 +146,22 @@ public static class EntityMapper
         SummarizerMaxLines = d.SummarizerMaxLines, SummarizerMaxCharacters = d.SummarizerMaxCharacters,
         SummarizerBroaderTurns = d.SummarizerBroaderTurns,
         SummarizerPromptOverride = d.SummarizerPromptOverride,
+        EnableSceneImageGeneration = d.EnableSceneImageGeneration,
+        SceneImageStyleNotes = d.SceneImageStyleNotes,
+        SceneImageNegativePrompt = d.SceneImageNegativePrompt,
         MemoryModelId = d.MemoryModelId, MaxArchivedScenes = d.MaxArchivedScenes,
-        EnableSceneArchive = d.EnableSceneArchive, SortOrder = d.SortOrder,
+        EnableSceneArchive = d.EnableSceneArchive,
+        EnablePrivilegedActions = d.EnablePrivilegedActions,
+        EnableNpcSpawning = d.EnableNpcSpawning,
+        PrivilegedAgentId = d.PrivilegedAgentId,
+        NpcModelId = d.NpcModelId,
+        NpcDefaultMaleVoice = d.NpcDefaultMaleVoice,
+        NpcDefaultFemaleVoice = d.NpcDefaultFemaleVoice,
+        NpcMaxTokens = d.NpcMaxTokens,
+        NpcCompactionBudget = d.NpcCompactionBudget,
+        NpcBaseInstructions = d.NpcBaseInstructions,
+        MaxConcurrentNpcs = d.MaxConcurrentNpcs,
+        SortOrder = d.SortOrder,
         Agents = d.Agents.Select(ToEntity).ToList(),
     };
 

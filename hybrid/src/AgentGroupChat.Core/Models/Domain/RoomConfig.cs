@@ -18,9 +18,22 @@ public sealed class RoomConfig
     public int SummarizerMaxCharacters { get; set; } = 5600;
     public int SummarizerBroaderTurns { get; set; } = 6;
     public string SummarizerPromptOverride { get; set; } = string.Empty;
+    public bool EnableSceneImageGeneration { get; set; }
+    public string SceneImageStyleNotes { get; set; } = string.Empty;
+    public string SceneImageNegativePrompt { get; set; } = string.Empty;
     public string MemoryModelId { get; set; } = string.Empty;
     public int MaxArchivedScenes { get; set; } = 40;
     public bool EnableSceneArchive { get; set; } = true;
+    public bool EnablePrivilegedActions { get; set; }
+    public bool EnableNpcSpawning { get; set; }
+    public string PrivilegedAgentId { get; set; } = string.Empty;
+    public string NpcModelId { get; set; } = string.Empty;
+    public string NpcDefaultMaleVoice { get; set; } = string.Empty;
+    public string NpcDefaultFemaleVoice { get; set; } = string.Empty;
+    public int? NpcMaxTokens { get; set; }
+    public int NpcCompactionBudget { get; set; } = 300;
+    public string NpcBaseInstructions { get; set; } = string.Empty;
+    public int MaxConcurrentNpcs { get; set; } = 2;
     public int SortOrder { get; set; }
     public List<AgentConfig> Agents { get; set; } = new();
 }
