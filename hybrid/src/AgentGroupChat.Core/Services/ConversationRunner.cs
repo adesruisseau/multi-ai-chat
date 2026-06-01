@@ -2,6 +2,8 @@ using AgentGroupChat.Core.Models.Domain;
 using AgentGroupChat.Core.Models.Llm;
 using AgentGroupChat.Core.Services.Interfaces;
 using System.Text.RegularExpressions;
+using static AgentGroupChat.Core.ChatPlaceholders;
+using static AgentGroupChat.Core.XmlTags;
 
 namespace AgentGroupChat.Core.Services;
 
@@ -13,7 +15,9 @@ public sealed class ConversationRunner
     private readonly ITranscriptRepository _transcriptRepo;
     private readonly IMemoryRepository _memoryRepo;
     private readonly IRoomRepository _roomRepo;
+    private readonly ISettingsRepository _settingsRepo;
     private readonly SceneRetrievalService _sceneRetrievalService;
+    private readonly SpeechService _speechService;
 
     private static readonly Regex PrivilegedActionsBlockRegex = new(
         @"<privileged_actions>\s*(?<body>.*?)\s*</privileged_actions>",
@@ -63,7 +67,9 @@ public sealed class ConversationRunner
         ITranscriptRepository transcriptRepo,
         IMemoryRepository memoryRepo,
         IRoomRepository roomRepo,
-        SceneRetrievalService sceneRetrievalService)
+        ISettingsRepository settingsRepo,
+        SceneRetrievalService sceneRetrievalService,
+        SpeechService speechService)
     {
         _promptComposer = promptComposer;
         _turnExecutor = turnExecutor;
@@ -71,7 +77,9 @@ public sealed class ConversationRunner
         _transcriptRepo = transcriptRepo;
         _memoryRepo = memoryRepo;
         _roomRepo = roomRepo;
+        _settingsRepo = settingsRepo;
         _sceneRetrievalService = sceneRetrievalService;
+        _speechService = speechService;
     }
 
     public event Action<string>? OnSystemMessage;
@@ -130,7 +138,7 @@ public sealed class ConversationRunner
                 try
                 {
                     var retrievalMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
-                    var retrievalTurns = sessionTurns.TakeLast(Math.Max(room.RecentTurnsWindow, 3)).ToList();
+                    var retrievalTurns = sessionTurns.Where(x => !x.Speaker.Trim().Equals("Image", StringComparison.OrdinalIgnoreCase)).TakeLast(Math.Max(room.RecentTurnsWindow, 3)).ToList();
                     roundRecalledScenes = await _sceneRetrievalService.RetrieveAsync(
                         room, baseSummarizerSettings, retrievalMemory ?? "", retrievalTurns,
                         maxRecall: 2, s => OnLog?.Invoke(s), ct);
@@ -175,7 +183,7 @@ public sealed class ConversationRunner
                 {
                     // No prefetch available — execute normally
                     OnStatusChanged?.Invoke($"{agent.Name} thinking");
-                    OnAgentMessageStarted?.Invoke(agent, "Thinking...");
+                    OnAgentMessageStarted?.Invoke(agent, Thinking);
 
                     (response, futureNote, rawResult) = await ExecuteAgentTurnInternalAsync(
                         room, agent, settingsResolver, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
@@ -218,7 +226,7 @@ public sealed class ConversationRunner
                     if (agentIndex + 1 < enabledAgents.Count && !room.PauseAfterEveryReply)
                     {
                         var nextAgent = enabledAgents[agentIndex + 1];
-                        OnAgentMessageStarted?.Invoke(nextAgent, "Thinking...");
+                        OnAgentMessageStarted?.Invoke(nextAgent, Thinking);
                         OnStatusChanged?.Invoke($"{nextAgent.Name} thinking");
 
                         try
@@ -419,6 +427,43 @@ public sealed class ConversationRunner
             .Where(a => a.IsEnabled && !a.IsTemporarilySuspended)
             .OrderBy(a => a.SortOrder)
             .ToList();
+
+    public static int ComputeResumeAgentIndex(
+        IReadOnlyList<AgentConfig> agents,
+        IReadOnlyList<TranscriptTurn> sessionTurns,
+        IReadOnlyList<HumanParticipantConfig>? humanParticipants = null)
+    {
+        var enabledAgents = agents.Where(a => a.IsEnabled && !a.IsTemporarilySuspended).ToList();
+        if (enabledAgents.Count <= 1) return 0;
+        if (sessionTurns.Count == 0) return 0;
+
+        var humanNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "You" };
+        if (humanParticipants is not null)
+        {
+            foreach (var h in humanParticipants.Where(h => h.IsEnabled))
+                humanNames.Add(h.Name);
+        }
+
+        var spokenThisRound = new List<string>();
+        for (int i = sessionTurns.Count - 1; i >= 0; i--)
+        {
+            var t = sessionTurns[i];
+            if (humanNames.Contains(t.Speaker)) break;
+            if (enabledAgents.Any(a => a.Name == t.Speaker))
+                spokenThisRound.Insert(0, t.Speaker);
+            if (spokenThisRound.Count >= enabledAgents.Count) break;
+        }
+
+        if (spokenThisRound.Count == 0) return 0;
+        if (spokenThisRound.Count >= enabledAgents.Count) return 0;
+
+        var lastSpeaker = spokenThisRound[^1];
+        var lastIdx = enabledAgents.FindIndex(a => a.Name == lastSpeaker);
+        if (lastIdx < 0) return 0;
+
+        var nextIdx = lastIdx + 1;
+        return nextIdx < enabledAgents.Count ? nextIdx : 0;
+    }
 
     private static bool IsPrivilegedAgent(RoomConfig room, AgentConfig agent) =>
         room.EnablePrivilegedActions
@@ -634,6 +679,15 @@ public sealed class ConversationRunner
             return;
 
         var roomChanged = false;
+        AppSettings? appSettings = null;
+        IReadOnlyList<string> kokoroVoices = [];
+
+        if (actions.Any(a => a.Kind == PrivilegedActionKind.SpawnNpc))
+        {
+            appSettings = await _settingsRepo.GetAsync();
+            if (RoomSpeechResolver.UsesKokoro(room, appSettings))
+                kokoroVoices = await _speechService.FetchKokoroVoicesAsync(appSettings.KokoroBaseUrl);
+        }
 
         foreach (var action in actions.Where(a => a.Kind == PrivilegedActionKind.ResumeAgent))
         {
@@ -698,7 +752,7 @@ public sealed class ConversationRunner
 
         foreach (var action in actions.Where(a => a.Kind == PrivilegedActionKind.SpawnNpc))
         {
-            var npc = CreateSpawnedNpc(room, sourceAgent, action);
+            var npc = CreateSpawnedNpc(room, sourceAgent, action, appSettings, kokoroVoices);
             room.Agents.Add(npc);
             roomChanged = true;
             OnLog?.Invoke($"NpcAgent.SpawnApplied: {npc.Name}");
@@ -741,12 +795,15 @@ public sealed class ConversationRunner
         return $"{prior} {current} You did not directly witness the rounds that occurred while you were absent; react only from your current knowledge and what has now been conveyed to you.";
     }
 
-    private AgentConfig CreateSpawnedNpc(RoomConfig room, AgentConfig sourceAgent, RequestedPrivilegedAction action)
+    private AgentConfig CreateSpawnedNpc(
+        RoomConfig room,
+        AgentConfig sourceAgent,
+        RequestedPrivilegedAction action,
+        AppSettings? appSettings,
+        IReadOnlyList<string> kokoroVoices)
     {
         var (accentHex, backgroundHex) = ChooseNpcColors(room);
-        var voice = string.Equals(action.Gender, "female", StringComparison.OrdinalIgnoreCase)
-            ? room.NpcDefaultFemaleVoice
-            : room.NpcDefaultMaleVoice;
+        var voice = ResolveNpcVoice(room, action, appSettings, kokoroVoices);
         var sortOrder = room.Agents.Count == 0 ? 0 : room.Agents.Max(a => a.SortOrder) + 1;
 
         return new AgentConfig
@@ -765,6 +822,64 @@ public sealed class ConversationRunner
             SpawnedByAgentId = sourceAgent.Id,
             SortOrder = sortOrder,
         };
+    }
+
+    private static string ResolveNpcVoice(
+        RoomConfig room,
+        RequestedPrivilegedAction action,
+        AppSettings? appSettings,
+        IReadOnlyList<string> kokoroVoices)
+    {
+        var configuredVoice = string.Equals(action.Gender, "female", StringComparison.OrdinalIgnoreCase)
+            ? room.NpcDefaultFemaleVoice
+            : room.NpcDefaultMaleVoice;
+
+        if (!string.IsNullOrWhiteSpace(configuredVoice))
+            return configuredVoice.Trim();
+
+        if (appSettings is null || !RoomSpeechResolver.UsesKokoro(room, appSettings))
+            return string.Empty;
+
+        var matchingVoices = kokoroVoices
+            .Where(voice => IsKokoroVoiceForGender(voice, action.Gender))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(voice => voice, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (matchingVoices.Count == 0)
+            return RoomSpeechResolver.GetFallbackVoice(room, appSettings);
+
+        return matchingVoices[GetDeterministicVoiceIndex(action.Name, matchingVoices.Count)];
+    }
+
+    private static bool IsKokoroVoiceForGender(string voice, string? gender)
+    {
+        if (string.IsNullOrWhiteSpace(voice))
+            return false;
+
+        return string.Equals(gender, "female", StringComparison.OrdinalIgnoreCase)
+            ? voice.StartsWith("af_", StringComparison.OrdinalIgnoreCase)
+                || voice.StartsWith("bf_", StringComparison.OrdinalIgnoreCase)
+            : voice.StartsWith("am_", StringComparison.OrdinalIgnoreCase)
+                || voice.StartsWith("bm_", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int GetDeterministicVoiceIndex(string seed, int count)
+    {
+        if (count <= 1)
+            return 0;
+
+        unchecked
+        {
+            uint hash = 2166136261;
+            foreach (var ch in seed.Trim())
+            {
+                hash ^= char.ToUpperInvariant(ch);
+                hash *= 16777619;
+            }
+
+            return (int)(hash % (uint)count);
+        }
     }
 
     private static string BuildNpcSystemPrompt(RoomConfig room, RequestedPrivilegedAction action)

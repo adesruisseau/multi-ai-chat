@@ -18,7 +18,13 @@ public sealed class RoomConfig
     public int SummarizerMaxCharacters { get; set; } = 5600;
     public int SummarizerBroaderTurns { get; set; } = 6;
     public string SummarizerPromptOverride { get; set; } = string.Empty;
+    public bool? TtsEnabledOverride { get; set; }
+    public string TtsProviderOverride { get; set; } = string.Empty;
+    public string TtsFallbackVoice { get; set; } = string.Empty;
+    public string TtsUserVoice { get; set; } = string.Empty;
     public bool EnableSceneImageGeneration { get; set; }
+    public bool UseCreativeImageGeneration { get; set; }
+    public string SceneImageModelId { get; set; } = string.Empty;
     public string SceneImageStyleNotes { get; set; } = string.Empty;
     public string SceneImageNegativePrompt { get; set; } = string.Empty;
     public string MemoryModelId { get; set; } = string.Empty;
@@ -36,4 +42,5 @@ public sealed class RoomConfig
     public int MaxConcurrentNpcs { get; set; } = 2;
     public int SortOrder { get; set; }
     public List<AgentConfig> Agents { get; set; } = new();
+    public List<HumanParticipantConfig> HumanParticipants { get; set; } = new();
 }

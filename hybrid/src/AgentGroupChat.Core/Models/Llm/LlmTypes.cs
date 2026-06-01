@@ -9,6 +9,18 @@ public enum LlmProvider
     Ollama,
 }
 
+public static class LlmProviderMapping
+{
+    public static LlmProvider FromTransport(string transport) => transport switch
+    {
+        LlmTransports.Groq => LlmProvider.Groq,
+        LlmTransports.Gemini => LlmProvider.Gemini,
+        LlmTransports.HuggingFace => LlmProvider.HuggingFace,
+        LlmTransports.Ollama => LlmProvider.Ollama,
+        _ => LlmProvider.OpenAiCompatible,
+    };
+}
+
 public sealed record LlmRequestSettings(
     LlmProvider Provider,
     string Endpoint,

@@ -1,0 +1,439 @@
+@page "/prompts"
+@inject PromptLibraryState PromptLibraryState
+@inject RoomState RoomState
+@inject ISnackbar Snackbar
+@implements IDisposable
+
+<MudText Typo="Typo.h4" GutterBottom="true">Prompt Library</MudText>
+
+<MudPaper Class="pa-4 mb-4" Elevation="1">
+    <MudText Typo="Typo.body1">Browse built-in starter prompts, save your own reusable variants, and copy a prompt into an agent without creating a live link.</MudText>
+</MudPaper>
+
+<MudGrid>
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudText Typo="Typo.h6">Browse</MudText>
+            <MudTextField @bind-Value="_searchText" Label="Search" Immediate="true" Class="mb-2" />
+            <MudSelect T="string" Value="@_categoryFilter" ValueChanged="OnCategoryChanged" Label="Category" ShrinkLabel="true" Class="mb-3">
+                <MudSelectItem T="string" Value="@string.Empty">All categories</MudSelectItem>
+                @foreach (var category in Categories)
+                {
+                    <MudSelectItem T="string" Value="@category">@category</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudStack Row="true" Spacing="2" Class="mb-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNewDraft">New Sample</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="DuplicateSelected" Disabled="SelectedSample is null">Duplicate</MudButton>
+            </MudStack>
+
+            <MudDivider Class="mb-3" />
+
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Starter Samples (@StarterSamples.Count)</MudText>
+            @if (StarterSamples.Count == 0)
+            {
+                <MudText Typo="Typo.caption" Class="mb-3">No starter prompts matched the current filter.</MudText>
+            }
+            else
+            {
+                @foreach (var sample in StarterSamples)
+                {
+                    <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true" Style="cursor:pointer;"
+                              @onclick="() => SelectSample(sample.Id)">
+                        <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
+                            <div style="flex:1; min-width:0;">
+                                <MudText Typo="Typo.subtitle2">@sample.Name</MudText>
+                                <MudText Typo="Typo.caption">@sample.Category</MudText>
+                                <MudText Typo="Typo.body2">@sample.Description</MudText>
+                            </div>
+                            @if (_selectedSampleId == sample.Id)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary">Selected</MudChip>
+                            }
+                        </MudStack>
+                    </MudPaper>
+                }
+            }
+
+            <MudDivider Class="my-3" />
+
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Saved Prompts (@SavedSamples.Count)</MudText>
+            @if (SavedSamples.Count == 0)
+            {
+                <MudText Typo="Typo.caption">No saved prompts yet.</MudText>
+            }
+            else
+            {
+                @foreach (var sample in SavedSamples)
+                {
+                    <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true" Style="cursor:pointer;"
+                              @onclick="() => SelectSample(sample.Id)">
+                        <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
+                            <div style="flex:1; min-width:0;">
+                                <MudText Typo="Typo.subtitle2">@sample.Name</MudText>
+                                <MudText Typo="Typo.caption">@sample.Category</MudText>
+                                @if (!string.IsNullOrWhiteSpace(sample.SourceLabel))
+                                {
+                                    <MudText Typo="Typo.caption">@sample.SourceLabel</MudText>
+                                }
+                            </div>
+                            @if (_selectedSampleId == sample.Id)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary">Selected</MudChip>
+                            }
+                        </MudStack>
+                    </MudPaper>
+                }
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="8">
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                <MudText Typo="Typo.h6">Editor</MudText>
+                <MudSpacer />
+                <MudChip T="string" Size="Size.Small" Color="@(_draft.IsBuiltIn ? Color.Secondary : Color.Primary)">
+                    @(_draft.IsBuiltIn ? "Built-in" : "User")
+                </MudChip>
+            </MudStack>
+
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_draft.Name" Label="Name" Class="mb-2" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_draft.Category" Label="Category" Class="mb-2" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_draft.Description" Label="Description" Lines="3" Class="mb-2" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_draft.Tags" Label="Tags" Class="mb-2" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_draft.SourceLabel" Label="Source Label" Class="mb-2" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_draft.PromptText" Label="Prompt Text" Lines="16" Class="mb-2" />
+                </MudItem>
+            </MudGrid>
+
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveDraftAsync">Save</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DeleteSelectedAsync" Disabled="@string.IsNullOrWhiteSpace(_selectedSampleId)">Delete</MudButton>
+            </MudStack>
+        </MudPaper>
+
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6" Class="mb-2">Apply Or Capture</MudText>
+            <MudText Typo="Typo.body2" Class="mb-3">Choose a room and agent to copy this prompt into, or import the agent's current prompt as a new library draft.</MudText>
+
+            @if (RoomState.Rooms.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">No rooms exist yet. You can still edit the library now and apply prompts after you create a room.</MudAlert>
+            }
+            else
+            {
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="string" Value="@_targetRoomId" ValueChanged="OnTargetRoomChanged" Label="Target Room" Class="mb-2">
+                            @foreach (var room in RoomState.Rooms.OrderBy(r => r.SortOrder))
+                            {
+                                <MudSelectItem T="string" Value="@room.Id">@room.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="string" Value="@_targetAgentId" ValueChanged="OnTargetAgentChanged" Label="Target Agent" Class="mb-2" Disabled="!AvailableAgents.Any()">
+                            @foreach (var agent in AvailableAgents)
+                            {
+                                <MudSelectItem T="string" Value="@agent.Id">@agent.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+
+                <MudStack Row="true" Spacing="2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ApplyToAgentAsync" Disabled="!CanApplyToAgent">Apply To Agent</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="LoadFromAgentAsync" Disabled="!CanApplyToAgent">Load Agent Prompt Into Draft</MudButton>
+                </MudStack>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string _searchText = string.Empty;
+    private string _categoryFilter = string.Empty;
+    private string _selectedSampleId = string.Empty;
+    private string _targetRoomId = string.Empty;
+    private string _targetAgentId = string.Empty;
+    private PromptSample _draft = CreateEmptyDraft();
+
+    private List<PromptSample> FilteredSamples => PromptLibraryState.Samples
+        .Where(MatchesFilters)
+        .OrderByDescending(s => s.IsBuiltIn)
+        .ThenBy(s => s.SortOrder)
+        .ThenBy(s => s.Name)
+        .ToList();
+
+    private List<PromptSample> StarterSamples => FilteredSamples.Where(s => s.IsBuiltIn).ToList();
+
+    private List<PromptSample> SavedSamples => FilteredSamples.Where(s => !s.IsBuiltIn).ToList();
+
+    private List<string> Categories => PromptLibraryState.Samples
+        .Select(s => s.Category)
+        .Where(c => !string.IsNullOrWhiteSpace(c))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(c => c)
+        .ToList();
+
+    private PromptSample? SelectedSample => PromptLibraryState.Samples.FirstOrDefault(s => s.Id == _selectedSampleId);
+
+    private List<AgentConfig> AvailableAgents => RoomState.Rooms
+        .FirstOrDefault(r => r.Id == _targetRoomId)?.Agents
+        .OrderBy(a => a.SortOrder)
+        .ToList() ?? [];
+
+    private bool CanApplyToAgent => !string.IsNullOrWhiteSpace(_targetRoomId)
+        && !string.IsNullOrWhiteSpace(_targetAgentId)
+        && !string.IsNullOrWhiteSpace(_draft.PromptText);
+
+    protected override async Task OnInitializedAsync()
+    {
+        PromptLibraryState.OnChange += OnStateChanged;
+        RoomState.OnChange += OnStateChanged;
+
+        if (!PromptLibraryState.IsLoaded)
+            await PromptLibraryState.LoadAsync();
+
+        if (RoomState.Rooms.Count == 0)
+            await RoomState.LoadAsync();
+
+        if (PromptLibraryState.Samples.Count > 0)
+            SelectSample(PromptLibraryState.Samples[0].Id);
+
+        if (RoomState.SelectedRoom is not null)
+            await OnTargetRoomChanged(RoomState.SelectedRoom.Id);
+        else if (RoomState.Rooms.Count > 0)
+            await OnTargetRoomChanged(RoomState.Rooms.OrderBy(r => r.SortOrder).First().Id);
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnCategoryChanged(string category)
+    {
+        _categoryFilter = category;
+    }
+
+    private bool MatchesFilters(PromptSample sample)
+    {
+        if (!string.IsNullOrWhiteSpace(_categoryFilter)
+            && !string.Equals(sample.Category, _categoryFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (string.IsNullOrWhiteSpace(_searchText))
+            return true;
+
+        return Contains(sample.Name, _searchText)
+            || Contains(sample.Category, _searchText)
+            || Contains(sample.Description, _searchText)
+            || Contains(sample.Tags, _searchText)
+            || Contains(sample.SourceLabel, _searchText)
+            || Contains(sample.PromptText, _searchText);
+    }
+
+    private static bool Contains(string source, string term) =>
+        source.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private void SelectSample(string id)
+    {
+        var sample = PromptLibraryState.Samples.FirstOrDefault(s => s.Id == id);
+        if (sample is null)
+            return;
+
+        _selectedSampleId = sample.Id;
+        _draft = CloneSample(sample, false);
+    }
+
+    private void CreateNewDraft()
+    {
+        _selectedSampleId = string.Empty;
+        _draft = CreateEmptyDraft();
+    }
+
+    private void DuplicateSelected()
+    {
+        var source = SelectedSample;
+        if (source is null)
+        {
+            Snackbar.Add("Select a prompt before duplicating it.", Severity.Warning);
+            return;
+        }
+
+        _selectedSampleId = string.Empty;
+        _draft = CloneSample(source, true);
+        _draft.Name = string.IsNullOrWhiteSpace(source.Name) ? "Prompt Copy" : $"{source.Name} Copy";
+        _draft.ParentPromptSampleId = source.Id;
+        _draft.SourceLabel = $"Forked from {source.Name}";
+        _draft.SortOrder = NextUserSortOrder();
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_draft.Name))
+        {
+            Snackbar.Add("Prompt samples need a name.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_draft.PromptText))
+        {
+            Snackbar.Add("Prompt samples need prompt text.", Severity.Warning);
+            return;
+        }
+
+        if (_draft.SortOrder == 0 && !PromptLibraryState.Samples.Any(s => s.Id == _draft.Id))
+            _draft.SortOrder = NextUserSortOrder();
+
+        await PromptLibraryState.SaveAsync(_draft);
+        _selectedSampleId = _draft.Id;
+        var refreshed = PromptLibraryState.Samples.FirstOrDefault(s => s.Id == _draft.Id);
+        if (refreshed is not null)
+            _draft = CloneSample(refreshed, false);
+
+        Snackbar.Add($"Saved '{_draft.Name}'.", Severity.Success);
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedSampleId))
+        {
+            Snackbar.Add("Select a saved prompt before deleting it.", Severity.Warning);
+            return;
+        }
+
+        var deletedName = SelectedSample?.Name ?? "prompt";
+        await PromptLibraryState.DeleteAsync(_selectedSampleId);
+        _selectedSampleId = string.Empty;
+
+        if (PromptLibraryState.Samples.Count > 0)
+            SelectSample(PromptLibraryState.Samples[0].Id);
+        else
+            _draft = CreateEmptyDraft();
+
+        Snackbar.Add($"Deleted '{deletedName}'.", Severity.Success);
+    }
+
+    private async Task OnTargetRoomChanged(string roomId)
+    {
+        _targetRoomId = roomId;
+        _targetAgentId = AvailableAgents.FirstOrDefault()?.Id ?? string.Empty;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnTargetAgentChanged(string agentId)
+    {
+        _targetAgentId = agentId;
+    }
+
+    private async Task ApplyToAgentAsync()
+    {
+        var room = RoomState.Rooms.FirstOrDefault(r => r.Id == _targetRoomId);
+        if (room is null)
+        {
+            Snackbar.Add("Select a valid room before applying a prompt.", Severity.Warning);
+            return;
+        }
+
+        var agent = room.Agents.FirstOrDefault(a => a.Id == _targetAgentId);
+        if (agent is null)
+        {
+            Snackbar.Add("Select a valid agent before applying a prompt.", Severity.Warning);
+            return;
+        }
+
+        agent.SystemPrompt = _draft.PromptText;
+        await RoomState.SaveRoomAsync(room);
+        await OnTargetRoomChanged(room.Id);
+
+        Snackbar.Add($"Applied '{_draft.Name}' to {agent.Name} in {room.Name}.", Severity.Success);
+    }
+
+    private async Task LoadFromAgentAsync()
+    {
+        var room = RoomState.Rooms.FirstOrDefault(r => r.Id == _targetRoomId);
+        if (room is null)
+        {
+            Snackbar.Add("Select a valid room before importing a prompt.", Severity.Warning);
+            return;
+        }
+
+        var agent = room.Agents.FirstOrDefault(a => a.Id == _targetAgentId);
+        if (agent is null)
+        {
+            Snackbar.Add("Select a valid agent before importing a prompt.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(agent.SystemPrompt))
+        {
+            Snackbar.Add($"{agent.Name} does not have a system prompt to import yet.", Severity.Warning);
+            return;
+        }
+
+        _selectedSampleId = string.Empty;
+        _draft = CreateEmptyDraft();
+        _draft.Name = string.IsNullOrWhiteSpace(agent.Name) ? "Imported Prompt" : $"{agent.Name} Prompt";
+        _draft.Category = InferCategoryFromRoom(room.Name);
+        _draft.Description = $"Saved from {agent.Name} in {room.Name}.";
+        _draft.PromptText = agent.SystemPrompt;
+        _draft.SourceLabel = $"Saved from {agent.Name} in {room.Name}";
+        _draft.Tags = "imported,agent";
+        _draft.SortOrder = NextUserSortOrder();
+
+        await InvokeAsync(StateHasChanged);
+        Snackbar.Add($"Loaded {agent.Name}'s current prompt into the editor as a new draft.", Severity.Success);
+    }
+
+    private int NextUserSortOrder() => PromptLibraryState.Samples.Count == 0
+        ? 0
+        : PromptLibraryState.Samples.Max(s => s.SortOrder) + 1;
+
+    private static string InferCategoryFromRoom(string roomName) =>
+        string.IsNullOrWhiteSpace(roomName) ? "Imported" : roomName;
+
+    private static PromptSample CreateEmptyDraft() => new()
+    {
+        Category = "General",
+        Description = string.Empty,
+        PromptText = string.Empty,
+        Tags = string.Empty,
+        SourceLabel = string.Empty,
+        IsBuiltIn = false,
+    };
+
+    private static PromptSample CloneSample(PromptSample sample, bool asNew) => new()
+    {
+        Id = asNew ? Guid.NewGuid().ToString("N") : sample.Id,
+        Name = sample.Name,
+        Category = sample.Category,
+        Description = sample.Description,
+        PromptText = sample.PromptText,
+        Tags = sample.Tags,
+        IsBuiltIn = asNew ? false : sample.IsBuiltIn,
+        ParentPromptSampleId = asNew ? sample.Id : sample.ParentPromptSampleId,
+        SourceLabel = sample.SourceLabel,
+        SortOrder = asNew ? 0 : sample.SortOrder,
+        CreatedAt = asNew ? DateTimeOffset.UtcNow : sample.CreatedAt,
+        UpdatedAt = asNew ? DateTimeOffset.UtcNow : sample.UpdatedAt,
+    };
+
+    public void Dispose()
+    {
+        PromptLibraryState.OnChange -= OnStateChanged;
+        RoomState.OnChange -= OnStateChanged;
+    }
+}

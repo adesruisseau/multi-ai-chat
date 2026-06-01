@@ -1,0 +1,301 @@
+@using AgentGroupChat.Hybrid.Theming
+@inject PromptLibraryState PromptLibraryState
+@inject ISnackbar Snackbar
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-4 mb-3 flex-wrap">
+    <MudText Typo="Typo.h5">Agents</MudText>
+    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@($"{Room.Agents.Count} total")</MudChip>
+    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@($"{GetEnabledAgentCount(Room)} enabled")</MudChip>
+    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@($"{GetNpcCount(Room)} NPC")</MudChip>
+</MudStack>
+
+@if (Room.Agents.Count == 0)
+{
+    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+        This room does not have any agents yet. Add at least one agent before running the room.
+    </MudAlert>
+}
+
+<MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mb-3" OnClick="AddAgent">Add Agent</MudButton>
+@foreach (var agent in Room.Agents)
+{
+    <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="agent.Name" Label="Agent Name" />
+                <MudStack Row="true" Spacing="1" Class="mt-1">
+                    @if (string.Equals(Room.PrivilegedAgentId, agent.Id, StringComparison.Ordinal))
+                    {
+                        <MudChip T="string" Color="Color.Primary" Size="Size.Small">Privileged</MudChip>
+                    }
+                    @if (agent.IsNpc)
+                    {
+                        <MudChip T="string" Color="Color.Secondary" Size="Size.Small">NPC</MudChip>
+                    }
+                    @if (agent.IsTemporarilySuspended)
+                    {
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small">Suspended</MudChip>
+                        <MudChip T="string" Color="Color.Default" Size="Size.Small">@GetSuspensionLabel(agent)</MudChip>
+                    }
+                </MudStack>
+                @if (agent.IsTemporarilySuspended && !string.IsNullOrWhiteSpace(agent.SuspensionReason))
+                {
+                    <MudText Typo="Typo.caption">@agent.SuspensionReason</MudText>
+                }
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudSelect @bind-Value="agent.ModelId" Label="Model">
+                    @foreach (var model in Models)
+                    {
+                        <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="agent.SystemPrompt" Label="System Prompt" Lines="12" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Prompt Library</MudText>
+                    @if (OrderedPromptSamples.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true">
+                            No prompt samples are available yet.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudGrid>
+                            <MudItem xs="12" md="7">
+                                <MudSelect T="string"
+                                           Value="@GetSelectedPromptSampleId(agent.Id)"
+                                           ValueChanged="@((string value) => SetSelectedPromptSample(agent.Id, value))"
+                                           Label="Library Prompt"
+                                           ShrinkLabel="true">
+                                    <MudSelectItem T="string" Value="@string.Empty">(Select sample)</MudSelectItem>
+                                    @foreach (var sample in OrderedPromptSamples)
+                                    {
+                                        <MudSelectItem T="string" Value="@sample.Id">@GetPromptSampleLabel(sample)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" md="5">
+                                <MudStack Row="true" Spacing="1" Class="mt-2 flex-wrap">
+                                    <MudButton Variant="Variant.Outlined"
+                                               Size="Size.Small"
+                                               Color="Color.Secondary"
+                                               OnClick="@(() => ApplyPromptSample(agent))"
+                                               Disabled="@(!CanApplyPromptSample(agent.Id))">
+                                        Apply From Library
+                                    </MudButton>
+                                    <MudButton Variant="Variant.Outlined"
+                                               Size="Size.Small"
+                                               Color="Color.Primary"
+                                               OnClick="@(() => SavePromptToLibraryAsync(agent))">
+                                        Save Prompt to Library
+                                    </MudButton>
+                                </MudStack>
+                            </MudItem>
+                        </MudGrid>
+                    }
+                </MudPaper>
+            </MudItem>
+            @if (Room.EnableSceneImageGeneration && Room.UseCreativeImageGeneration)
+            {
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="agent.AppearanceSummary" Label="Appearance / visual profile" Lines="4" />
+                </MudItem>
+            }
+            <MudItem xs="12" md="3">
+                <MudSwitch @bind-Value="agent.IsEnabled" Label="Enabled" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudNumericField @bind-Value="agent.MaxTokensOverride" Label="Max tokens override" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudNumericField @bind-Value="agent.CompactionBudget" Label="Compaction budget" Min="80" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                @if (KokoroVoices.Count > 0)
+                {
+                    <MudSelect @bind-Value="agent.TtsVoice" Label="TTS Voice" ShrinkLabel="true" T="string">
+                        <MudSelectItem T="string" Value="@string.Empty">(Default)</MudSelectItem>
+                        @foreach (var voice in KokoroVoices)
+                        {
+                            <MudSelectItem T="string" Value="@voice">@voice</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+                else
+                {
+                    <MudTextField @bind-Value="agent.TtsVoice" Label="TTS Voice" />
+                }
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudButton Variant="Variant.Outlined"
+                           Size="Size.Small"
+                           Class="mt-4"
+                           OnClick="@(() => OnTestAgentVoice.InvokeAsync(agent))"
+                           Disabled="IsPreviewingVoice">
+                    @(PreviewAgentId == agent.Id ? "Playing..." : "Test Voice")
+                </MudButton>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudSelect Value="agent.AccentHex" ValueChanged="@((string value) => OnAgentColorChanged(agent, value))" Label="Chat color" T="string">
+                    @foreach (var preset in AgentColorPresets.GetPresets(IsDark))
+                    {
+                        <MudSelectItem T="string" Value="@preset.AccentHex">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.Circle" Style="@($"color:{preset.AccentHex}")" Size="Size.Small" />
+                                @preset.Name
+                            </MudStack>
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => RemoveAgent(agent)" style="margin-left: auto;">Remove</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+}
+
+@code {
+    private readonly Dictionary<string, string> _selectedPromptSampleIds = new(StringComparer.Ordinal);
+
+    [Parameter, EditorRequired] public RoomConfig Room { get; set; } = default!;
+    [Parameter] public IReadOnlyList<AiModel> Models { get; set; } = [];
+    [Parameter] public IReadOnlyList<string> KokoroVoices { get; set; } = [];
+    [Parameter] public bool IsDark { get; set; }
+    [Parameter] public bool IsPreviewingVoice { get; set; }
+    [Parameter] public string PreviewAgentId { get; set; } = string.Empty;
+    [Parameter] public EventCallback<AgentConfig> OnTestAgentVoice { get; set; }
+
+    private List<PromptSample> OrderedPromptSamples => PromptLibraryState.Samples
+        .OrderByDescending(s => s.IsBuiltIn)
+        .ThenBy(s => s.SortOrder)
+        .ThenBy(s => s.Name)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!PromptLibraryState.IsLoaded)
+            await PromptLibraryState.LoadAsync();
+    }
+
+    protected override void OnParametersSet()
+    {
+        var validAgentIds = Room.Agents.Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var staleAgentId in _selectedPromptSampleIds.Keys.Where(id => !validAgentIds.Contains(id)).ToList())
+            _selectedPromptSampleIds.Remove(staleAgentId);
+    }
+
+    private void AddAgent()
+    {
+        Room.Agents.Add(new AgentConfig
+        {
+            RoomId = Room.Id,
+            Name = $"Agent {Room.Agents.Count + 1}",
+            SortOrder = Room.Agents.Count,
+        });
+    }
+
+    private void RemoveAgent(AgentConfig agent)
+    {
+        if (string.Equals(Room.PrivilegedAgentId, agent.Id, StringComparison.Ordinal))
+            Room.PrivilegedAgentId = string.Empty;
+
+        Room.Agents.Remove(agent);
+        _selectedPromptSampleIds.Remove(agent.Id);
+    }
+
+    private void OnAgentColorChanged(AgentConfig agent, string accentHex)
+    {
+        var preset = AgentColorPresets.FindByAccent(accentHex, IsDark);
+        agent.AccentHex = preset.AccentHex;
+        agent.BackgroundHex = preset.BackgroundHex;
+    }
+
+    private async Task SavePromptToLibraryAsync(AgentConfig agent)
+    {
+        if (!PromptLibraryState.IsLoaded)
+            await PromptLibraryState.LoadAsync();
+
+        if (string.IsNullOrWhiteSpace(agent.SystemPrompt))
+        {
+            Snackbar.Add($"{agent.Name} does not have a system prompt to save yet.", Severity.Warning);
+            return;
+        }
+
+        var sample = new PromptSample
+        {
+            Name = string.IsNullOrWhiteSpace(agent.Name) ? "Saved Prompt" : $"{agent.Name} Prompt",
+            Category = string.IsNullOrWhiteSpace(Room.Name) ? "Saved" : Room.Name,
+            Description = $"Saved from {agent.Name} in {Room.Name}.",
+            PromptText = agent.SystemPrompt,
+            Tags = "agent,saved",
+            SourceLabel = $"Saved from {agent.Name} in {Room.Name}",
+            SortOrder = PromptLibraryState.Samples.Count == 0 ? 0 : PromptLibraryState.Samples.Max(s => s.SortOrder) + 1,
+        };
+
+        await PromptLibraryState.SaveAsync(sample);
+        _selectedPromptSampleIds[agent.Id] = sample.Id;
+        Snackbar.Add($"Saved {agent.Name}'s prompt to the library.", Severity.Success);
+    }
+
+    private void ApplyPromptSample(AgentConfig agent)
+    {
+        var selectedSampleId = GetSelectedPromptSampleId(agent.Id);
+        if (string.IsNullOrWhiteSpace(selectedSampleId))
+        {
+            Snackbar.Add("Choose a prompt sample before applying it.", Severity.Warning);
+            return;
+        }
+
+        var sample = PromptLibraryState.Samples.FirstOrDefault(s => s.Id == selectedSampleId);
+        if (sample is null)
+        {
+            Snackbar.Add("The selected prompt sample could not be found.", Severity.Warning);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(sample.PromptText))
+        {
+            Snackbar.Add($"'{sample.Name}' does not contain any prompt text to apply.", Severity.Warning);
+            return;
+        }
+
+        agent.SystemPrompt = sample.PromptText;
+        Snackbar.Add($"Applied '{sample.Name}' to {agent.Name}. Save the room to persist it.", Severity.Success);
+    }
+
+    private string GetSelectedPromptSampleId(string agentId) =>
+        _selectedPromptSampleIds.TryGetValue(agentId, out var sampleId) ? sampleId : string.Empty;
+
+    private void SetSelectedPromptSample(string agentId, string sampleId)
+    {
+        if (string.IsNullOrWhiteSpace(sampleId))
+            _selectedPromptSampleIds.Remove(agentId);
+        else
+            _selectedPromptSampleIds[agentId] = sampleId;
+    }
+
+    private bool CanApplyPromptSample(string agentId)
+    {
+        var sampleId = GetSelectedPromptSampleId(agentId);
+        return !string.IsNullOrWhiteSpace(sampleId)
+            && PromptLibraryState.Samples.Any(sample => string.Equals(sample.Id, sampleId, StringComparison.Ordinal));
+    }
+
+    private static string GetPromptSampleLabel(PromptSample sample) =>
+        string.IsNullOrWhiteSpace(sample.Category) ? sample.Name : $"{sample.Name} [{sample.Category}]";
+
+    private static int GetEnabledAgentCount(RoomConfig room) =>
+        room.Agents.Count(a => a.IsEnabled);
+
+    private static int GetNpcCount(RoomConfig room) =>
+        room.Agents.Count(a => a.IsNpc);
+
+    private static string GetSuspensionLabel(AgentConfig agent) =>
+        agent.SuspendedUntilRound.HasValue ? $"Until round {agent.SuspendedUntilRound.Value}" : "Until resumed";
+}

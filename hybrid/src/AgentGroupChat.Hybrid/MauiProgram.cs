@@ -36,6 +36,7 @@ public static class MauiProgram
 		// Repositories
 		builder.Services.AddScoped<IRoomRepository, RoomRepository>();
 		builder.Services.AddScoped<ISettingsRepository, SettingsRepository>();
+		builder.Services.AddScoped<IPromptSampleRepository, PromptSampleRepository>();
 		builder.Services.AddScoped<ITranscriptRepository, TranscriptRepository>();
 		builder.Services.AddScoped<IMemoryRepository, MemoryRepository>();
 		builder.Services.AddScoped<ISceneArchiveRepository, SceneArchiveRepository>();
@@ -48,6 +49,7 @@ public static class MauiProgram
 		// Core services
 		builder.Services.AddSingleton<HttpClient>();
 		builder.Services.AddSingleton<LlmClient>();
+		builder.Services.AddSingleton<ImageClient>();
 		builder.Services.AddSingleton<SpeechService>(sp => new SpeechService(sp.GetRequiredService<HttpClient>()));
 		builder.Services.AddScoped<PromptComposer>();
 		builder.Services.AddScoped<TurnExecutor>();
@@ -59,6 +61,7 @@ public static class MauiProgram
 		// State containers
 		builder.Services.AddScoped<AppState>();
 		builder.Services.AddScoped<RoomState>();
+		builder.Services.AddScoped<PromptLibraryState>();
 		builder.Services.AddScoped<ConversationState>();
 
 #if DEBUG

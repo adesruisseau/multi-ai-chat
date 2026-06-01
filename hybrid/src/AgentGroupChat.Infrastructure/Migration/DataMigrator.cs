@@ -20,6 +20,7 @@ public sealed class DataMigrator
     {
         await _db.Database.EnsureCreatedAsync();
         await EvolveSchemaAsync();
+        await EnsurePromptSamplesSeededAsync();
 
         if (!_legacy.HasLegacyData()) return false;
         if (await _db.Rooms.AnyAsync()) return false; // already migrated
@@ -63,13 +64,25 @@ public sealed class DataMigrator
         return true;
     }
 
+    private async Task EnsurePromptSamplesSeededAsync()
+    {
+        var promptSamples = new PromptSampleRepository(_db);
+        await promptSamples.SeedBuiltInsIfEmptyAsync();
+    }
+
     private async Task EvolveSchemaAsync()
     {
         var conn = _db.Database.GetDbConnection();
         await conn.OpenAsync();
         try
         {
+            await AddColumnIfMissingAsync(conn, "Rooms", "TtsEnabledOverride", "INTEGER");
+            await AddColumnIfMissingAsync(conn, "Rooms", "TtsProviderOverride", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "TtsFallbackVoice", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "TtsUserVoice", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "SceneImageModelId", "TEXT NOT NULL DEFAULT ''");
             await AddColumnIfMissingAsync(conn, "Rooms", "EnableSceneImageGeneration", "INTEGER NOT NULL DEFAULT 0");
+            await AddColumnIfMissingAsync(conn, "Rooms", "UseCreativeImageGeneration", "INTEGER NOT NULL DEFAULT 0");
             await AddColumnIfMissingAsync(conn, "Rooms", "SceneImageStyleNotes", "TEXT NOT NULL DEFAULT ''");
             await AddColumnIfMissingAsync(conn, "Rooms", "SceneImageNegativePrompt", "TEXT NOT NULL DEFAULT ''");
             await AddColumnIfMissingAsync(conn, "Rooms", "MemoryModelId", "TEXT NOT NULL DEFAULT ''");
@@ -97,6 +110,67 @@ public sealed class DataMigrator
 
             await AddColumnIfMissingAsync(conn, "AppSettings", "KokoroUserVoice", "TEXT NOT NULL DEFAULT ''");
 
+            await CreateTableIfMissingAsync(conn, "ImageConnections", """
+                CREATE TABLE "ImageConnections" (
+                    "Id" TEXT NOT NULL PRIMARY KEY,
+                    "Name" TEXT NOT NULL DEFAULT '',
+                    "Transport" TEXT NOT NULL DEFAULT 'ComfyUI',
+                    "Endpoint" TEXT NOT NULL DEFAULT '',
+                    "ApiKey" TEXT NOT NULL DEFAULT '',
+                    "SortOrder" INTEGER NOT NULL DEFAULT 0
+                )
+                """);
+
+            await CreateTableIfMissingAsync(conn, "ImageModels", """
+                CREATE TABLE "ImageModels" (
+                    "Id" TEXT NOT NULL PRIMARY KEY,
+                    "Name" TEXT NOT NULL DEFAULT '',
+                    "ConnectionId" TEXT NOT NULL DEFAULT '',
+                    "ModelId" TEXT NOT NULL DEFAULT '',
+                    "WorkflowId" TEXT NOT NULL DEFAULT '',
+                    "Width" INTEGER NOT NULL DEFAULT 1024,
+                    "Height" INTEGER NOT NULL DEFAULT 1024,
+                    "Steps" INTEGER,
+                    "GuidanceScale" REAL,
+                    "NegativePrompt" TEXT NOT NULL DEFAULT '',
+                    "Notes" TEXT NOT NULL DEFAULT '',
+                    "SortOrder" INTEGER NOT NULL DEFAULT 0
+                )
+                """);
+
+            await CreateIndexIfMissingAsync(conn, "IX_ImageConnections_Name",
+                "CREATE INDEX \"IX_ImageConnections_Name\" ON \"ImageConnections\" (\"Name\")");
+            await CreateIndexIfMissingAsync(conn, "IX_ImageModels_Name",
+                "CREATE INDEX \"IX_ImageModels_Name\" ON \"ImageModels\" (\"Name\")");
+            await CreateIndexIfMissingAsync(conn, "IX_ImageModels_ConnectionId",
+                "CREATE INDEX \"IX_ImageModels_ConnectionId\" ON \"ImageModels\" (\"ConnectionId\")");
+
+            await CreateTableIfMissingAsync(conn, "PromptSamples", """
+                CREATE TABLE "PromptSamples" (
+                    "Id" TEXT NOT NULL PRIMARY KEY,
+                    "Name" TEXT NOT NULL DEFAULT '',
+                    "Category" TEXT NOT NULL DEFAULT '',
+                    "Description" TEXT NOT NULL DEFAULT '',
+                    "PromptText" TEXT NOT NULL DEFAULT '',
+                    "Tags" TEXT NOT NULL DEFAULT '',
+                    "IsBuiltIn" INTEGER NOT NULL DEFAULT 0,
+                    "ParentPromptSampleId" TEXT NOT NULL DEFAULT '',
+                    "SourceLabel" TEXT NOT NULL DEFAULT '',
+                    "SortOrder" INTEGER NOT NULL DEFAULT 0,
+                    "CreatedAt" TEXT NOT NULL DEFAULT '0001-01-01T00:00:00+00:00',
+                    "UpdatedAt" TEXT NOT NULL DEFAULT '0001-01-01T00:00:00+00:00'
+                )
+                """);
+
+            await CreateIndexIfMissingAsync(conn, "IX_PromptSamples_Name",
+                "CREATE INDEX \"IX_PromptSamples_Name\" ON \"PromptSamples\" (\"Name\")");
+            await CreateIndexIfMissingAsync(conn, "IX_PromptSamples_Category",
+                "CREATE INDEX \"IX_PromptSamples_Category\" ON \"PromptSamples\" (\"Category\")");
+            await CreateIndexIfMissingAsync(conn, "IX_PromptSamples_IsBuiltIn",
+                "CREATE INDEX \"IX_PromptSamples_IsBuiltIn\" ON \"PromptSamples\" (\"IsBuiltIn\")");
+            await CreateIndexIfMissingAsync(conn, "IX_PromptSamples_UpdatedAt",
+                "CREATE INDEX \"IX_PromptSamples_UpdatedAt\" ON \"PromptSamples\" (\"UpdatedAt\")");
+
             await CreateTableIfMissingAsync(conn, "SceneArchives", """
                 CREATE TABLE "SceneArchives" (
                     "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -115,6 +189,23 @@ public sealed class DataMigrator
                 "CREATE INDEX \"IX_SceneArchives_RoomId\" ON \"SceneArchives\" (\"RoomId\")");
             await CreateIndexIfMissingAsync(conn, "IX_SceneArchives_RoomId_RoundNumber",
                 "CREATE INDEX \"IX_SceneArchives_RoomId_RoundNumber\" ON \"SceneArchives\" (\"RoomId\", \"RoundNumber\")");
+
+            await CreateTableIfMissingAsync(conn, "HumanParticipants", """
+                CREATE TABLE "HumanParticipants" (
+                    "Id" TEXT NOT NULL PRIMARY KEY,
+                    "RoomId" TEXT NOT NULL DEFAULT '',
+                    "Name" TEXT NOT NULL DEFAULT '',
+                    "IsPlayerCharacter" INTEGER NOT NULL DEFAULT 0,
+                    "AppearanceSummary" TEXT NOT NULL DEFAULT '',
+                    "TtsVoice" TEXT NOT NULL DEFAULT '',
+                    "AccentHex" TEXT NOT NULL DEFAULT '#4A90D9',
+                    "BackgroundHex" TEXT NOT NULL DEFAULT '#DDE8F0',
+                    "ParticipationMode" TEXT NOT NULL DEFAULT 'TurnParticipant',
+                    "SortOrder" INTEGER NOT NULL DEFAULT 0,
+                    "IsEnabled" INTEGER NOT NULL DEFAULT 1,
+                    FOREIGN KEY ("RoomId") REFERENCES "Rooms" ("Id") ON DELETE CASCADE
+                )
+                """);
         }
         finally
         {

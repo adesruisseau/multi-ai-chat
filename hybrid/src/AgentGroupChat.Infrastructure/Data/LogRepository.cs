@@ -28,8 +28,11 @@ public sealed class LogRepository : ILogRepository
             query = query.Where(l => l.Category == category);
         if (!string.IsNullOrWhiteSpace(source))
             query = query.Where(l => l.Source == source);
-        var entities = await query.OrderByDescending(l => l.Id).Take(limit).ToListAsync();
-        entities.Reverse();
+        var entities = await query
+            .OrderByDescending(l => l.Id)
+            .Take(limit)
+            .OrderBy(l => l.Id)
+            .ToListAsync();
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
 

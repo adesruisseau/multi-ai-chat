@@ -52,6 +52,54 @@ public class AiModelEntity
     public int SortOrder { get; set; }
 }
 
+[Table("ImageConnections")]
+public class ImageConnectionEntity
+{
+    [Key]
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Transport { get; set; } = "ComfyUI";
+    public string Endpoint { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+}
+
+[Table("ImageModels")]
+public class ImageModelEntity
+{
+    [Key]
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string ConnectionId { get; set; } = string.Empty;
+    public string ModelId { get; set; } = string.Empty;
+    public string WorkflowId { get; set; } = string.Empty;
+    public int Width { get; set; } = 1024;
+    public int Height { get; set; } = 1024;
+    public int? Steps { get; set; }
+    public double? GuidanceScale { get; set; }
+    public string NegativePrompt { get; set; } = string.Empty;
+    public string Notes { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+}
+
+[Table("PromptSamples")]
+public class PromptSampleEntity
+{
+    [Key]
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string PromptText { get; set; } = string.Empty;
+    public string Tags { get; set; } = string.Empty;
+    public bool IsBuiltIn { get; set; }
+    public string ParentPromptSampleId { get; set; } = string.Empty;
+    public string SourceLabel { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
 [Table("Rooms")]
 public class RoomEntity
 {
@@ -72,7 +120,13 @@ public class RoomEntity
     public int SummarizerMaxCharacters { get; set; } = 5600;
     public int SummarizerBroaderTurns { get; set; } = 6;
     public string SummarizerPromptOverride { get; set; } = string.Empty;
+    public bool? TtsEnabledOverride { get; set; }
+    public string TtsProviderOverride { get; set; } = string.Empty;
+    public string TtsFallbackVoice { get; set; } = string.Empty;
+    public string TtsUserVoice { get; set; } = string.Empty;
     public bool EnableSceneImageGeneration { get; set; }
+    public bool UseCreativeImageGeneration { get; set; }
+    public string SceneImageModelId { get; set; } = string.Empty;
     public string SceneImageStyleNotes { get; set; } = string.Empty;
     public string SceneImageNegativePrompt { get; set; } = string.Empty;
     public string MemoryModelId { get; set; } = string.Empty;
@@ -90,6 +144,25 @@ public class RoomEntity
     public int MaxConcurrentNpcs { get; set; } = 2;
     public int SortOrder { get; set; }
     public List<AgentEntity> Agents { get; set; } = new();
+    public List<HumanParticipantEntity> HumanParticipants { get; set; } = new();
+}
+
+[Table("HumanParticipants")]
+public class HumanParticipantEntity
+{
+    [Key]
+    public string Id { get; set; } = string.Empty;
+    public string RoomId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public bool IsPlayerCharacter { get; set; }
+    public string AppearanceSummary { get; set; } = string.Empty;
+    public string TtsVoice { get; set; } = string.Empty;
+    public string AccentHex { get; set; } = "#4A90D9";
+    public string BackgroundHex { get; set; } = "#DDE8F0";
+    public string ParticipationMode { get; set; } = "TurnParticipant";
+    public int SortOrder { get; set; }
+    public bool IsEnabled { get; set; } = true;
+    public RoomEntity? Room { get; set; }
 }
 
 [Table("Agents")]

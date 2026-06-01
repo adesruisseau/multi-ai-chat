@@ -1,3 +1,4 @@
+using AgentGroupChat.Core;
 using AgentGroupChat.Core.Models.Domain;
 
 namespace AgentGroupChat.Hybrid.State;
@@ -28,10 +29,18 @@ public sealed class ConversationState
         NotifyChanged();
     }
 
-    public void AddUserMessage(string text)
+    public void AddUserMessage(string text, string speakerName = "You",
+        string accentHex = "", string backgroundHex = "")
     {
-        Messages.Add(new ChatMessage { Speaker = "You", Content = text, IsUser = true });
-        SessionTurns.Add(new TranscriptTurn { Speaker = "You", Content = text });
+        Messages.Add(new ChatMessage
+        {
+            Speaker = speakerName,
+            Content = text,
+            IsUser = true,
+            AccentHex = accentHex,
+            BackgroundHex = backgroundHex,
+        });
+        SessionTurns.Add(new TranscriptTurn { Speaker = speakerName, Content = text });
         NotifyChanged();
     }
 
@@ -45,6 +54,45 @@ public sealed class ConversationState
             BackgroundHex = agent.BackgroundHex,
         });
         NotifyChanged();
+    }
+
+    public void CompleteAgentMessage(AgentConfig agent, string content)
+    {
+        var placeholder = Messages.LastOrDefault(
+            m => m.Speaker == agent.Name && m.Content == ChatPlaceholders.Thinking);
+        if (placeholder is not null)
+        {
+            placeholder.Content = content;
+        }
+        else
+        {
+            Messages.Add(new ChatMessage
+            {
+                Speaker = agent.Name,
+                Content = content,
+                AccentHex = agent.AccentHex,
+                BackgroundHex = agent.BackgroundHex,
+            });
+        }
+        SessionTurns.Add(new TranscriptTurn { Speaker = agent.Name, Content = content });
+        NotifyChanged();
+    }
+
+    public void RemoveThinkingPlaceholders()
+    {
+        Messages.RemoveAll(m => m.Content == ChatPlaceholders.Thinking);
+    }
+
+    public void AddTranscriptMessage(string speaker, string content, string accentHex, string backgroundHex, bool isUser)
+    {
+        Messages.Add(new ChatMessage
+        {
+            Speaker = speaker,
+            Content = content,
+            AccentHex = accentHex,
+            BackgroundHex = backgroundHex,
+            IsUser = isUser,
+        });
     }
 
     public void Clear()

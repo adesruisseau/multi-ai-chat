@@ -13,7 +13,7 @@ public sealed class SpeechService : IDisposable
 {
     public record SpeechSettings(
         bool Enabled,
-        string Provider,     // "Local", "Piper", "Kokoro"
+        string Provider,     // TtsProviders.Local, .Piper, .Kokoro
         int Rate,            // -5 to +5
         string KokoroBaseUrl,
         string KokoroModel,
@@ -124,7 +124,7 @@ public sealed class SpeechService : IDisposable
     {
         try
         {
-            if (s.Provider.Equals("Kokoro", StringComparison.OrdinalIgnoreCase))
+            if (s.Provider.Equals(TtsProviders.Kokoro, StringComparison.OrdinalIgnoreCase))
             { await SpeakKokoroPrefetchAsync(segments, voiceName, s, ct); return; }
 
             foreach (var seg in segments)
@@ -141,9 +141,9 @@ public sealed class SpeechService : IDisposable
 
     private Task SpeakOneAsync(string text, string voice, SpeechSettings s, CancellationToken ct)
     {
-        if (s.Provider.Equals("Kokoro", StringComparison.OrdinalIgnoreCase))
+        if (s.Provider.Equals(TtsProviders.Kokoro, StringComparison.OrdinalIgnoreCase))
             return SpeakKokoroSingleAsync(text, voice, s, ct);
-        if (s.Provider.Equals("Piper", StringComparison.OrdinalIgnoreCase))
+        if (s.Provider.Equals(TtsProviders.Piper, StringComparison.OrdinalIgnoreCase))
             return SpeakPiperAsync(text, voice, s, ct);
         return SpeakLocalAsync(text, voice, s, ct);
     }
@@ -533,9 +533,9 @@ public sealed class SpeechService : IDisposable
 
     private static IReadOnlyList<(string Display, string Speech)> BuildSegments(string content, string provider)
     {
-        if (provider.Equals("Kokoro", StringComparison.OrdinalIgnoreCase))
+        if (provider.Equals(TtsProviders.Kokoro, StringComparison.OrdinalIgnoreCase))
             return BuildKokoroSegments(content);
-        if (provider.Equals("Piper", StringComparison.OrdinalIgnoreCase))
+        if (provider.Equals(TtsProviders.Piper, StringComparison.OrdinalIgnoreCase))
         {
             var norm = NormalizePiper(StripFormatting(content));
             if (string.IsNullOrWhiteSpace(norm)) return [];
@@ -665,6 +665,48 @@ public sealed class SpeechService : IDisposable
     {
         IsSpeaking = active; IsPaused = paused;
         OnPlaybackStateChanged?.Invoke();
+    }
+
+    public async Task<(bool Success, string Message, bool CanRetryStart)> TestKokoroConnectionAsync(
+        string baseUrl, string model, string voice)
+    {
+        try
+        {
+            var url = (string.IsNullOrWhiteSpace(baseUrl) ? "http://127.0.0.1:8880" : baseUrl).TrimEnd('/') + "/v1/audio/speech";
+            var payload = JsonSerializer.Serialize(new
+            {
+                model = string.IsNullOrWhiteSpace(model) ? "kokoro" : model,
+                input = "Test.",
+                voice = string.IsNullOrWhiteSpace(voice) ? "af_heart" : voice,
+                response_format = "wav",
+                speed = 1.0,
+            });
+
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json"),
+            };
+            using var response = await http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+                return (true, "Kokoro is running for this room.", false);
+
+            var body = await response.Content.ReadAsStringAsync();
+            return (false, $"Error {(int)response.StatusCode}: {(body.Length > 120 ? body[..120] : body)}", true);
+        }
+        catch (HttpRequestException)
+        {
+            return (false, "Cannot connect to Kokoro. The service may not be running.", true);
+        }
+        catch (TaskCanceledException)
+        {
+            return (false, "Kokoro connection timed out. The service may still be starting.", true);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Speech test failed: {(ex.Message.Length > 120 ? ex.Message[..120] : ex.Message)}", false);
+        }
     }
 
     public void Dispose()

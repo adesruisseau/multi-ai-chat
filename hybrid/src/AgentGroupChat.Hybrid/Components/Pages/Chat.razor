@@ -7,8 +7,12 @@
 @inject AgentGroupChat.Core.Services.Interfaces.ITranscriptRepository TranscriptRepo
 @inject AgentGroupChat.Core.Services.SpeechService Speech
 @inject AgentGroupChat.Core.Services.LogService LogService
+@inject AgentGroupChat.Core.Services.ImageClient ImageClient
 @using AgentGroupChat.Core.Services
 @using AgentGroupChat.Hybrid.Theming
+@using AgentGroupChat.Core.Models.Domain
+@using static AgentGroupChat.Core.ChatPlaceholders
+@using AgentGroupChat.Core.Models.Llm
 @implements IDisposable
 
 <MudText Typo="Typo.h4" GutterBottom="true">Chat</MudText>
@@ -22,6 +26,8 @@
             }
         </MudSelect>
         <MudButton OnClick="LoadRoom" Variant="Variant.Outlined">Load</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearRoom" Disabled="ConvoState.IsRunning">Clear Room</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearLogs" Disabled="ConvoState.IsRunning">Clear Logs</MudButton>
     </MudStack>
 </MudPaper>
 
@@ -31,8 +37,8 @@
 }
 else
 {
-
-    <MudPaper Class="pa-4 mb-4" Elevation="1" Style="max-height:500px; overflow-y:auto;">
+    <div @ref="_chatDiv" style="max-height:600px; overflow-y:auto;">
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
         @{ var isDark = AppState.Settings.UiTheme == "Dark"; }
         @{ var visibleMessages = ConvoState.Messages.Where(m => !m.IsSystem).ToList(); }
         @for (int i = 0; i < visibleMessages.Count; i++)
@@ -47,40 +53,61 @@ else
                 <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
                     <div style="flex:1; min-width:0;">
                         <MudText Typo="Typo.subtitle2" Style="@($"color:{borderColor}")">@msg.Speaker</MudText>
+                        @if (msg.Speaker == "Image")
+                        {
+                            <img src="@msg.Content" alt="Generated test preview" style="max-width:100%;max-height:420px;border-radius:8px;display:block;" />
+                        }
+                        else {
                         <MudText Typo="Typo.body2" Style="white-space: pre-wrap">@msg.Content</MudText>
+                        }
                     </div>
                     <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small"
                                    OnClick="@(() => PlayFromMessage(idx))" Disabled="_isPlayingFrom"
                                    Title="Play from here" />
                 </MudStack>
             </MudPaper>
+        
         }
-    </MudPaper>
+        </MudPaper>
+    </div>
+    
 
     <MudPaper Class="pa-4 mb-4" Elevation="1">
-        <MudTextField @bind-Value="_userInput" Label="Your message" Class="mb-3" OnKeyDown="OnKeyDown" Lines="4"
-                      Immediate="true" />
+        @if (!_generatingImage)
+        {
+            <MudTextField @bind-Value="_userInput" Label="Your message" Class="mb-3" OnKeyDown="OnKeyDown" Lines="8"
+                          Immediate="true" />
+        }
+        else
+        {
+            <MudTextField @bind-Value="imagePrompt" Label="Generate Image" Class="mb-3" OnKeyDown="OnKeyDown" Lines="8"
+                          Immediate="true" />
+        }
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <MudNumericField @bind-Value="_iterations" Label="Rounds" Min="1" Style="max-width:100px" />
             <MudSpacer />
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Run" Disabled="ConvoState.IsRunning">Run</MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Stop" Disabled="!ConvoState.IsRunning">Stop</MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearRoom" Disabled="ConvoState.IsRunning">Clear Room</MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearLogs" Disabled="ConvoState.IsRunning">Clear Logs</MudButton>
+            @if (RoomState.SelectedRoom.EnableSceneImageGeneration && !String.IsNullOrWhiteSpace(RoomState.SelectedRoom.SceneImageModelId))
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="GenerateImagePromptAsync" Disabled="ConvoState.IsRunning && !_generatingImage">Generate Image Prompt</MudButton>
+            }
+            @if (_generatingImage)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GenerateImageAsync">Generate</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="CancelGenerateImageAsync">Cancel</MudButton>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Run" Disabled="ConvoState.IsRunning">Run</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Stop" Disabled="!ConvoState.IsRunning">Stop</MudButton>
+            }
+            
         </MudStack>
         <MudText Typo="Typo.caption" Class="mt-1">@ConvoState.Status</MudText>
     </MudPaper>
 
     <MudPaper Class="pa-4 mb-4" Elevation="1">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
-            <MudSwitch Value="AppState.Settings.TtsEnabled" Label="Speech" Color="Color.Primary"
-                       T="bool" ValueChanged="OnTtsToggled" />
-            <MudSelect Value="AppState.Settings.TtsProvider" Label="Provider" T="string" Style="max-width:140px"
-                       ValueChanged="@((string v) => OnTtsProviderChanged(v))">
-                <MudSelectItem T="string" Value="@("Local")">Local</MudSelectItem>
-                <MudSelectItem T="string" Value="@("Piper")">Piper</MudSelectItem>
-                <MudSelectItem T="string" Value="@("Kokoro")">Kokoro</MudSelectItem>
-            </MudSelect>
+            <MudText Typo="Typo.caption">@GetSpeechSummary()</MudText>
             <MudStack Spacing="0" Style="min-width:160px">
                 <MudText Typo="Typo.caption">Rate: @AppState.Settings.TtsRate</MudText>
                 <MudSlider Value="AppState.Settings.TtsRate" Min="-5" Max="5" Step="1" T="int"
@@ -92,66 +119,11 @@ else
                 <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="TogglePause">
                     @(Speech.IsPaused ? "Resume" : "Pause")
                 </MudButton>
-                @* Issues with halting all API activity currently.
-                <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Error" OnClick="StopSpeech">
-                    Stop Speech
-                </MudButton> *@
             }
         </MudStack>
-        @if (AppState.Settings.TtsProvider == "Kokoro")
-        {
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
-                <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="TestKokoro" Disabled="_kokoroTesting">
-                    @(_kokoroTesting ? "Testing..." : "Test Kokoro")
-                </MudButton>
-                @if (!string.IsNullOrEmpty(_kokoroTestResult))
-                {
-                    <MudText Typo="Typo.caption" Color="@(_kokoroTestOk ? Color.Success : Color.Error)">@_kokoroTestResult</MudText>
-                }
-                @if (!_kokoroTestOk && !string.IsNullOrEmpty(_kokoroTestResult))
-                {
-                    <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Warning" OnClick="StartKokoroService">
-                        Start Service
-                    </MudButton>
-                }
-            </MudStack>
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
-                @if (_kokoroVoices.Count > 0)
-                {
-                    <MudSelect Value="AppState.Settings.KokoroVoice" Label="Default Agent Voice" T="string" Style="max-width:220px"
-                               ValueChanged="OnDefaultVoiceChanged">
-                        @foreach (var v in _kokoroVoices)
-                        {
-                            <MudSelectItem T="string" Value="@v">@v</MudSelectItem>
-                        }
-                    </MudSelect>
-                    <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-3"
-                               OnClick="TestDefaultVoice" Disabled="_previewingVoice">
-                        @(_previewingVoice ? "Playing..." : "Test")
-                    </MudButton>
-                    <MudSelect Value="AppState.Settings.KokoroUserVoice" Label="Your Voice" T="string" Style="max-width:220px"
-                               ValueChanged="OnUserVoiceChanged">
-                        <MudSelectItem T="string" Value="@string.Empty">(Same as default)</MudSelectItem>
-                        @foreach (var v in _kokoroVoices)
-                        {
-                            <MudSelectItem T="string" Value="@v">@v</MudSelectItem>
-                        }
-                    </MudSelect>
-                    <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-3"
-                               OnClick="TestUserVoice" Disabled="_previewingVoice">
-                        @(_previewingVoice ? "Playing..." : "Test")
-                    </MudButton>
-                }
-                else
-                {
-                    <MudTextField Value="AppState.Settings.KokoroVoice" Label="Default Agent Voice" T="string" Style="max-width:220px"
-                                  ValueChanged="OnDefaultVoiceChanged" />
-                }
-                <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-3" OnClick="RefreshVoices">
-                    Refresh Voices
-                </MudButton>
-            </MudStack>
-        }
+        <MudText Typo="Typo.caption" Class="mt-2">
+            Speech enablement, provider choice, room fallback voice, and your voice now live under Rooms > Room Settings.
+        </MudText>
     </MudPaper>
 }
 
@@ -162,12 +134,20 @@ else
     private CancellationTokenSource? _cts;
     private CancellationTokenSource? _playbackCts;
     private bool _isPlayingFrom;
-    private bool _kokoroTesting;
-    private string _kokoroTestResult = string.Empty;
-    private bool _kokoroTestOk;
-    private List<string> _kokoroVoices = new();
-    private bool _previewingVoice;
+    private ElementReference _chatDiv;
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
+    private int _lastMessageCount;
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await Task.Delay(100);
+        if (ConvoState.Messages.Count != _lastMessageCount)
+        {
+            _lastMessageCount = ConvoState.Messages.Count;
+            await JS.InvokeVoidAsync("scrollToBottom", _chatDiv);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -194,8 +174,6 @@ else
         {
             _selectedRoomId = RoomState.Rooms[0].Id;
         }
-
-        _ = RefreshVoices();
     }
 
     private void OnRunnerSystemMessage(string msg)
@@ -214,26 +192,7 @@ else
 
     private void OnRunnerAgentCompleted(AgentConfig agent, string msg)
     {
-        // Find the "Thinking..." placeholder specifically for this agent
-        var placeholder = ConvoState.Messages.LastOrDefault(
-            m => m.Speaker == agent.Name && m.Content == "Thinking...");
-        if (placeholder is not null)
-        {
-            placeholder.Content = msg;
-        }
-        else
-        {
-            // No placeholder found (edge case) — add as a new message
-            ConvoState.Messages.Add(new ChatMessage
-            {
-                Speaker = agent.Name,
-                Content = msg,
-                AccentHex = agent.AccentHex,
-                BackgroundHex = agent.BackgroundHex,
-            });
-        }
-        ConvoState.SessionTurns.Add(new TranscriptTurn { Speaker = agent.Name, Content = msg });
-        ConvoState.NotifyChanged();
+        ConvoState.CompleteAgentMessage(agent, msg);
         InvokeAsync(StateHasChanged);
     }
 
@@ -259,11 +218,27 @@ else
         RoomState.SelectRoom(room);
         ConvoState.Clear();
 
+        var humanNames = room.HumanParticipants
+            .Select(h => h.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var turns = await TranscriptRepo.GetAsync(room.Id);
         foreach (var turn in turns)
         {
-            if (turn.Speaker == "You")
-                ConvoState.Messages.Add(new ChatMessage { Speaker = "You", Content = turn.Content, IsUser = true });
+            var isHuman = turn.Speaker == "You" || humanNames.Contains(turn.Speaker);
+            if (isHuman)
+            {
+                var human = room.HumanParticipants.FirstOrDefault(
+                    h => string.Equals(h.Name, turn.Speaker, StringComparison.OrdinalIgnoreCase));
+                ConvoState.Messages.Add(new ChatMessage
+                {
+                    Speaker = turn.Speaker,
+                    Content = turn.Content,
+                    IsUser = true,
+                    AccentHex = human?.AccentHex ?? "",
+                    BackgroundHex = human?.BackgroundHex ?? "",
+                });
+            }
             else
             {
                 var agent = room.Agents.FirstOrDefault(a => a.Name == turn.Speaker);
@@ -289,22 +264,25 @@ else
 
         if (!string.IsNullOrWhiteSpace(_userInput))
         {
-            ConvoState.AddUserMessage(_userInput);
+            var speaker = GetActiveHumanSpeaker(room);
+            ConvoState.AddUserMessage(_userInput, speaker.Name, speaker.AccentHex, speaker.BackgroundHex);
             await TranscriptRepo.AppendAsync(new TranscriptTurn
             {
                 RoomId = room.Id,
-                Speaker = "You",
+                Speaker = speaker.Name,
                 Content = _userInput,
+                AccentHex = speaker.AccentHex,
+                BackgroundHex = speaker.BackgroundHex,
             });
 
             // Narrate user message before agents start
-            var ttsSettings = BuildSpeechSettings();
+            var ttsSettings = BuildSpeechSettings(room);
             if (ttsSettings.Enabled)
             {
-                var userVoice = string.IsNullOrWhiteSpace(AppState.Settings.KokoroUserVoice)
-                    ? ttsSettings.KokoroVoice
-                    : AppState.Settings.KokoroUserVoice;
-                await Speech.SpeakAsync(ttsSettings, _userInput, userVoice, CancellationToken.None);
+                var voice = !string.IsNullOrWhiteSpace(speaker.TtsVoice)
+                    ? speaker.TtsVoice
+                    : RoomSpeechResolver.GetUserVoice(room, AppState.Settings);
+                await Speech.SpeakAsync(ttsSettings, _userInput, voice, CancellationToken.None);
             }
 
             _userInput = string.Empty;
@@ -314,8 +292,8 @@ else
             return;
         }
 
-        // Clean up any stale "Thinking..." placeholders from a previous failed run
-        ConvoState.Messages.RemoveAll(m => m.Content == "Thinking...");
+        // Clean up any stale thinking placeholders from a previous failed run
+        ConvoState.RemoveThinkingPlaceholders();
 
         ConvoState.IsRunning = true;
         ConvoState.SetStatus("Running");
@@ -349,8 +327,8 @@ else
         }
         finally
         {
-            // Clean up any leftover "Thinking..." placeholders from failed/cancelled turns
-            ConvoState.Messages.RemoveAll(m => m.Content == "Thinking...");
+            // Clean up any leftover thinking placeholders from failed/cancelled turns
+            ConvoState.RemoveThinkingPlaceholders();
             ConvoState.IsRunning = false;
             ConvoState.SetStatus("Ready");
             ConvoState.NotifyChanged();
@@ -400,14 +378,7 @@ else
         if (connection is null)
             throw new InvalidOperationException($"Connection '{catalogEntry.ConnectionId}' not found.");
 
-        var provider = connection.Transport switch
-        {
-            "Groq" => LlmProvider.Groq,
-            "Gemini" => LlmProvider.Gemini,
-            "HuggingFace" => LlmProvider.HuggingFace,
-            "Ollama" => LlmProvider.Ollama,
-            _ => LlmProvider.OpenAiCompatible,
-        };
+        var provider = LlmProviderMapping.FromTransport(connection.Transport);
 
         var maxCompletionTokens = agent?.MaxTokensOverride
             ?? (agent is null
@@ -433,249 +404,29 @@ else
     /// the index of Agent 2 so the round resumes from there.
     /// Returns 0 if a fresh round should start.
     /// </summary>
-    private int ComputeResumeAgentIndex(RoomConfig room)
-    {
-        var enabledAgents = room.Agents.Where(a => a.IsEnabled && !a.IsTemporarilySuspended).ToList();
-        if (enabledAgents.Count <= 1) return 0;
-
-        var turns = ConvoState.SessionTurns;
-        if (turns.Count == 0) return 0;
-
-        // Walk backward through the transcript to find which agents spoke
-        // in the current (incomplete) round. Stop at the first user message
-        // or when we've seen more agent turns than there are agents.
-        var spokenThisRound = new List<string>();
-        for (int i = turns.Count - 1; i >= 0; i--)
-        {
-            var t = turns[i];
-            if (t.Speaker == "You") break;
-            if (enabledAgents.Any(a => a.Name == t.Speaker))
-                spokenThisRound.Insert(0, t.Speaker);
-            if (spokenThisRound.Count >= enabledAgents.Count) break;
-        }
-
-        if (spokenThisRound.Count == 0) return 0;
-        if (spokenThisRound.Count >= enabledAgents.Count) return 0; // full round completed
-
-        // Find the last agent who spoke, then return the next one's index
-        var lastSpeaker = spokenThisRound[^1];
-        var lastIdx = enabledAgents.FindIndex(a => a.Name == lastSpeaker);
-        if (lastIdx < 0) return 0;
-
-        var nextIdx = lastIdx + 1;
-        return nextIdx < enabledAgents.Count ? nextIdx : 0;
-    }
+    private int ComputeResumeAgentIndex(RoomConfig room) =>
+        ConversationRunner.ComputeResumeAgentIndex(room.Agents, ConvoState.SessionTurns, room.HumanParticipants);
 
     private void OnConvoChanged() => InvokeAsync(StateHasChanged);
 
-    // ─── Kokoro Test ───────────────────────────────────────────────
-
-    private async Task TestKokoro()
-    {
-        _kokoroTesting = true;
-        _kokoroTestResult = string.Empty;
-        StateHasChanged();
-
-        try
-        {
-            var s = AppState.Settings;
-            var baseUrl = string.IsNullOrWhiteSpace(s.KokoroBaseUrl) ? "http://127.0.0.1:8880" : s.KokoroBaseUrl;
-            var endpoint = baseUrl.TrimEnd('/') + "/v1/audio/speech";
-
-            var payload = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                model = string.IsNullOrWhiteSpace(s.KokoroModel) ? "kokoro" : s.KokoroModel,
-                input = "Test.",
-                voice = string.IsNullOrWhiteSpace(s.KokoroVoice) ? "af_heart" : s.KokoroVoice,
-                response_format = "wav",
-                speed = 1.0,
-            });
-
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-            {
-                Content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json"),
-            };
-            using var response = await http.SendAsync(request);
-
-            if (response.IsSuccessStatusCode)
-            {
-                _kokoroTestOk = true;
-                _kokoroTestResult = "Kokoro is running.";
-            }
-            else
-            {
-                var body = await response.Content.ReadAsStringAsync();
-                _kokoroTestOk = false;
-                _kokoroTestResult = $"Error {(int)response.StatusCode}: {Truncate(body, 120)}";
-            }
-        }
-        catch (HttpRequestException)
-        {
-            _kokoroTestOk = false;
-            _kokoroTestResult = "Cannot connect — Kokoro service is not running.";
-        }
-        catch (TaskCanceledException)
-        {
-            _kokoroTestOk = false;
-            _kokoroTestResult = "Connection timed out — Kokoro may still be starting.";
-        }
-        catch (Exception ex)
-        {
-            _kokoroTestOk = false;
-            _kokoroTestResult = $"Error: {Truncate(ex.Message, 120)}";
-        }
-        finally
-        {
-            _kokoroTesting = false;
-            StateHasChanged();
-        }
-    }
-
-    private void StartKokoroService()
-    {
-        try
-        {
-            var kokoroDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "AgentGroupChat", "Kokoro-FastAPI");
-
-            // Fallback: look relative to the app's base directory
-            if (!Directory.Exists(kokoroDir))
-            {
-                var candidate = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "Kokoro-FastAPI"));
-                if (Directory.Exists(candidate)) kokoroDir = candidate;
-            }
-
-            var scriptPath = Path.Combine(kokoroDir, "start-cpu.ps1");
-            if (!File.Exists(scriptPath))
-            {
-                _kokoroTestOk = false;
-                _kokoroTestResult = $"start-cpu.ps1 not found at {kokoroDir}";
-                return;
-            }
-
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "powershell",
-                Arguments = $"-ExecutionPolicy Bypass -File \"{scriptPath}\"",
-                WorkingDirectory = kokoroDir,
-                UseShellExecute = true,
-            };
-            System.Diagnostics.Process.Start(psi);
-            _kokoroTestOk = false;
-            _kokoroTestResult = "Kokoro service starting in a new window — wait a moment then test again.";
-        }
-        catch (Exception ex)
-        {
-            _kokoroTestOk = false;
-            _kokoroTestResult = $"Failed to start: {Truncate(ex.Message, 120)}";
-        }
-    }
-
-    private static string Truncate(string text, int maxLength) =>
-        text.Length <= maxLength ? text : text[..maxLength] + "...";
-
-    // ─── TTS ───────────────────────────────────────────────────────
-
-    private SpeechService.SpeechSettings BuildSpeechSettings()
-    {
-        var s = AppState.Settings;
-        return new SpeechService.SpeechSettings(
-            s.TtsEnabled, s.TtsProvider, s.TtsRate,
-            s.KokoroBaseUrl, s.KokoroModel, s.KokoroVoice, s.KokoroLangCode, s.KokoroSpeed,
-            s.PiperExePath, s.PiperModelsDir);
-    }
+    private SpeechService.SpeechSettings BuildSpeechSettings(RoomConfig? room = null) =>
+        RoomSpeechResolver.BuildSettings(room ?? RoomState.SelectedRoom, AppState.Settings);
 
     private async Task OnSpeechGateAsync(AgentConfig agent, string content, CancellationToken ct)
     {
-        var settings = BuildSpeechSettings();
+        var room = RoomState.SelectedRoom;
+        var settings = BuildSpeechSettings(room);
         if (!settings.Enabled) return;
-        var voice = string.IsNullOrWhiteSpace(agent.TtsVoice) ? settings.KokoroVoice : agent.TtsVoice;
+        var voice = string.IsNullOrWhiteSpace(agent.TtsVoice)
+            ? RoomSpeechResolver.GetFallbackVoice(room, AppState.Settings)
+            : agent.TtsVoice;
         await Speech.SpeakAsync(settings, content, voice, ct);
-    }
-
-    private async Task OnTtsToggled(bool enabled)
-    {
-        AppState.Settings.TtsEnabled = enabled;
-        await AppState.SaveSettingsAsync();
-    }
-
-    private async Task OnTtsProviderChanged(string provider)
-    {
-        AppState.Settings.TtsProvider = provider;
-        await AppState.SaveSettingsAsync();
-        await RefreshVoices();
     }
 
     private async Task OnTtsRateChanged(int rate)
     {
         AppState.Settings.TtsRate = rate;
         await AppState.SaveSettingsAsync();
-    }
-
-    private async Task OnDefaultVoiceChanged(string voice)
-    {
-        AppState.Settings.KokoroVoice = voice;
-        await AppState.SaveSettingsAsync();
-    }
-
-    private async Task OnUserVoiceChanged(string voice)
-    {
-        AppState.Settings.KokoroUserVoice = voice;
-        await AppState.SaveSettingsAsync();
-    }
-
-    private async Task RefreshVoices()
-    {
-        if (!AppState.Settings.TtsProvider.Equals("Kokoro", StringComparison.OrdinalIgnoreCase))
-        {
-            _kokoroVoices.Clear();
-            return;
-        }
-        var voices = await Speech.FetchKokoroVoicesAsync(AppState.Settings.KokoroBaseUrl);
-        _kokoroVoices = voices.ToList();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task TestDefaultVoice()
-    {
-        if (_previewingVoice) return;
-        _previewingVoice = true;
-        StateHasChanged();
-        try
-        {
-            var voice = AppState.Settings.KokoroVoice;
-            var wav = await Speech.SynthesizePreviewAsync(AppState.Settings.KokoroBaseUrl, voice);
-            if (wav is not null)
-                await Speech.PlayPreviewAsync(wav, CancellationToken.None);
-        }
-        finally
-        {
-            _previewingVoice = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task TestUserVoice()
-    {
-        if (_previewingVoice) return;
-        _previewingVoice = true;
-        StateHasChanged();
-        try
-        {
-            var voice = string.IsNullOrWhiteSpace(AppState.Settings.KokoroUserVoice)
-                ? AppState.Settings.KokoroVoice
-                : AppState.Settings.KokoroUserVoice;
-            var wav = await Speech.SynthesizePreviewAsync(AppState.Settings.KokoroBaseUrl, voice);
-            if (wav is not null)
-                await Speech.PlayPreviewAsync(wav, CancellationToken.None);
-        }
-        finally
-        {
-            _previewingVoice = false;
-            StateHasChanged();
-        }
     }
 
     private async Task PlayFromMessage(int startIndex)
@@ -691,6 +442,12 @@ else
 
         try
         {
+            if (!settings.Enabled)
+            {
+                ConvoState.SetStatus("Speech is disabled for this room.");
+                return;
+            }
+
             // Narrate all existing messages from startIndex forward
             var messages = ConvoState.Messages;
             for (int i = startIndex; i < messages.Count; i++)
@@ -699,10 +456,14 @@ else
                 var msg = messages[i];
                 if (msg.IsSystem || string.IsNullOrWhiteSpace(msg.Content)) continue;
 
-                var voice = settings.KokoroVoice;
-                if (msg.IsUser && !string.IsNullOrWhiteSpace(AppState.Settings.KokoroUserVoice))
+                var voice = RoomSpeechResolver.GetFallbackVoice(room, AppState.Settings);
+                if (msg.IsUser)
                 {
-                    voice = AppState.Settings.KokoroUserVoice;
+                    var human = room?.HumanParticipants.FirstOrDefault(
+                        h => string.Equals(h.Name, msg.Speaker, StringComparison.OrdinalIgnoreCase));
+                    voice = !string.IsNullOrWhiteSpace(human?.TtsVoice)
+                        ? human.TtsVoice
+                        : RoomSpeechResolver.GetUserVoice(room, AppState.Settings);
                 }
                 else if (!msg.IsUser && room is not null)
                 {
@@ -764,12 +525,107 @@ else
             StateHasChanged();
         }
     }
+    private string _imagePreviewDataUrl = string.Empty;
+    private bool _generatingImage = false;
+    private ImageConnection imageConnection;
+    private ImageModel imageModel;
+    private string imagePrompt;
+    private async Task GenerateImagePromptAsync()
+    {
+        _generatingImage = true;
+        imageModel = AppState.ImageModels.Where(x => x.Id == RoomState.SelectedRoom.SceneImageModelId).First();
+        if (imageModel is null)
+        {
+            await LogService.LogAsync(LogCategory.System, "Image Generation", "The model was not retrieved during the image generation process.");
+            _generatingImage = false;
+            return;
+
+        }
+        imageConnection = AppState.ImageConnections.Where(x => x.Id == imageModel.ConnectionId).First();
+        if (imageConnection is null)
+        {
+            await LogService.LogAsync(LogCategory.System, "Image Generation", "The connection was not retrieved during the image generation process.");
+            _generatingImage = false;
+            return;
+
+        }
+        imagePrompt = "";
+        imagePrompt += RoomState.SelectedRoom!.SceneImageStyleNotes;
+        if (RoomState.SelectedRoom.UseCreativeImageGeneration)
+        {
+            RoomState.SelectedRoom.Agents.ForEach(x =>
+            {
+                if (!String.IsNullOrWhiteSpace(x.AppearanceSummary) && !x.IsTemporarilySuspended && x.IsEnabled)
+                {
+                    imagePrompt += $"\r\nInclude character: {x.Name} description: {x.AppearanceSummary}";
+                }
+            });
+
+            string narrativeText = ConvoState.Messages.Where(x => x.Speaker.Trim().ToUpper().Equals("DM") || x.Speaker.Trim().ToUpper().Equals("NARRATOR")).Last().Content;
+            imagePrompt += $"\r\nLast Narrative Text: {narrativeText}";
+        }
+
+        string currentRoomStateActions = await MemoryRepo.GetAsync(RoomState.SelectedRoom.Id, "", MemoryKind.SharedRoom);
+        imagePrompt += $"\r\nCurrent Room Information: {currentRoomStateActions}";
+    }
+
+    private async Task GenerateImageAsync()
+    {
+        try
+        {
+            var imageResult = await ImageClient.GenerateTestImageAsync(imageConnection, imageModel, imagePrompt, CancellationToken.None);
+            TranscriptTurn turn = new TranscriptTurn();
+            turn.Speaker = "Image";
+            turn.Content = $"data:{imageResult.MimeType};base64,{Convert.ToBase64String(imageResult.ImageBytes)}";
+            var isDark = AppState.Settings.UiTheme == "Dark";
+            turn.AccentHex = isDark ? "#6EACDF" : "#1976d2";
+            turn.BackgroundHex = isDark ? "#142838" : "#e3f2fd";
+            turn.CreatedAt = DateTimeOffset.Now;
+            turn.RoomId = RoomState.SelectedRoom.Id;
+            turn.Round = ConvoState.CompletedRounds;
+
+            _imagePreviewDataUrl = $"data:{imageResult.MimeType};base64,{Convert.ToBase64String(imageResult.ImageBytes)}";
+
+            await TranscriptRepo.AppendAsync(turn);
+        }
+        catch (Exception ex)
+        {
+            await LogService.LogAsync(LogCategory.System, "Image Generation Failure", "The image failed to return", ex.Message);
+            _imagePreviewDataUrl = string.Empty;
+            
+        }
+        _generatingImage = false;
+    }
+
+    private void CancelGenerateImageAsync()
+    {
+        _generatingImage = false;
+    }
+
+    private string GetSpeechSummary()
+    {
+        var room = RoomState.SelectedRoom;
+        var enabled = RoomSpeechResolver.IsSpeechEnabled(room, AppState.Settings);
+        var provider = RoomSpeechResolver.GetProvider(room, AppState.Settings);
+        return enabled ? $"Speech: {provider}" : "Speech: Off";
+    }
 
     private void TogglePause() => Speech.TogglePause();
 
-    private void StopSpeech() => Speech.Stop();
-
     private void OnSpeechStateChanged() => InvokeAsync(StateHasChanged);
+
+    private record HumanSpeaker(string Name, string AccentHex, string BackgroundHex, string TtsVoice);
+
+    private static readonly HumanSpeaker _defaultSpeaker = new("You", "", "", "");
+
+    private static HumanSpeaker GetActiveHumanSpeaker(RoomConfig room)
+    {
+        var active = room.HumanParticipants.FirstOrDefault(h =>
+            h.IsEnabled && h.ParticipationMode == ParticipationMode.TurnParticipant);
+        if (active is not null)
+            return new HumanSpeaker(active.Name, active.AccentHex, active.BackgroundHex, active.TtsVoice);
+        return _defaultSpeaker;
+    }
 
     public void Dispose()
     {
@@ -785,3 +641,10 @@ else
         _playbackCts?.Dispose();
     }
 }
+
+<script>
+        window.scrollToBottom = (element) => {
+        element.scrollTop = element.scrollHeight;
+    };
+
+</script>

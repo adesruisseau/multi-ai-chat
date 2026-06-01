@@ -87,4 +87,81 @@ public sealed class SettingsRepository : ISettingsRepository
             await _db.SaveChangesAsync();
         }
     }
+
+    public async Task<List<ImageConnection>> GetImageConnectionsAsync()
+    {
+        var entities = await _db.ImageConnections.OrderBy(c => c.SortOrder).AsNoTracking().ToListAsync();
+        return entities.Select(EntityMapper.ToDomain).ToList();
+    }
+
+    public async Task SaveImageConnectionAsync(ImageConnection connection)
+    {
+        var existing = await _db.ImageConnections.FirstOrDefaultAsync(c => c.Id == connection.Id);
+        var entity = EntityMapper.ToEntity(connection);
+        if (existing is null)
+            _db.ImageConnections.Add(entity);
+        else
+            _db.Entry(existing).CurrentValues.SetValues(entity);
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task DeleteImageConnectionAsync(string id)
+    {
+        var entity = await _db.ImageConnections.FirstOrDefaultAsync(c => c.Id == id);
+        if (entity is not null)
+        {
+            _db.ImageConnections.Remove(entity);
+            await _db.SaveChangesAsync();
+        }
+    }
+
+    public async Task<ImageConnection> GetImageConnectionAsync(string connectionId)
+    {
+        var entity = await _db.ImageConnections.Where(x => x.Id == connectionId).AsNoTracking().FirstOrDefaultAsync();
+        
+        if (entity is not null)
+        {
+            var imageConnection = EntityMapper.ToDomain(entity);
+            return imageConnection;
+        }
+        return null;
+    }
+
+    public async Task<List<ImageModel>> GetImageModelsAsync()
+    {
+        var entities = await _db.ImageModels.OrderBy(m => m.SortOrder).AsNoTracking().ToListAsync();
+        return entities.Select(EntityMapper.ToDomain).ToList();
+    }
+    
+    public async Task<ImageModel> GetImageModelByIdAsync(string modelId)
+    {
+        var entity = await _db.ImageModels.Where(x => x.Id == modelId || x.ModelId == modelId).AsNoTracking().FirstOrDefaultAsync();
+        if (entity is not null)
+        {
+            var imageModel = EntityMapper.ToDomain(entity);
+            return imageModel;
+        }
+        return null;
+    }
+
+    public async Task SaveImageModelAsync(ImageModel model)
+    {
+        var existing = await _db.ImageModels.FirstOrDefaultAsync(m => m.Id == model.Id);
+        var entity = EntityMapper.ToEntity(model);
+        if (existing is null)
+            _db.ImageModels.Add(entity);
+        else
+            _db.Entry(existing).CurrentValues.SetValues(entity);
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task DeleteImageModelAsync(string id)
+    {
+        var entity = await _db.ImageModels.FirstOrDefaultAsync(m => m.Id == id);
+        if (entity is not null)
+        {
+            _db.ImageModels.Remove(entity);
+            await _db.SaveChangesAsync();
+        }
+    }
 }

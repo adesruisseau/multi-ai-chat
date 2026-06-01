@@ -2,13 +2,13 @@
 @inject RoomState RoomState
 @inject AppState AppState
 @inject AgentGroupChat.Core.Services.SpeechService Speech
-@using AgentGroupChat.Hybrid.Theming
+@using AgentGroupChat.Core.Services
 @implements IDisposable
 
 <MudText Typo="Typo.h4" GutterBottom="true">Rooms</MudText>
 
 <MudGrid>
-    <MudItem xs="12">
+    <MudItem xs="12" md="12">
         <MudPaper Class="pa-4" Elevation="1">
             <MudGrid>
                 <MudItem xs="8">
@@ -17,279 +17,58 @@
                 <MudItem xs="4" Style="margin-left: auto;">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="my-2" FullWidth="true" OnClick="AddRoom">Add Room</MudButton>
                 </MudItem>
+                <MudItem>
+                    <MudText Typo="Typo.caption">
+                        Rooms are self-contained environments where agents interact with other agents, or with the user. 
+                        Set up different rooms for different purposes, such as work, personal, or testing.
+                        Configure Room Settings and Agents in the tabs below. Remember to save your changes!
+                        </MudText>
+                </MudItem>
                 <MudItem xs="12">
                     <MudList T="string" Dense="true" @bind-SelectedValue="_selectedRoomId">
-                    @foreach (var room in RoomState.Rooms)
-                    {
-                        <MudListItem T="string" Value="@room.Id" OnClick="() => SelectRoom(room)">
-                            @room.Name
-                        </MudListItem>
-                    }
-                </MudList>
-                 </MudItem>                   
+                        @foreach (var room in RoomState.Rooms)
+                        {
+                            <MudListItem T="string" Value="@room.Id" OnClick="() => SelectRoomAsync(room)">
+                                @room.Name
+                            </MudListItem>
+                        }
+                    </MudList>
+                </MudItem>
             </MudGrid>
         </MudPaper>
     </MudItem>
-    <MudItem xs="12">
+    <MudItem xs="12" md="12">
         @if (RoomState.SelectedRoom is not null)
         {
             var room = RoomState.SelectedRoom;
             <MudPaper Class="pa-4" Elevation="1">
-                <MudText Typo="Typo.h6">Room Settings</MudText>
-                <MudTextField @bind-Value="room.Name" Label="Name" Class="mb-2" />
-                <MudTextField @bind-Value="room.Topic" Label="Topic" Lines="3" Class="mb-2" />
-                <MudSwitch @bind-Value="room.WaitForUserReply" Label="Wait for user reply" Color="Color.Primary" />
-                @if (room.WaitForUserReply)
-                {
-                    <MudRadioGroup @bind-Value="room.PauseAfterEveryReply" Class="mb-2">
-                        <MudRadio Value="false" Color="Color.Primary" T="bool">Pause at end of round</MudRadio>
-                        <MudRadio Value="true" Color="Color.Primary" T="bool">Pause after every agent reply</MudRadio>
-                    </MudRadioGroup>
-                }
-                <MudGrid>
-                    <MudItem xs="6">
-                        <MudNumericField @bind-Value="room.AgentDelaySeconds" Label="Seconds between agents" Min="1" />
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudNumericField @bind-Value="room.MaxTokens" Label="Max tokens" Min="50" />
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudNumericField @bind-Value="room.RecentTurnsWindow" Label="Recent transcript turns" Min="1" />
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudNumericField @bind-Value="room.UserCompactionBudget" Label="User compaction budget" Min="200" />
-                    </MudItem>
-                </MudGrid>
-                <MudDivider Class="my-4" />
-                <br />
-                <MudText Typo="Typo.h5">Summarizer</MudText>
-                <MudSelect @bind-Value="room.SummarizerModelId" Label="Summarizer Model" Class="mb-2">
-                    <MudSelectItem T="string" Value="@string.Empty">(Use global default)</MudSelectItem>
-                    @foreach (var model in AppState.Models)
-                    {
-                        <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
-                    }
-                </MudSelect>
-                <MudSelect @bind-Value="room.SummarizationLevel" Label="Compression Level" Class="mb-2">
-                    <MudSelectItem T="string" Value="@("Aggressive")">Aggressive</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Semi-Aggressive")">Semi-Aggressive</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Moderate")">Moderate</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Semi-Relaxed")">Semi-Relaxed</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Relaxed")">Relaxed</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Custom")">Custom</MudSelectItem>
-                </MudSelect>
-                @if (room.SummarizationLevel == "Custom")
-                {
-                    <MudGrid>
-                    <MudItem xs="6">
-                        <MudNumericField @bind-Value="room.SummarizerMaxTokens" Label="Summarizer max tokens" Min="140" />
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudNumericField @bind-Value="room.SummarizerMaxLines" Label="Summarizer max lines" Min="12" />
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudNumericField @bind-Value="room.SummarizerMaxCharacters" Label="Summarizer max characters" Min="1800" />
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudNumericField @bind-Value="room.SummarizerBroaderTurns" Label="Broader transcript turns" Min="1" />
-                    </MudItem>
-                    </MudGrid>
-                    <MudTextField @bind-Value="room.SummarizerPromptOverride" Label="Custom summarizer prompt" Lines="12" />
-                }
+                <MudTabs @bind-ActivePanelIndex="_activeRoomTab" Rounded="true" Class="mb-4">
+                    <MudTabPanel Text="Room Settings">
+                        <RoomSettingsEditor Room="room"
+                                            Models="AppState.Models"
+                                            ImageModels="AppState.ImageModels"
+                                            OnSpeechSettingsChanged="RefreshKokoroVoicesAsync" />
+                    </MudTabPanel>
+
+                    <MudTabPanel Text="Agents">
+                        <RoomAgentsEditor Room="room"
+                                          Models="AppState.Models"
+                                          KokoroVoices="_kokoroVoices"
+                                          IsDark="_isDark"
+                                          IsPreviewingVoice="_previewingVoice"
+                                          PreviewAgentId="_previewAgent"
+                                          OnTestAgentVoice="TestAgentVoice" />
+                    </MudTabPanel>
+
+                    <MudTabPanel Text="Human Participants">
+                        <RoomHumanParticipantsEditor Room="room"
+                                                     KokoroVoices="_kokoroVoices"
+                                                     IsDark="_isDark" />
+                    </MudTabPanel>
+                </MudTabs>
 
                 <MudDivider Class="my-4" />
-                <br />
-                <MudText Typo="Typo.h5">Scene Images</MudText>
-                <MudSwitch @bind-Value="room.EnableSceneImageGeneration" Label="Enable Scene Image Generation" Color="Color.Primary" />
-                @if (room.EnableSceneImageGeneration)
-                {
-                    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
-                        Manual generation only for now. These settings will feed prompt drafting and provider defaults once the image pipeline lands.
-                    </MudAlert>
-                    <MudTextField @bind-Value="room.SceneImageStyleNotes" Label="Style notes" Lines="4" Class="mb-2" />
-                    <MudTextField @bind-Value="room.SceneImageNegativePrompt" Label="Negative prompt / exclusions" Lines="4" />
-                }
-
-                <MudDivider Class="my-4" />
-                <br />
-                <MudText Typo="Typo.h5">Privileged Actions</MudText>
-                <MudSwitch @bind-Value="room.EnablePrivilegedActions" Label="Enable Privileged Actions" Color="Color.Primary" />
-                @if (room.EnablePrivilegedActions)
-                {
-                    <MudSelect @bind-Value="room.PrivilegedAgentId" Label="Privileged Agent" Class="mb-2" T="string">
-                        <MudSelectItem T="string" Value="@string.Empty">(Select agent)</MudSelectItem>
-                        @foreach (var privilegedAgent in GetPermanentAgents(room))
-                        {
-                            <MudSelectItem T="string" Value="@privilegedAgent.Id">@privilegedAgent.Name</MudSelectItem>
-                        }
-                    </MudSelect>
-
-                    @if (!IsPrivilegedAgentLast(room))
-                    {
-                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
-                            For this MVP, the privileged agent should be the last enabled permanent agent in turn order.
-                        </MudAlert>
-                    }
-
-                    <MudSwitch @bind-Value="room.EnableNpcSpawning" Label="Generate NPC Models as Agents" Color="Color.Primary" />
-                    @if (room.EnableNpcSpawning)
-                    {
-                        <MudGrid Class="mt-2">
-                            <MudItem xs="6">
-                                <MudSelect @bind-Value="room.NpcModelId" Label="NPC Model" T="string">
-                                    <MudSelectItem T="string" Value="@string.Empty">(Use privileged agent model)</MudSelectItem>
-                                    @foreach (var model in AppState.Models)
-                                    {
-                                        <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
-                                    }
-                                </MudSelect>
-                            </MudItem>
-                            <MudItem xs="6">
-                                <MudText Typo="Typo.caption" Class="mt-4">Active NPCs: @GetActiveNpcCount(room) / @Math.Max(1, room.MaxConcurrentNpcs)</MudText>
-                                <MudNumericField @bind-Value="room.MaxConcurrentNpcs" Label="Max concurrent NPCs" Min="1" Max="4" />
-                            </MudItem>
-                            <MudItem xs="6">
-                                @if (_kokoroVoices.Count > 0)
-                                {
-                                    <MudSelect @bind-Value="room.NpcDefaultMaleVoice" Label="Default male voice" T="string">
-                                        <MudSelectItem T="string" Value="@string.Empty">(Use global default)</MudSelectItem>
-                                        @foreach (var v in _kokoroVoices)
-                                        {
-                                            <MudSelectItem T="string" Value="@v">@v</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                }
-                                else
-                                {
-                                    <MudTextField @bind-Value="room.NpcDefaultMaleVoice" Label="Default male voice" />
-                                }
-                            </MudItem>
-                            <MudItem xs="6">
-                                @if (_kokoroVoices.Count > 0)
-                                {
-                                    <MudSelect @bind-Value="room.NpcDefaultFemaleVoice" Label="Default female voice" T="string">
-                                        <MudSelectItem T="string" Value="@string.Empty">(Use global default)</MudSelectItem>
-                                        @foreach (var v in _kokoroVoices)
-                                        {
-                                            <MudSelectItem T="string" Value="@v">@v</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                }
-                                else
-                                {
-                                    <MudTextField @bind-Value="room.NpcDefaultFemaleVoice" Label="Default female voice" />
-                                }
-                            </MudItem>
-                            <MudItem xs="6">
-                                <MudNumericField @bind-Value="room.NpcMaxTokens" Label="NPC max tokens" Min="50" />
-                            </MudItem>
-                            <MudItem xs="6">
-                                <MudNumericField @bind-Value="room.NpcCompactionBudget" Label="NPC compaction budget" Min="80" />
-                            </MudItem>
-                            <MudItem xs="12">
-                                <MudTextField @bind-Value="room.NpcBaseInstructions" Label="Post-description agent instructions" Lines="6" />
-                            </MudItem>
-                        </MudGrid>
-                    }
-                }
-
-                <MudDivider Class="my-4" />
-                <br />
-                <MudText Typo="Typo.h5">Agents</MudText>
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mb-2" OnClick="AddAgent">Add Agent</MudButton>
-                @foreach (var agent in room.Agents)
-                {
-                    <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
-                        <MudGrid>
-                            <MudItem xs="6">
-                                <MudTextField @bind-Value="agent.Name" Label="Agent Name" />
-                                <MudStack Row="true" Spacing="1" Class="mt-1">
-                                    @if (string.Equals(room.PrivilegedAgentId, agent.Id, StringComparison.Ordinal))
-                                    {
-                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small">Privileged</MudChip>
-                                    }
-                                    @if (agent.IsNpc)
-                                    {
-                                        <MudChip T="string" Color="Color.Secondary" Size="Size.Small">NPC</MudChip>
-                                    }
-                                    @if (agent.IsTemporarilySuspended)
-                                    {
-                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small">Suspended</MudChip>
-                                        <MudChip T="string" Color="Color.Default" Size="Size.Small">@GetSuspensionLabel(agent)</MudChip>
-                                    }
-                                </MudStack>
-                                @if (agent.IsTemporarilySuspended && !string.IsNullOrWhiteSpace(agent.SuspensionReason))
-                                {
-                                    <MudText Typo="Typo.caption">@agent.SuspensionReason</MudText>
-                                }
-                            </MudItem>
-                            <MudItem xs="6">
-                                <MudSelect @bind-Value="agent.ModelId" Label="Model">
-                                    @foreach (var model in AppState.Models)
-                                    {
-                                        <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
-                                    }
-                                </MudSelect>
-                            </MudItem>
-                            <MudItem xs="12">
-                                <MudTextField @bind-Value="agent.SystemPrompt" Label="System Prompt" Lines="12" />
-                            </MudItem>
-                            <MudItem xs="12">
-                                <MudTextField @bind-Value="agent.AppearanceSummary" Label="Appearance / visual profile" Lines="4" />
-                            </MudItem>
-                            <MudItem xs="3">
-                                <MudSwitch @bind-Value="agent.IsEnabled" Label="Enabled" Color="Color.Primary" />
-                            </MudItem>
-                            <MudItem xs="3">
-                                <MudNumericField @bind-Value="agent.MaxTokensOverride" Label="Max tokens override" />
-                            </MudItem>
-                            <MudItem xs="3">
-                                <MudNumericField @bind-Value="agent.CompactionBudget" Label="Compaction budget" Min="80" />
-                            </MudItem>
-                            <MudItem xs="3">
-                                @if (_kokoroVoices.Count > 0)
-                                {
-                                    <MudSelect @bind-Value="agent.TtsVoice" Label="TTS Voice" T="string">
-                                        <MudSelectItem T="string" Value="@string.Empty">(Default)</MudSelectItem>
-                                        @foreach (var v in _kokoroVoices)
-                                        {
-                                            <MudSelectItem T="string" Value="@v">@v</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                }
-                                else
-                                {
-                                    <MudTextField @bind-Value="agent.TtsVoice" Label="TTS Voice" />
-                                }
-                            </MudItem>
-                            <MudItem xs="3">
-                                <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mt-4"
-                                           OnClick="@(() => TestAgentVoice(agent))"
-                                           Disabled="_previewingVoice">
-                                    @(_previewAgent == agent.Id ? "Playing..." : "Test Voice")
-                                </MudButton>
-                            </MudItem>
-                            <MudItem xs="6">
-                                <MudSelect Value="agent.AccentHex" ValueChanged="@((string v) => OnAgentColorChanged(agent, v))" Label="Chat color" T="string">
-                                    @foreach (var preset in AgentColorPresets.GetPresets(_isDark))
-                                    {
-                                        <MudSelectItem T="string" Value="@preset.AccentHex">
-                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                                                <MudIcon Icon="@Icons.Material.Filled.Circle" Style="@($"color:{preset.AccentHex}")" Size="Size.Small" />
-                                                @preset.Name
-                                            </MudStack>
-                                        </MudSelectItem>
-                                    }
-                                </MudSelect>
-                            </MudItem>
-                            <MudItem xs="6">
-                                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => RemoveAgent(agent)" style="margin-left: auto;">Remove</MudButton>
-                            </MudItem>
-                        </MudGrid>
-                    </MudPaper>
-                }
-
-                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.caption" Class="mb-2">Save persists the selected room, agents, and human participants across all tabs.</MudText>
                 <MudStack Row="true" Spacing="2">
                     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveRoom">Save Room</MudButton>
                     <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DeleteRoom">Delete Room</MudButton>
@@ -307,6 +86,7 @@
 
 @code {
     private string _selectedRoomId = string.Empty;
+    private int _activeRoomTab;
     private bool _isDark => AppState.Settings.UiTheme == "Dark";
     private List<string> _kokoroVoices = new();
     private bool _previewingVoice;
@@ -314,12 +94,19 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (!AppState.IsLoaded)
+            await AppState.LoadAsync();
         await RoomState.LoadAsync();
         RoomState.OnChange += StateHasChanged;
         await RefreshKokoroVoicesAsync();
     }
 
-    private void SelectRoom(RoomConfig room) => RoomState.SelectRoom(room);
+    private async Task SelectRoomAsync(RoomConfig room)
+    {
+        _selectedRoomId = room.Id;
+        RoomState.SelectRoom(room);
+        await RefreshKokoroVoicesAsync();
+    }
 
     private async Task AddRoom()
     {
@@ -329,40 +116,15 @@
             SortOrder = RoomState.Rooms.Count,
         };
         await RoomState.SaveRoomAsync(room);
-        RoomState.SelectRoom(room);
+        var savedRoom = RoomState.Rooms.FirstOrDefault(r => r.Id == room.Id) ?? room;
+        _selectedRoomId = savedRoom.Id;
+        RoomState.SelectRoom(savedRoom);
 
         if (!AppState.Settings.SetupRoomsCompleted)
         {
             AppState.Settings.SetupRoomsCompleted = true;
             await AppState.SaveSettingsAsync();
         }
-    }
-
-    private void AddAgent()
-    {
-        if (RoomState.SelectedRoom is null) return;
-        RoomState.SelectedRoom.Agents.Add(new AgentConfig
-        {
-            RoomId = RoomState.SelectedRoom.Id,
-            Name = $"Agent {RoomState.SelectedRoom.Agents.Count + 1}",
-            SortOrder = RoomState.SelectedRoom.Agents.Count,
-        });
-        StateHasChanged();
-    }
-
-    private void RemoveAgent(AgentConfig agent)
-    {
-        if (RoomState.SelectedRoom is not null && string.Equals(RoomState.SelectedRoom.PrivilegedAgentId, agent.Id, StringComparison.Ordinal))
-            RoomState.SelectedRoom.PrivilegedAgentId = string.Empty;
-        RoomState.SelectedRoom?.Agents.Remove(agent);
-        StateHasChanged();
-    }
-
-    private void OnAgentColorChanged(AgentConfig agent, string accentHex)
-    {
-        var preset = AgentColorPresets.FindByAccent(accentHex, _isDark);
-        agent.AccentHex = preset.AccentHex;
-        agent.BackgroundHex = preset.BackgroundHex;
     }
 
     private async Task SaveRoom()
@@ -385,23 +147,35 @@
 
     private async Task RefreshKokoroVoicesAsync()
     {
-        if (!AppState.Settings.TtsProvider.Equals("Kokoro", StringComparison.OrdinalIgnoreCase)) return;
+        var room = RoomState.SelectedRoom;
+        if (room is null || !RoomSpeechResolver.UsesKokoro(room, AppState.Settings))
+        {
+            _kokoroVoices.Clear();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
         var voices = await Speech.FetchKokoroVoicesAsync(AppState.Settings.KokoroBaseUrl);
         _kokoroVoices = voices.ToList();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task TestAgentVoice(AgentConfig agent)
     {
+        var room = RoomState.SelectedRoom;
+        if (room is null) return;
+
         if (_previewingVoice) return;
         _previewingVoice = true;
         _previewAgent = agent.Id;
         StateHasChanged();
         try
         {
-            var voice = string.IsNullOrWhiteSpace(agent.TtsVoice) ? AppState.Settings.KokoroVoice : agent.TtsVoice;
-            var wav = await Speech.SynthesizePreviewAsync(AppState.Settings.KokoroBaseUrl, voice);
-            if (wav is not null)
-                await Speech.PlayPreviewAsync(wav, CancellationToken.None);
+            var settings = BuildSpeechSettings(room, forceEnabled: true);
+            var voice = string.IsNullOrWhiteSpace(agent.TtsVoice)
+                ? RoomSpeechResolver.GetFallbackVoice(room, AppState.Settings)
+                : agent.TtsVoice;
+            await Speech.SpeakAsync(settings, $"Hello, this is {agent.Name}.", voice, CancellationToken.None);
         }
         finally
         {
@@ -411,26 +185,8 @@
         }
     }
 
-    private static IEnumerable<AgentConfig> GetPermanentAgents(RoomConfig room) =>
-        room.Agents.Where(a => !a.IsNpc).OrderBy(a => a.SortOrder);
-
-    private static int GetActiveNpcCount(RoomConfig room) =>
-        room.Agents.Count(a => a.IsEnabled && a.IsNpc);
-
-    private static bool IsPrivilegedAgentLast(RoomConfig room)
-    {
-        if (!room.EnablePrivilegedActions || string.IsNullOrWhiteSpace(room.PrivilegedAgentId))
-            return true;
-
-        var enabledPermanentAgents = room.Agents
-            .Where(a => a.IsEnabled && !a.IsNpc)
-            .OrderBy(a => a.SortOrder)
-            .ToList();
-        return enabledPermanentAgents.Count == 0 || string.Equals(enabledPermanentAgents[^1].Id, room.PrivilegedAgentId, StringComparison.Ordinal);
-    }
-
-    private static string GetSuspensionLabel(AgentConfig agent) =>
-        agent.SuspendedUntilRound.HasValue ? $"Until round {agent.SuspendedUntilRound.Value}" : "Until resumed";
+    private SpeechService.SpeechSettings BuildSpeechSettings(RoomConfig room, bool forceEnabled = false) =>
+        RoomSpeechResolver.BuildSettings(room, AppState.Settings, forceEnabled);
 
     public void Dispose()
     {

@@ -12,21 +12,21 @@ public sealed class RoomRepository : IRoomRepository
 
     public async Task<List<RoomConfig>> GetAllAsync()
     {
-        var entities = await _db.Rooms.Include(r => r.Agents)
+        var entities = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants)
             .OrderBy(r => r.SortOrder).AsNoTracking().ToListAsync();
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
 
     public async Task<RoomConfig?> GetAsync(string id)
     {
-        var entity = await _db.Rooms.Include(r => r.Agents)
+        var entity = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants)
             .AsNoTracking().FirstOrDefaultAsync(r => r.Id == id);
         return entity is null ? null : EntityMapper.ToDomain(entity);
     }
 
     public async Task SaveAsync(RoomConfig room)
     {
-        var existing = await _db.Rooms.Include(r => r.Agents)
+        var existing = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants)
             .FirstOrDefaultAsync(r => r.Id == room.Id);
 
         if (existing is null)
@@ -52,6 +52,20 @@ public sealed class RoomRepository : IRoomRepository
                 else
                     _db.Entry(existingAgent).CurrentValues.SetValues(EntityMapper.ToEntity(agent));
             }
+
+            var incomingHumanIds = room.HumanParticipants.Select(h => h.Id).ToHashSet();
+
+            foreach (var removed in existing.HumanParticipants.Where(h => !incomingHumanIds.Contains(h.Id)).ToList())
+                _db.HumanParticipants.Remove(removed);
+
+            foreach (var human in room.HumanParticipants)
+            {
+                var existingHuman = existing.HumanParticipants.FirstOrDefault(h => h.Id == human.Id);
+                if (existingHuman is null)
+                    _db.HumanParticipants.Add(EntityMapper.ToEntity(human));
+                else
+                    _db.Entry(existingHuman).CurrentValues.SetValues(EntityMapper.ToEntity(human));
+            }
         }
 
         await _db.SaveChangesAsync();
@@ -59,7 +73,7 @@ public sealed class RoomRepository : IRoomRepository
 
     public async Task DeleteAsync(string id)
     {
-        var entity = await _db.Rooms.Include(r => r.Agents).FirstOrDefaultAsync(r => r.Id == id);
+        var entity = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants).FirstOrDefaultAsync(r => r.Id == id);
         if (entity is not null)
         {
             _db.Rooms.Remove(entity);

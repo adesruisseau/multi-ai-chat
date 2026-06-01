@@ -1,95 +1,227 @@
 @page "/models"
 @inject AppState AppState
 @inject AgentGroupChat.Core.Services.LlmClient LlmClient
+@inject AgentGroupChat.Core.Services.ImageClient ImageClient
+@using AgentGroupChat.Core.Models.Llm
+@using static AgentGroupChat.Core.LlmTransports
+@using static AgentGroupChat.Core.ImageTransports
 
 <MudText Typo="Typo.h4" GutterBottom="true">AI Models</MudText>
 
-<MudGrid>
-    <MudItem xs="12">
-        <MudPaper Class="pa-4 mb-4" Elevation="1">
-            <MudText Typo="Typo.h6">AI Connections</MudText>
-            <MudText Typo="Typo.body2" Class="mb-2">Configure endpoints for your AI providers.</MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="AddConnection">Add Connection</MudButton>
+<MudTabs Rounded="true">
+    <MudTabPanel Text="Text">
+        <MudGrid>
+            <MudItem xs="12">
+                <MudPaper Class="pa-4 mb-4" Elevation="1">
+                    <MudText Typo="Typo.h6">AI Connections</MudText>
+                    <MudText Typo="Typo.body2" Class="mb-2">Configure endpoints for your text AI providers.</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="AddConnection">Add Connection</MudButton>
 
-            @foreach (var conn in AppState.Connections)
-            {
-                <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
-                    <MudGrid>
-                        <MudItem xs="3">
-                            <MudTextField @bind-Value="conn.Name" Label="Name" />
-                        </MudItem>
-                        <MudItem xs="3">
-                            <MudSelect @bind-Value="conn.Transport" Label="Transport" T="string">
-                                <MudSelectItem T="string" Value="@("OpenAI Compatible")">OpenAI Compatible</MudSelectItem>
-                                <MudSelectItem T="string" Value="@("Groq")">Groq</MudSelectItem>
-                                <MudSelectItem T="string" Value="@("Gemini")">Gemini</MudSelectItem>
-                                <MudSelectItem T="string" Value="@("HuggingFace")">HuggingFace</MudSelectItem>
-                                <MudSelectItem T="string" Value="@("Ollama")">Ollama</MudSelectItem>
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="3">
-                            <MudTextField @bind-Value="conn.Endpoint" Label="Endpoint" />
-                        </MudItem>
-                        <MudItem xs="3">
-                            <MudTextField @bind-Value="conn.ApiKey" Label="API Key" InputType="InputType.Password" />
-                        </MudItem>
-                        <MudItem xs="12">
-                            <MudStack Row="true" Spacing="2">
-                                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SaveConnection(conn)">Save</MudButton>
-                                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => DeleteConnection(conn.Id)">Delete</MudButton>
-                            </MudStack>
-                        </MudItem>
-                    </MudGrid>
+                    @foreach (var conn in AppState.Connections)
+                    {
+                        <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+                            <MudGrid>
+                                <MudItem xs="3">
+                                    <MudTextField @bind-Value="conn.Name" Label="Name" />
+                                </MudItem>
+                                <MudItem xs="3">
+                                    <MudSelect @bind-Value="conn.Transport" Label="Transport" T="string">
+                                        <MudSelectItem T="string" Value='@(OpenAiCompatible)'>OpenAI Compatible</MudSelectItem>
+                                        <MudSelectItem T="string" Value='@(Groq)'>Groq</MudSelectItem>
+                                        <MudSelectItem T="string" Value='@(Gemini)'>Gemini</MudSelectItem>
+                                        <MudSelectItem T="string" Value='@(HuggingFace)'>HuggingFace</MudSelectItem>
+                                        <MudSelectItem T="string" Value='@(Ollama)'>Ollama</MudSelectItem>
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="3">
+                                    <MudTextField @bind-Value="conn.Endpoint" Label="Endpoint" />
+                                </MudItem>
+                                <MudItem xs="3">
+                                    <MudTextField @bind-Value="conn.ApiKey" Label="API Key" InputType="InputType.Password" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudStack Row="true" Spacing="2">
+                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SaveConnection(conn)">Save</MudButton>
+                                        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => DeleteConnection(conn.Id)">Delete</MudButton>
+                                    </MudStack>
+                                </MudItem>
+                            </MudGrid>
+                        </MudPaper>
+                    }
                 </MudPaper>
-            }
-        </MudPaper>
-    </MudItem>
+            </MudItem>
 
-    <MudItem xs="12">
-        <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.h6">Model Catalog</MudText>
-            <MudText Typo="Typo.body2" Class="mb-2">Register models that agents and the summarizer can use.</MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="AddModel">Add Model</MudButton>
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1">
+                    <MudText Typo="Typo.h6">Model Catalog</MudText>
+                    <MudText Typo="Typo.body2" Class="mb-2">Register models that agents and the summarizer can use.</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="AddModel">Add Model</MudButton>
 
-            @if (!string.IsNullOrEmpty(_testResult))
-            {
-                <MudAlert Severity="@_testSeverity" Class="mb-3" ShowCloseIcon="true" CloseIconClicked="() => _testResult = string.Empty">
-                    @_testResult
+                    @if (!string.IsNullOrEmpty(_testResult))
+                    {
+                        <MudAlert Severity="@_testSeverity" Class="mb-3" ShowCloseIcon="true" CloseIconClicked="ClearTextTestResult">
+                            @_testResult
+                        </MudAlert>
+                    }
+
+                    <MudTable Items="AppState.Models" Dense="true" Hover="true">
+                        <HeaderContent>
+                            <MudTh>Name</MudTh>
+                            <MudTh>Connection</MudTh>
+                            <MudTh>Model ID</MudTh>
+                            <MudTh>Notes</MudTh>
+                            <MudTh>Actions</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd><MudTextField @bind-Value="context.Name" /></MudTd>
+                            <MudTd>
+                                <MudSelect @bind-Value="context.ConnectionId" T="string">
+                                    @foreach (var conn in AppState.Connections)
+                                    {
+                                        <MudSelectItem T="string" Value="@conn.Id">@conn.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudTd>
+                            <MudTd><MudTextField @bind-Value="context.ModelId" /></MudTd>
+                            <MudTd><MudTextField @bind-Value="context.Notes" /></MudTd>
+                            <MudTd>
+                                <MudStack Row="true" Spacing="1">
+                                    <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="() => SaveModel(context)">Save</MudButton>
+                                    <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Primary" OnClick="() => TestModel(context)" Disabled="_isTesting">Test</MudButton>
+                                    <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteModel(context.Id)">Delete</MudButton>
+                                </MudStack>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Image">
+        <MudGrid>
+            <MudItem xs="12">
+                <MudAlert Severity="Severity.Info" Class="mb-3">
+                    Configure image providers separately from text models. Use <strong>ComfyUI</strong> for local workflows at endpoints like <strong>http://127.0.0.1:8188</strong>, or <strong>OpenAI Images</strong> for cloud or compatible image APIs. The Test button below performs a real one-off image request and shows the preview here.
                 </MudAlert>
-            }
+            </MudItem>
 
-            <MudTable Items="AppState.Models" Dense="true" Hover="true">
-                <HeaderContent>
-                    <MudTh>Name</MudTh>
-                    <MudTh>Connection</MudTh>
-                    <MudTh>Model ID</MudTh>
-                    <MudTh>Notes</MudTh>
-                    <MudTh>Actions</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd><MudTextField @bind-Value="context.Name" /></MudTd>
-                    <MudTd>
-                        <MudSelect @bind-Value="context.ConnectionId" T="string">
-                            @foreach (var conn in AppState.Connections)
-                            {
-                                <MudSelectItem T="string" Value="@conn.Id">@conn.Name</MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudTd>
-                    <MudTd><MudTextField @bind-Value="context.ModelId" /></MudTd>
-                    <MudTd><MudTextField @bind-Value="context.Notes" /></MudTd>
-                    <MudTd>
-                        <MudStack Row="true" Spacing="1">
-                            <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Primary" OnClick="() => SaveModel(context)">Save</MudButton>
-                            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Primary" OnClick="() => TestModel(context)" Disabled="_isTesting">Test</MudButton>
-                            <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteModel(context.Id)">Delete</MudButton>
-                        </MudStack>
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
-        </MudPaper>
-    </MudItem>
-</MudGrid>
+            <MudItem xs="12">
+                <MudPaper Class="pa-4 mb-4" Elevation="1">
+                    <MudText Typo="Typo.h6">Image Connections</MudText>
+                    <MudText Typo="Typo.body2" Class="mb-2">Configure endpoints for image generation backends.</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="AddImageConnection">Add Image Connection</MudButton>
+
+                    @foreach (var conn in AppState.ImageConnections)
+                    {
+                        <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+                            <MudGrid>
+                                <MudItem xs="3">
+                                    <MudTextField @bind-Value="conn.Name" Label="Name" />
+                                </MudItem>
+                                <MudItem xs="3">
+                                    <MudSelect @bind-Value="conn.Transport" Label="Transport" T="string">
+                                        <MudSelectItem T="string" Value='@(ComfyUI)'>ComfyUI</MudSelectItem>
+                                        <MudSelectItem T="string" Value='@(OpenAiImages)'>OpenAI Images</MudSelectItem>
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="3">
+                                    <MudTextField @bind-Value="conn.Endpoint" Label="Endpoint" Placeholder="http://127.0.0.1:8188" />
+                                </MudItem>
+                                <MudItem xs="3">
+                                    <MudTextField @bind-Value="conn.ApiKey" Label="API Key" InputType="InputType.Password" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudText Typo="Typo.body2" Class="mb-2">@GetImageTransportHint(conn.Transport)</MudText>
+                                    <MudStack Row="true" Spacing="2">
+                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SaveImageConnection(conn)">Save</MudButton>
+                                        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => DeleteImageConnection(conn.Id)">Delete</MudButton>
+                                    </MudStack>
+                                </MudItem>
+                            </MudGrid>
+                        </MudPaper>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudPaper Class="pa-4" Elevation="1">
+                    <MudText Typo="Typo.h6">Image Model Catalog</MudText>
+                    <MudText Typo="Typo.body2" Class="mb-2">Register image presets or provider-backed models. ComfyUI entries can use Workflow / Profile for either pasted API workflow JSON or a local file path.</MudText>
+                    <MudTextField @bind-Value="_imageTestPrompt" Label="Test prompt" Lines="2" Class="mb-3" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="AddImageModel">Add Image Model</MudButton>
+
+                    @if (!string.IsNullOrEmpty(_imageTestResult))
+                    {
+                        <MudAlert Severity="@_imageTestSeverity" Class="mb-3" ShowCloseIcon="true" CloseIconClicked="ClearImageTestResult">
+                            @_imageTestResult
+                        </MudAlert>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_imagePreviewDataUrl))
+                    {
+                        <MudPaper Class="pa-3 mb-3" Outlined="true">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">Latest test preview</MudText>
+                            <img src="@_imagePreviewDataUrl" alt="Generated test preview" style="max-width:100%;max-height:420px;border-radius:8px;display:block;" />
+                        </MudPaper>
+                    }
+
+                    @foreach (var model in AppState.ImageModels)
+                    {
+                        <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+                            <MudGrid>
+                                <MudItem xs="12" md="4">
+                                    <MudTextField @bind-Value="model.Name" Label="Name" />
+                                </MudItem>
+                                <MudItem xs="12" md="4">
+                                    <MudSelect @bind-Value="model.ConnectionId" Label="Connection" T="string">
+                                        <MudSelectItem T="string" Value="@string.Empty">(Select connection)</MudSelectItem>
+                                        @foreach (var conn in AppState.ImageConnections)
+                                        {
+                                            <MudSelectItem T="string" Value="@conn.Id">@conn.Name</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" md="4">
+                                    <MudTextField @bind-Value="model.ModelId" Label="Model ID" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudTextField @bind-Value="model.WorkflowId" Label="Workflow / Profile" Lines="4" />
+                                </MudItem>
+                                <MudItem xs="6" md="2">
+                                    <MudNumericField @bind-Value="model.Width" Label="Width" Min="256" Max="2048" />
+                                </MudItem>
+                                <MudItem xs="6" md="2">
+                                    <MudNumericField @bind-Value="model.Height" Label="Height" Min="256" Max="2048" />
+                                </MudItem>
+                                <MudItem xs="6" md="2">
+                                    <MudNumericField @bind-Value="model.Steps" T="int?" Label="Steps" Min="1" Max="150" />
+                                </MudItem>
+                                <MudItem xs="6" md="2">
+                                    <MudNumericField @bind-Value="model.GuidanceScale" T="double?" Label="Guidance" Min="0" Max="30" Step="0.5" />
+                                </MudItem>
+                                <MudItem xs="12" md="4">
+                                    <MudTextField @bind-Value="model.NegativePrompt" Label="Negative Prompt" Lines="2" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudTextField @bind-Value="model.Notes" Label="Notes" Lines="2" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudText Typo="Typo.body2" Class="mb-2">@GetImageModelHint(model)</MudText>
+                                    <MudStack Row="true" Spacing="2">
+                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SaveImageModel(model)">Save</MudButton>
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="() => TestImageModel(model)" Disabled="_isTestingImage">Test Image</MudButton>
+                                        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => DeleteImageModel(model.Id)">Delete</MudButton>
+                                    </MudStack>
+                                </MudItem>
+                            </MudGrid>
+                        </MudPaper>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudTabPanel>
+</MudTabs>
 
 @code {
     protected override async Task OnInitializedAsync()
@@ -134,9 +266,50 @@
 
     private async Task DeleteModel(string id) => await AppState.DeleteModelAsync(id);
 
+    private async Task AddImageConnection()
+    {
+        var conn = new ImageConnection { Name = "New Image Connection", SortOrder = AppState.ImageConnections.Count };
+        await AppState.SaveImageConnectionAsync(conn);
+    }
+
+    private async Task SaveImageConnection(ImageConnection connection)
+    {
+        await AppState.SaveImageConnectionAsync(connection);
+        if (!AppState.Settings.SetupModelsCompleted)
+        {
+            AppState.Settings.SetupModelsCompleted = true;
+            await AppState.SaveSettingsAsync();
+        }
+    }
+
+    private async Task DeleteImageConnection(string id) => await AppState.DeleteImageConnectionAsync(id);
+
+    private async Task AddImageModel()
+    {
+        var model = new ImageModel { Name = "New Image Model", SortOrder = AppState.ImageModels.Count };
+        await AppState.SaveImageModelAsync(model);
+    }
+
+    private async Task SaveImageModel(ImageModel model)
+    {
+        await AppState.SaveImageModelAsync(model);
+        if (!AppState.Settings.SetupModelsCompleted)
+        {
+            AppState.Settings.SetupModelsCompleted = true;
+            await AppState.SaveSettingsAsync();
+        }
+    }
+
+    private async Task DeleteImageModel(string id) => await AppState.DeleteImageModelAsync(id);
+
     private bool _isTesting;
     private string _testResult = string.Empty;
     private Severity _testSeverity = Severity.Info;
+    private bool _isTestingImage;
+    private string _imageTestPrompt = "cinematic fantasy tavern scene, warm lantern light, detailed characters, high detail";
+    private string _imageTestResult = string.Empty;
+    private Severity _imageTestSeverity = Severity.Info;
+    private string _imagePreviewDataUrl = string.Empty;
 
     private async Task TestModel(AiModel model)
     {
@@ -155,14 +328,7 @@
 
         try
         {
-            var provider = connection.Transport switch
-            {
-                "Groq" => LlmProvider.Groq,
-                "Gemini" => LlmProvider.Gemini,
-                "HuggingFace" => LlmProvider.HuggingFace,
-                "Ollama" => LlmProvider.Ollama,
-                _ => LlmProvider.OpenAiCompatible,
-            };
+            var provider = LlmProviderMapping.FromTransport(connection.Transport);
 
             var settings = new LlmRequestSettings(
                 provider, connection.Endpoint, model.ModelId, connection.ApiKey,
@@ -185,6 +351,68 @@
         {
             _isTesting = false;
         }
+    }
+
+    private async Task TestImageModel(ImageModel model)
+    {
+        var connection = AppState.ImageConnections.FirstOrDefault(c => c.Id == model.ConnectionId);
+        if (connection is null)
+        {
+            _imageTestResult = "No image connection found for this model. Save the model with a valid image connection first.";
+            _imageTestSeverity = Severity.Warning;
+            _imagePreviewDataUrl = string.Empty;
+            return;
+        }
+
+        _isTestingImage = true;
+        _imageTestResult = $"Generating a test image with {model.Name}...";
+        _imageTestSeverity = Severity.Info;
+        _imagePreviewDataUrl = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var result = await ImageClient.GenerateTestImageAsync(connection, model, _imageTestPrompt, CancellationToken.None);
+            _imageTestResult = result.Message;
+            _imageTestSeverity = Severity.Success;
+            _imagePreviewDataUrl = $"data:{result.MimeType};base64,{Convert.ToBase64String(result.ImageBytes)}";
+        }
+        catch (Exception ex)
+        {
+            _imageTestResult = $"Image test failed for '{model.Name}': {ex.Message}";
+            _imageTestSeverity = Severity.Error;
+            _imagePreviewDataUrl = string.Empty;
+        }
+        finally
+        {
+            _isTestingImage = false;
+        }
+    }
+
+    private void ClearTextTestResult() => _testResult = string.Empty;
+
+    private void ClearImageTestResult()
+    {
+        _imageTestResult = string.Empty;
+        _imagePreviewDataUrl = string.Empty;
+    }
+
+    private static string GetImageTransportHint(string transport) => transport switch
+    {
+        ComfyUI => "ComfyUI uses its local HTTP API. Set the endpoint to the server root and provide an API workflow JSON or file path on the model entry.",
+        OpenAiImages => "Use this for OpenAI-style image endpoints. Set the endpoint to the API root or /v1 base and provide the image model id on the model entry.",
+        _ => "Configure the endpoint and credentials for the selected image transport.",
+    };
+
+    private string GetImageModelHint(ImageModel model)
+    {
+        var connection = AppState.ImageConnections.FirstOrDefault(c => c.Id == model.ConnectionId);
+        return connection?.Transport switch
+        {
+            ComfyUI => "ComfyUI test generation will submit the workflow, replace placeholders like {{prompt}} and {{width}}, then poll the history API for the output image.",
+            OpenAiImages => "OpenAI-style test generation sends a one-off prompt to the image endpoint using the selected model id and resolution.",
+            _ => "Choose a saved image connection to enable provider-specific test generation.",
+        };
     }
 
     public void Dispose()

@@ -27,9 +27,9 @@ public sealed class TurnExecutor
     {
         var messages = new List<LlmChatMessage>
         {
-            new("system", agent.SystemPrompt),
-            new("system", AgentOutputTransportPrompt),
-            new("user", prompt),
+            new(LlmRoles.System, agent.SystemPrompt),
+            new(LlmRoles.System, AgentOutputTransportPrompt),
+            new(LlmRoles.User, prompt),
         };
 
         await _logService.LogAsync(

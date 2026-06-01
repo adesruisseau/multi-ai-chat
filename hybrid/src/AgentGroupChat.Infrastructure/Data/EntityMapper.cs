@@ -73,6 +73,82 @@ public static class EntityMapper
         ModelId = d.ModelId, Notes = d.Notes, SortOrder = d.SortOrder,
     };
 
+    public static ImageConnection ToDomain(ImageConnectionEntity e) => new()
+    {
+        Id = e.Id, Name = e.Name, Transport = e.Transport,
+        Endpoint = e.Endpoint, ApiKey = e.ApiKey, SortOrder = e.SortOrder,
+    };
+
+    public static ImageConnectionEntity ToEntity(ImageConnection d) => new()
+    {
+        Id = d.Id, Name = d.Name, Transport = d.Transport,
+        Endpoint = d.Endpoint, ApiKey = d.ApiKey, SortOrder = d.SortOrder,
+    };
+
+    public static ImageModel ToDomain(ImageModelEntity e) => new()
+    {
+        Id = e.Id,
+        Name = e.Name,
+        ConnectionId = e.ConnectionId,
+        ModelId = e.ModelId,
+        WorkflowId = e.WorkflowId,
+        Width = e.Width,
+        Height = e.Height,
+        Steps = e.Steps,
+        GuidanceScale = e.GuidanceScale,
+        NegativePrompt = e.NegativePrompt,
+        Notes = e.Notes,
+        SortOrder = e.SortOrder,
+    };
+
+    public static ImageModelEntity ToEntity(ImageModel d) => new()
+    {
+        Id = d.Id,
+        Name = d.Name,
+        ConnectionId = d.ConnectionId,
+        ModelId = d.ModelId,
+        WorkflowId = d.WorkflowId,
+        Width = d.Width,
+        Height = d.Height,
+        Steps = d.Steps,
+        GuidanceScale = d.GuidanceScale,
+        NegativePrompt = d.NegativePrompt,
+        Notes = d.Notes,
+        SortOrder = d.SortOrder,
+    };
+
+    public static PromptSample ToDomain(PromptSampleEntity e) => new()
+    {
+        Id = e.Id,
+        Name = e.Name,
+        Category = e.Category,
+        Description = e.Description,
+        PromptText = e.PromptText,
+        Tags = e.Tags,
+        IsBuiltIn = e.IsBuiltIn,
+        ParentPromptSampleId = e.ParentPromptSampleId,
+        SourceLabel = e.SourceLabel,
+        SortOrder = e.SortOrder,
+        CreatedAt = e.CreatedAt,
+        UpdatedAt = e.UpdatedAt,
+    };
+
+    public static PromptSampleEntity ToEntity(PromptSample d) => new()
+    {
+        Id = d.Id,
+        Name = d.Name,
+        Category = d.Category,
+        Description = d.Description,
+        PromptText = d.PromptText,
+        Tags = d.Tags,
+        IsBuiltIn = d.IsBuiltIn,
+        ParentPromptSampleId = d.ParentPromptSampleId,
+        SourceLabel = d.SourceLabel,
+        SortOrder = d.SortOrder,
+        CreatedAt = d.CreatedAt,
+        UpdatedAt = d.UpdatedAt,
+    };
+
     public static AgentConfig ToDomain(AgentEntity e) => new()
     {
         Id = e.Id, RoomId = e.RoomId, Name = e.Name, ModelId = e.ModelId,
@@ -105,6 +181,30 @@ public static class EntityMapper
         SortOrder = d.SortOrder,
     };
 
+    public static HumanParticipantConfig ToDomain(HumanParticipantEntity e) => new()
+    {
+        Id = e.Id, RoomId = e.RoomId, Name = e.Name,
+        IsPlayerCharacter = e.IsPlayerCharacter,
+        AppearanceSummary = e.AppearanceSummary,
+        TtsVoice = e.TtsVoice,
+        AccentHex = e.AccentHex, BackgroundHex = e.BackgroundHex,
+        ParticipationMode = Enum.TryParse<ParticipationMode>(e.ParticipationMode, out var pm) ? pm : ParticipationMode.TurnParticipant,
+        SortOrder = e.SortOrder,
+        IsEnabled = e.IsEnabled,
+    };
+
+    public static HumanParticipantEntity ToEntity(HumanParticipantConfig d) => new()
+    {
+        Id = d.Id, RoomId = d.RoomId, Name = d.Name,
+        IsPlayerCharacter = d.IsPlayerCharacter,
+        AppearanceSummary = d.AppearanceSummary,
+        TtsVoice = d.TtsVoice,
+        AccentHex = d.AccentHex, BackgroundHex = d.BackgroundHex,
+        ParticipationMode = d.ParticipationMode.ToString(),
+        SortOrder = d.SortOrder,
+        IsEnabled = d.IsEnabled,
+    };
+
     public static RoomConfig ToDomain(RoomEntity e) => new()
     {
         Id = e.Id, Name = e.Name, Topic = e.Topic,
@@ -116,7 +216,13 @@ public static class EntityMapper
         SummarizerMaxLines = e.SummarizerMaxLines, SummarizerMaxCharacters = e.SummarizerMaxCharacters,
         SummarizerBroaderTurns = e.SummarizerBroaderTurns,
         SummarizerPromptOverride = e.SummarizerPromptOverride,
+        TtsEnabledOverride = e.TtsEnabledOverride,
+        TtsProviderOverride = e.TtsProviderOverride,
+        TtsFallbackVoice = e.TtsFallbackVoice,
+        TtsUserVoice = e.TtsUserVoice,
         EnableSceneImageGeneration = e.EnableSceneImageGeneration,
+        UseCreativeImageGeneration = e.UseCreativeImageGeneration,
+        SceneImageModelId = e.SceneImageModelId,
         SceneImageStyleNotes = e.SceneImageStyleNotes,
         SceneImageNegativePrompt = e.SceneImageNegativePrompt,
         MemoryModelId = e.MemoryModelId, MaxArchivedScenes = e.MaxArchivedScenes,
@@ -133,6 +239,7 @@ public static class EntityMapper
         MaxConcurrentNpcs = e.MaxConcurrentNpcs,
         SortOrder = e.SortOrder,
         Agents = e.Agents.Select(ToDomain).OrderBy(a => a.SortOrder).ToList(),
+        HumanParticipants = e.HumanParticipants.Select(ToDomain).OrderBy(h => h.SortOrder).ToList(),
     };
 
     public static RoomEntity ToEntity(RoomConfig d) => new()
@@ -146,7 +253,13 @@ public static class EntityMapper
         SummarizerMaxLines = d.SummarizerMaxLines, SummarizerMaxCharacters = d.SummarizerMaxCharacters,
         SummarizerBroaderTurns = d.SummarizerBroaderTurns,
         SummarizerPromptOverride = d.SummarizerPromptOverride,
+        TtsEnabledOverride = d.TtsEnabledOverride,
+        TtsProviderOverride = d.TtsProviderOverride,
+        TtsFallbackVoice = d.TtsFallbackVoice,
+        TtsUserVoice = d.TtsUserVoice,
         EnableSceneImageGeneration = d.EnableSceneImageGeneration,
+        UseCreativeImageGeneration = d.UseCreativeImageGeneration,
+        SceneImageModelId = d.SceneImageModelId,
         SceneImageStyleNotes = d.SceneImageStyleNotes,
         SceneImageNegativePrompt = d.SceneImageNegativePrompt,
         MemoryModelId = d.MemoryModelId, MaxArchivedScenes = d.MaxArchivedScenes,
@@ -163,6 +276,7 @@ public static class EntityMapper
         MaxConcurrentNpcs = d.MaxConcurrentNpcs,
         SortOrder = d.SortOrder,
         Agents = d.Agents.Select(ToEntity).ToList(),
+        HumanParticipants = d.HumanParticipants.Select(ToEntity).ToList(),
     };
 
     public static TranscriptTurn ToDomain(TranscriptTurnEntity e) => new()

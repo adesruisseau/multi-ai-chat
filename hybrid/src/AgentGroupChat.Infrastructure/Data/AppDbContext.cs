@@ -10,8 +10,12 @@ public class AppDbContext : DbContext
     public DbSet<AppSettingsEntity> AppSettings => Set<AppSettingsEntity>();
     public DbSet<AiConnectionEntity> AiConnections => Set<AiConnectionEntity>();
     public DbSet<AiModelEntity> AiModels => Set<AiModelEntity>();
+    public DbSet<ImageConnectionEntity> ImageConnections => Set<ImageConnectionEntity>();
+    public DbSet<ImageModelEntity> ImageModels => Set<ImageModelEntity>();
+    public DbSet<PromptSampleEntity> PromptSamples => Set<PromptSampleEntity>();
     public DbSet<RoomEntity> Rooms => Set<RoomEntity>();
     public DbSet<AgentEntity> Agents => Set<AgentEntity>();
+    public DbSet<HumanParticipantEntity> HumanParticipants => Set<HumanParticipantEntity>();
     public DbSet<TranscriptTurnEntity> TranscriptTurns => Set<TranscriptTurnEntity>();
     public DbSet<MemoryBlockEntity> MemoryBlocks => Set<MemoryBlockEntity>();
     public DbSet<LogEntryEntity> LogEntries => Set<LogEntryEntity>();
@@ -25,12 +29,39 @@ public class AppDbContext : DbContext
             .HasForeignKey(a => a.RoomId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<RoomEntity>()
+            .HasMany(r => r.HumanParticipants)
+            .WithOne(h => h.Room)
+            .HasForeignKey(h => h.RoomId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         modelBuilder.Entity<TranscriptTurnEntity>()
             .HasIndex(t => t.RoomId);
 
         modelBuilder.Entity<MemoryBlockEntity>()
             .HasIndex(m => new { m.RoomId, m.AgentId, m.Kind })
             .IsUnique();
+
+        modelBuilder.Entity<PromptSampleEntity>()
+            .HasIndex(p => p.Name);
+
+        modelBuilder.Entity<PromptSampleEntity>()
+            .HasIndex(p => p.Category);
+
+        modelBuilder.Entity<PromptSampleEntity>()
+            .HasIndex(p => p.IsBuiltIn);
+
+        modelBuilder.Entity<PromptSampleEntity>()
+            .HasIndex(p => p.UpdatedAt);
+
+        modelBuilder.Entity<ImageConnectionEntity>()
+            .HasIndex(c => c.Name);
+
+        modelBuilder.Entity<ImageModelEntity>()
+            .HasIndex(m => m.Name);
+
+        modelBuilder.Entity<ImageModelEntity>()
+            .HasIndex(m => m.ConnectionId);
 
         modelBuilder.Entity<LogEntryEntity>()
             .HasIndex(l => l.Category);

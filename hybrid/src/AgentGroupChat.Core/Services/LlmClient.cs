@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AgentGroupChat.Core.Models.Llm;
 
 namespace AgentGroupChat.Core.Services;
@@ -10,6 +11,30 @@ public sealed class LlmClient
     private readonly HttpClient _httpClient;
 
     public LlmClient(HttpClient httpClient) => _httpClient = httpClient;
+
+    private sealed record ChatMessageDto(
+        [property: JsonPropertyName("role")] string Role,
+        [property: JsonPropertyName("content")] string Content);
+
+    private sealed record OpenAiRequestDto(
+        [property: JsonPropertyName("model")] string Model,
+        [property: JsonPropertyName("messages")] IEnumerable<ChatMessageDto> Messages,
+        [property: JsonPropertyName("stream")] bool Stream,
+        [property: JsonPropertyName("max_tokens")] int MaxTokens);
+
+    private sealed record GroqRequestDto(
+        [property: JsonPropertyName("model")] string Model,
+        [property: JsonPropertyName("messages")] IEnumerable<ChatMessageDto> Messages,
+        [property: JsonPropertyName("stream")] bool Stream,
+        [property: JsonPropertyName("max_completion_tokens")] int MaxCompletionTokens);
+
+    private sealed record OllamaRequestDto(
+        [property: JsonPropertyName("model")] string Model,
+        [property: JsonPropertyName("messages")] IEnumerable<ChatMessageDto> Messages,
+        [property: JsonPropertyName("stream")] bool Stream);
+
+    private static IEnumerable<ChatMessageDto> ToDto(IReadOnlyList<LlmChatMessage> messages) =>
+        messages.Select(m => new ChatMessageDto(m.Role, m.Content));
 
     public async Task<LlmCompletionResult> CompleteAsync(
         LlmRequestSettings settings,
@@ -34,13 +59,7 @@ public sealed class LlmClient
         if (!string.IsNullOrWhiteSpace(settings.ApiKey))
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
 
-        var payload = new
-        {
-            model = settings.Model,
-            messages = messages.Select(m => new { role = m.Role, content = m.Content }),
-            stream = false,
-            max_tokens = settings.MaxCompletionTokens,
-        };
+        var payload = new OpenAiRequestDto(settings.Model, ToDto(messages), false, settings.MaxCompletionTokens);
         request.Content = JsonContent(payload);
 
         using var response = await _httpClient.SendAsync(request, ct);
@@ -67,13 +86,7 @@ public sealed class LlmClient
         using var request = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
 
-        var payload = new
-        {
-            model = settings.Model,
-            messages = messages.Select(m => new { role = m.Role, content = m.Content }),
-            stream = false,
-            max_completion_tokens = settings.MaxCompletionTokens,
-        };
+        var payload = new GroqRequestDto(settings.Model, ToDto(messages), false, settings.MaxCompletionTokens);
         request.Content = JsonContent(payload);
 
         using var response = await _httpClient.SendAsync(request, ct);
@@ -93,12 +106,7 @@ public sealed class LlmClient
         LlmRequestSettings settings, IReadOnlyList<LlmChatMessage> messages, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint);
-        var payload = new
-        {
-            model = settings.Model,
-            messages = messages.Select(m => new { role = m.Role, content = m.Content }),
-            stream = false,
-        };
+        var payload = new OllamaRequestDto(settings.Model, ToDto(messages), false);
         request.Content = JsonContent(payload);
 
         using var response = await _httpClient.SendAsync(request, ct);
@@ -125,14 +133,14 @@ public sealed class LlmClient
         request.Headers.Add("X-goog-api-key", settings.ApiKey);
 
         var systemInstruction = string.Join("\n\n",
-            messages.Where(m => m.Role.Equals("system", StringComparison.OrdinalIgnoreCase))
+            messages.Where(m => m.Role.Equals(LlmRoles.System, StringComparison.OrdinalIgnoreCase))
                 .Select(m => m.Content.Trim()).Where(c => !string.IsNullOrWhiteSpace(c)));
 
         var contents = messages
-            .Where(m => !m.Role.Equals("system", StringComparison.OrdinalIgnoreCase))
+            .Where(m => !m.Role.Equals(LlmRoles.System, StringComparison.OrdinalIgnoreCase))
             .Select(m => new
             {
-                role = m.Role.Equals("assistant", StringComparison.OrdinalIgnoreCase) ? "model" : "user",
+                role = m.Role.Equals(LlmRoles.Assistant, StringComparison.OrdinalIgnoreCase) ? "model" : "user",
                 parts = new[] { new { text = m.Content } },
             }).ToList();
 
@@ -190,7 +198,7 @@ public sealed class LlmClient
         var payload = new Dictionary<string, object?>
         {
             ["model"] = settings.Model,
-            ["messages"] = messages.Select(m => new { role = m.Role, content = m.Content }).ToArray(),
+            ["messages"] = ToDto(messages).ToArray(),
             ["stream"] = false,
             ["max_tokens"] = settings.MaxCompletionTokens,
         };

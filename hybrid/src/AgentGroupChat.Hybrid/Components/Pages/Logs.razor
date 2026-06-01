@@ -5,246 +5,251 @@
 @inject AgentGroupChat.Core.Services.Interfaces.ISceneArchiveRepository SceneArchiveRepo
 @implements IDisposable
 
-<MudText Typo="Typo.h4" GutterBottom="true">Logs</MudText>
-
-<MudGrid>
-    <MudItem xs="12" md="6">
-        <MudPaper Class="pa-4 mb-4" Elevation="1">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                <MudText Typo="Typo.h6">Shared Room Memory</MudText>
-                <MudSpacer />
-                @if (RoomState.SelectedRoom is not null)
-                {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
-                               OnClick="ClearSharedRoomMemory">Clear</MudButton>
-                }
-            </MudStack>
-            @if (RoomState.SelectedRoom is null)
-            {
-                <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">Select a room to view memory.</MudText>
-            }
-            else
-            {
-                <MudText Typo="Typo.caption" Class="mb-1">Room: @RoomState.SelectedRoom.Name</MudText>
-                <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(FindMemoryBlock(null, MemoryKind.SharedRoom))</MudText>
-                <pre style="white-space:pre-wrap; max-height:300px; overflow-y:auto; margin:0">@_sharedRoomMemory</pre>
-            }
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" md="6">
-        <MudPaper Class="pa-4 mb-4" Elevation="1">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-                <MudText Typo="Typo.h6">Durable Memory</MudText>
-                <MudSpacer />
-                @if (RoomState.SelectedRoom is not null)
-                {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
-                               OnClick="ClearDurableMemory">Clear</MudButton>
-                }
-            </MudStack>
-            @if (RoomState.SelectedRoom is null)
-            {
-                <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">Select a room to view memory.</MudText>
-            }
-            else
-            {
-                <MudText Typo="Typo.caption" Class="mb-1">Room: @RoomState.SelectedRoom.Name</MudText>
-                <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(FindMemoryBlock(null, MemoryKind.Durable))</MudText>
-                <pre style="white-space:pre-wrap; max-height:300px; overflow-y:auto; margin:0">@_durableMemory</pre>
-            }
-        </MudPaper>
-    </MudItem>
-</MudGrid>
-
-<MudPaper Class="pa-4 mb-4" Elevation="1">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
-        <MudText Typo="Typo.h6">Agent Memory Inspector</MudText>
-        <MudSpacer />
-        @if (RoomState.SelectedRoom is not null)
-        {
-            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@($"{_memoryBlocks.Count(b => !string.IsNullOrWhiteSpace(b.Content))} stored blocks")</MudChip>
-        }
-    </MudStack>
-    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-        Short-term scratchpads come from each agent's last few self-turns. Long-term memory stays available for future promotion and manual inspection.
-    </MudText>
-
-    @if (RoomState.SelectedRoom is null)
-    {
-        <MudText Typo="Typo.body2" Color="Color.Secondary">Select a room to inspect agent memory.</MudText>
-    }
-    else if (RoomState.SelectedRoom.Agents.Count == 0)
-    {
-        <MudText Typo="Typo.body2" Color="Color.Secondary">This room has no agents yet.</MudText>
-    }
-    else
-    {
-        @foreach (var agent in RoomState.SelectedRoom.Agents)
-        {
-            var shortBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentShort);
-            var longBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentLong);
-
-            <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
-                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
-                    <MudText Typo="Typo.subtitle1">@agent.Name</MudText>
-                    <MudSpacer />
-                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@BuildAgentMemorySummary(shortBlock, longBlock)</MudChip>
-                </MudStack>
-
-                <MudGrid>
-                    <MudItem xs="12" md="6">
-                        <MudText Typo="Typo.caption" Class="mb-1">Short-Term Scratchpad</MudText>
-                        <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(shortBlock)</MudText>
-                        <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(shortBlock, "(No short-term scratchpad yet.)")</pre>
-                    </MudItem>
-                    <MudItem xs="12" md="6">
-                        <MudText Typo="Typo.caption" Class="mb-1">Long-Term Agent Memory</MudText>
-                        <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(longBlock)</MudText>
-                        <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(longBlock, "(No long-term agent memory yet.)")</pre>
-                    </MudItem>
-                </MudGrid>
-            </MudPaper>
-        }
-    }
-</MudPaper>
-
-<MudPaper Class="pa-4 mb-4" Elevation="1">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
-        <MudText Typo="Typo.h6">Scene Archive</MudText>
-        <MudSpacer />
-        @if (RoomState.SelectedRoom is not null)
-        {
-            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@($"{_sceneArchives.Count} archived scenes")</MudChip>
-            @if (_sceneArchives.Count > 0)
-            {
-                <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
-                           OnClick="ClearSceneArchives">Clear All</MudButton>
-            }
-        }
-    </MudStack>
-    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-        Snapshots of shared room and durable memory archived before each scene transition. Used for long-horizon recall.
-    </MudText>
-
-    @if (RoomState.SelectedRoom is null)
-    {
-        <MudText Typo="Typo.body2" Color="Color.Secondary">Select a room to view scene archives.</MudText>
-    }
-    else if (_sceneArchives.Count == 0)
-    {
-        <MudText Typo="Typo.body2" Color="Color.Secondary">No archived scenes yet. Scenes are archived during memory refresh at durable-promotion checkpoints.</MudText>
-    }
-    else
-    {
-        <MudTable Items="_sceneArchives" Dense="true" Hover="true" Striped="true" FixedHeader="true" Height="400px">
-            <HeaderContent>
-                <MudTh Style="width:60px">Round</MudTh>
-                <MudTh>Label</MudTh>
-                <MudTh>Key Entities</MudTh>
-                <MudTh Style="width:50px">Major</MudTh>
-                <MudTh Style="width:80px">Size</MudTh>
-                <MudTh Style="width:100px">Created</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>@context.RoundNumber</MudTd>
-                <MudTd>
-                    <MudLink Typo="Typo.body2" Color="Color.Primary" Style="cursor:pointer"
-                             OnClick="@(() => ToggleSceneDetail(context.Id))">
-                        @context.Label
-                        <MudIcon Icon="@(_expandedSceneIds.Contains(context.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
-                                 Size="Size.Small" Class="ml-1" />
-                    </MudLink>
-                    @if (_expandedSceneIds.Contains(context.Id))
-                    {
-                        <MudPaper Class="pa-2 mt-1" Elevation="0" Style="background:var(--mud-palette-background-gray); max-height:300px; overflow-y:auto;">
-                            <MudText Typo="Typo.caption" Class="mb-1" Color="Color.Info">Shared Room Snapshot</MudText>
-                            <pre style="white-space:pre-wrap; margin:0; font-size:0.8rem;">@context.SharedRoomSnapshot</pre>
-                            @if (!string.IsNullOrWhiteSpace(context.DurableSnapshot))
-                            {
-                                <MudDivider Class="my-2" />
-                                <MudText Typo="Typo.caption" Class="mb-1" Color="Color.Info">Durable Snapshot</MudText>
-                                <pre style="white-space:pre-wrap; margin:0; font-size:0.8rem;">@context.DurableSnapshot</pre>
-                            }
-                        </MudPaper>
-                    }
-                </MudTd>
-                <MudTd><MudText Typo="Typo.body2" Style="font-size:0.8rem">@(string.IsNullOrWhiteSpace(context.KeyEntities) ? "—" : context.KeyEntities)</MudText></MudTd>
-                <MudTd>@(context.IsMajor ? "✓" : "")</MudTd>
-                <MudTd><MudText Typo="Typo.body2" Style="font-size:0.8rem">@($"{context.SharedRoomSnapshot.Length + context.DurableSnapshot.Length} chars")</MudText></MudTd>
-                <MudTd><MudText Typo="Typo.body2" Style="font-size:0.8rem">@context.CreatedAt.LocalDateTime.ToString("MM/dd HH:mm")</MudText></MudTd>
-            </RowTemplate>
-        </MudTable>
-    }
-</MudPaper>
-
-<MudPaper Class="pa-4 mb-4" Elevation="1">
-    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="flex-wrap">
-        @foreach (var cat in _allCategories)
-        {
-            var isActive = _activeCategories.Contains(cat);
-            <MudTooltip Text="@cat">
-                <MudIconButton Icon="@CategoryIcon(cat)"
-                               Color="@(isActive ? CategoryColor(cat) : Color.Default)"
-                               Variant="@(isActive ? Variant.Filled : Variant.Outlined)"
-                               Size="Size.Small"
-                               OnClick="@(() => ToggleCategory(cat))" />
-            </MudTooltip>
-        }
-        <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
-        <MudSelect Value="_sourceFilter" Label="Source" Style="max-width:180px" T="string"
-                   ValueChanged="OnSourceFilterChanged">
-            <MudSelectItem T="string" Value="@string.Empty">All</MudSelectItem>
-            @foreach (var source in _sources)
-            {
-                <MudSelectItem T="string" Value="@source">@source</MudSelectItem>
-            }
-        </MudSelect>
-        <MudSpacer />
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RefreshAll" Size="Size.Small">Refresh</MudButton>
-    </MudStack>
-</MudPaper>
-
-<MudPaper Elevation="1">
-    <MudTable Items="_entries" Dense="true" Hover="true" Striped="true" FixedHeader="true" Height="500px">
-        <HeaderContent>
-            <MudTh Style="width:90px">Category</MudTh>
-            <MudTh Style="width:110px">Source</MudTh>
-            <MudTh>Message</MudTh>
-            <MudTh Style="width:80px">Duration</MudTh>
-            <MudTh Style="width:80px">Time</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd>@context.CategoryText</MudTd>
-            <MudTd>@context.Source</MudTd>
-            <MudTd>
-                @if (context.HasDetail)
-                {
-                    <MudStack Spacing="0">
-                        <MudLink Typo="Typo.body2" Color="Color.Primary" OnClick="@(() => ToggleDetail(context.Id))"
-                                 Style="cursor:pointer">
-                            @context.Message
-                            <MudIcon Icon="@(_expandedIds.Contains(context.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
-                                     Size="Size.Small" Class="ml-1" />
-                        </MudLink>
-                        @if (_expandedIds.Contains(context.Id))
+<MudText Typo="Typo.h4" GutterBottom="true">Memory & Logs</MudText>
+<br />
+<MudTabs Rounded="true">
+    <MudTabPanel Text="Memory">
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4 mb-4" Elevation="1">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        <MudText Typo="Typo.h6">Shared Room Memory</MudText>
+                        <MudSpacer />
+                        @if (RoomState.SelectedRoom is not null)
                         {
-                            <MudPaper Class="pa-2 mt-1" Elevation="0" Style="background:var(--mud-palette-background-gray); max-height:400px; overflow-y:auto;">
-                                <pre style="white-space:pre-wrap; margin:0; font-size:0.8rem;">@context.Detail</pre>
-                            </MudPaper>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
+                                       OnClick="ClearSharedRoomMemory">Clear</MudButton>
                         }
                     </MudStack>
-                }
-                else
-                {
-                    <MudText Typo="Typo.body2">@context.Message</MudText>
-                }
-            </MudTd>
-            <MudTd>@context.DurationText</MudTd>
-            <MudTd>@context.CreatedAt.ToString("HH:mm:ss")</MudTd>
-        </RowTemplate>
-    </MudTable>
-</MudPaper>
+                    @if (RoomState.SelectedRoom is null)
+                    {
+                        <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">Select a room to view memory.</MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Class="mb-1">Room: @RoomState.SelectedRoom.Name</MudText>
+                        <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(FindMemoryBlock(null, MemoryKind.SharedRoom))</MudText>
+                        <pre style="white-space:pre-wrap; max-height:300px; overflow-y:auto; margin:0">@_sharedRoomMemory</pre>
+                    }
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudPaper Class="pa-4 mb-4" Elevation="1">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                        <MudText Typo="Typo.h6">Durable Memory</MudText>
+                        <MudSpacer />
+                        @if (RoomState.SelectedRoom is not null)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
+                                       OnClick="ClearDurableMemory">Clear</MudButton>
+                        }
+                    </MudStack>
+                    @if (RoomState.SelectedRoom is null)
+                    {
+                        <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">Select a room to view memory.</MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Class="mb-1">Room: @RoomState.SelectedRoom.Name</MudText>
+                        <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(FindMemoryBlock(null, MemoryKind.Durable))</MudText>
+                        <pre style="white-space:pre-wrap; max-height:300px; overflow-y:auto; margin:0">@_durableMemory</pre>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
 
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+                <MudText Typo="Typo.h6">Agent Memory Inspector</MudText>
+                <MudSpacer />
+                @if (RoomState.SelectedRoom is not null)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@($"{_memoryBlocks.Count(b => !string.IsNullOrWhiteSpace(b.Content))} stored blocks")</MudChip>
+                }
+            </MudStack>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                Short-term scratchpads come from each agent's last few self-turns. Long-term memory stays available for future promotion and manual inspection.
+            </MudText>
+
+            @if (RoomState.SelectedRoom is null)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Select a room to inspect agent memory.</MudText>
+            }
+            else if (RoomState.SelectedRoom.Agents.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">This room has no agents yet.</MudText>
+            }
+            else
+            {
+                @foreach (var agent in RoomState.SelectedRoom.Agents)
+                {
+                    var shortBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentShort);
+                    var longBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentLong);
+
+                    <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+                            <MudText Typo="Typo.subtitle1">@agent.Name</MudText>
+                            <MudSpacer />
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@BuildAgentMemorySummary(shortBlock, longBlock)</MudChip>
+                        </MudStack>
+
+                        <MudGrid>
+                            <MudItem xs="12" md="6">
+                                <MudText Typo="Typo.caption" Class="mb-1">Short-Term Scratchpad</MudText>
+                                <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(shortBlock)</MudText>
+                                <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(shortBlock, "(No short-term scratchpad yet.)")</pre>
+                            </MudItem>
+                            <MudItem xs="12" md="6">
+                                <MudText Typo="Typo.caption" Class="mb-1">Long-Term Agent Memory</MudText>
+                                <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(longBlock)</MudText>
+                                <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(longBlock, "(No long-term agent memory yet.)")</pre>
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+            }
+        </MudPaper>
+
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+                <MudText Typo="Typo.h6">Scene Archive</MudText>
+                <MudSpacer />
+                @if (RoomState.SelectedRoom is not null)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@($"{_sceneArchives.Count} archived scenes")</MudChip>
+                    @if (_sceneArchives.Count > 0)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
+                                   OnClick="ClearSceneArchives">Clear All</MudButton>
+                    }
+                }
+            </MudStack>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+                Snapshots of shared room and durable memory archived before each scene transition. Used for long-horizon recall.
+            </MudText>
+
+            @if (RoomState.SelectedRoom is null)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Select a room to view scene archives.</MudText>
+            }
+            else if (_sceneArchives.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">No archived scenes yet. Scenes are archived during memory refresh at durable-promotion checkpoints.</MudText>
+            }
+            else
+            {
+                <MudTable Items="_sceneArchives" Dense="true" Hover="true" Striped="true" FixedHeader="true" Height="400px">
+                    <HeaderContent>
+                        <MudTh Style="width:60px">Round</MudTh>
+                        <MudTh>Label</MudTh>
+                        <MudTh>Key Entities</MudTh>
+                        <MudTh Style="width:50px">Major</MudTh>
+                        <MudTh Style="width:80px">Size</MudTh>
+                        <MudTh Style="width:100px">Created</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.RoundNumber</MudTd>
+                        <MudTd>
+                            <MudLink Typo="Typo.body2" Color="Color.Primary" Style="cursor:pointer"
+                                     OnClick="@(() => ToggleSceneDetail(context.Id))">
+                                @context.Label
+                                <MudIcon Icon="@(_expandedSceneIds.Contains(context.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                                         Size="Size.Small" Class="ml-1" />
+                            </MudLink>
+                            @if (_expandedSceneIds.Contains(context.Id))
+                            {
+                                <MudPaper Class="pa-2 mt-1" Elevation="0" Style="background:var(--mud-palette-background-gray); max-height:300px; overflow-y:auto;">
+                                    <MudText Typo="Typo.caption" Class="mb-1" Color="Color.Info">Shared Room Snapshot</MudText>
+                                    <pre style="white-space:pre-wrap; margin:0; font-size:0.8rem;">@context.SharedRoomSnapshot</pre>
+                                    @if (!string.IsNullOrWhiteSpace(context.DurableSnapshot))
+                                    {
+                                        <MudDivider Class="my-2" />
+                                        <MudText Typo="Typo.caption" Class="mb-1" Color="Color.Info">Durable Snapshot</MudText>
+                                        <pre style="white-space:pre-wrap; margin:0; font-size:0.8rem;">@context.DurableSnapshot</pre>
+                                    }
+                                </MudPaper>
+                            }
+                        </MudTd>
+                        <MudTd><MudText Typo="Typo.body2" Style="font-size:0.8rem">@(string.IsNullOrWhiteSpace(context.KeyEntities) ? "—" : context.KeyEntities)</MudText></MudTd>
+                        <MudTd>@(context.IsMajor ? "✓" : "")</MudTd>
+                        <MudTd><MudText Typo="Typo.body2" Style="font-size:0.8rem">@($"{context.SharedRoomSnapshot.Length + context.DurableSnapshot.Length} chars")</MudText></MudTd>
+                        <MudTd><MudText Typo="Typo.body2" Style="font-size:0.8rem">@context.CreatedAt.LocalDateTime.ToString("MM/dd HH:mm")</MudText></MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Logs">
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Class="flex-wrap">
+                @foreach (var cat in _allCategories)
+                {
+                    var isActive = _activeCategories.Contains(cat);
+                    <MudTooltip Text="@cat">
+                        <MudIconButton Icon="@CategoryIcon(cat)"
+                                       Color="@(isActive ? CategoryColor(cat) : Color.Default)"
+                                       Variant="@(isActive ? Variant.Filled : Variant.Outlined)"
+                                       Size="Size.Small"
+                                       OnClick="@(() => ToggleCategory(cat))" />
+                    </MudTooltip>
+                }
+                <MudDivider Vertical="true" FlexItem="true" Class="mx-2" />
+                <MudSelect Value="_sourceFilter" Label="Source" ShrinkLabel="true" Style="max-width:180px" T="string"
+                           ValueChanged="OnSourceFilterChanged">
+                    <MudSelectItem T="string" Value="@string.Empty">All</MudSelectItem>
+                    @foreach (var source in _sources)
+                    {
+                        <MudSelectItem T="string" Value="@source">@source</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSpacer />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RefreshAll" Size="Size.Small">Refresh</MudButton>
+            </MudStack>
+        </MudPaper>
+    
+        <MudPaper Elevation="1">
+            <MudTable Items="_entries.OrderByDescending(x => x.Id)" Dense="true" Hover="true" Striped="true" FixedHeader="true" Height="500px">
+                <HeaderContent>
+                    <MudTh Style="width:90px">Category</MudTh>
+                    <MudTh Style="width:110px">Source</MudTh>
+                    <MudTh>Message</MudTh>
+                    <MudTh Style="width:80px">Duration</MudTh>
+                    <MudTh Style="width:80px">Time</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.CategoryText</MudTd>
+                    <MudTd>@context.Source</MudTd>
+                    <MudTd>
+                        @if (context.HasDetail)
+                        {
+                            <MudStack Spacing="0">
+                                <MudLink Typo="Typo.body2" Color="Color.Primary" OnClick="@(() => ToggleDetail(context.Id))"
+                                         Style="cursor:pointer">
+                                    @context.Message
+                                    <MudIcon Icon="@(_expandedIds.Contains(context.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                                             Size="Size.Small" Class="ml-1" />
+                                </MudLink>
+                                @if (_expandedIds.Contains(context.Id))
+                                {
+                                    <MudPaper Class="pa-2 mt-1" Elevation="0" Style="background:var(--mud-palette-background-gray); max-height:400px; overflow-y:auto;">
+                                        <pre style="white-space:pre-wrap; margin:0; font-size:0.8rem;">@context.Detail</pre>
+                                    </MudPaper>
+                                }
+                            </MudStack>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2">@context.Message</MudText>
+                        }
+                    </MudTd>
+                    <MudTd>@context.DurationText</MudTd>
+                    <MudTd>@context.CreatedAt.ToString("HH:mm:ss")</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
 @code {
     private const int MaxLogEntries = 50;
     private static readonly string[] _allCategories = Enum.GetNames<LogCategory>();
@@ -317,27 +322,21 @@
             _expandedIds.Add(id);
     }
 
-    private static string CategoryIcon(string category) => category switch
+    private static readonly Dictionary<string, (string Icon, Color Color)> _categoryStyles = new()
     {
-        "System"   => Icons.Material.Filled.Settings,
-        "Speech"   => Icons.Material.Filled.RecordVoiceOver,
-        "Timing"   => Icons.Material.Filled.Timer,
-        "Request"  => Icons.Material.Filled.CallMade,
-        "Response" => Icons.Material.Filled.CallReceived,
-        "Memory"   => Icons.Material.Filled.Psychology,
-        _          => Icons.Material.Filled.Info,
+        ["System"]   = (Icons.Material.Filled.Settings,          Color.Info),
+        ["Speech"]   = (Icons.Material.Filled.RecordVoiceOver,   Color.Success),
+        ["Timing"]   = (Icons.Material.Filled.Timer,             Color.Warning),
+        ["Request"]  = (Icons.Material.Filled.CallMade,          Color.Primary),
+        ["Response"] = (Icons.Material.Filled.CallReceived,      Color.Secondary),
+        ["Memory"]   = (Icons.Material.Filled.Psychology,        Color.Tertiary),
     };
 
-    private static Color CategoryColor(string category) => category switch
-    {
-        "System"   => Color.Info,
-        "Speech"   => Color.Success,
-        "Timing"   => Color.Warning,
-        "Request"  => Color.Primary,
-        "Response" => Color.Secondary,
-        "Memory"   => Color.Tertiary,
-        _          => Color.Default,
-    };
+    private static string CategoryIcon(string category) =>
+        _categoryStyles.TryGetValue(category, out var s) ? s.Icon : Icons.Material.Filled.Info;
+
+    private static Color CategoryColor(string category) =>
+        _categoryStyles.TryGetValue(category, out var s) ? s.Color : Color.Default;
 
     private async Task RefreshAll()
     {

@@ -9,6 +9,8 @@ public sealed class AppState
     public AppSettings Settings { get; private set; } = new();
     public List<AiConnection> Connections { get; private set; } = new();
     public List<AiModel> Models { get; private set; } = new();
+    public List<ImageConnection> ImageConnections { get; private set; } = new();
+    public List<ImageModel> ImageModels { get; private set; } = new();
     public bool IsLoaded { get; private set; }
 
     public event Action? OnChange;
@@ -20,6 +22,8 @@ public sealed class AppState
         Settings = await _settingsRepo.GetAsync();
         Connections = await _settingsRepo.GetConnectionsAsync();
         Models = await _settingsRepo.GetModelsAsync();
+        ImageConnections = await _settingsRepo.GetImageConnectionsAsync();
+        ImageModels = await _settingsRepo.GetImageModelsAsync();
         IsLoaded = true;
         NotifyChanged();
     }
@@ -58,9 +62,43 @@ public sealed class AppState
         NotifyChanged();
     }
 
+    public async Task SaveImageConnectionAsync(ImageConnection connection)
+    {
+        await _settingsRepo.SaveImageConnectionAsync(connection);
+        ImageConnections = await _settingsRepo.GetImageConnectionsAsync();
+        NotifyChanged();
+    }
+
+    public async Task DeleteImageConnectionAsync(string id)
+    {
+        await _settingsRepo.DeleteImageConnectionAsync(id);
+        ImageConnections = await _settingsRepo.GetImageConnectionsAsync();
+        NotifyChanged();
+    }
+
+    public async Task SaveImageModelAsync(ImageModel model)
+    {
+        await _settingsRepo.SaveImageModelAsync(model);
+        ImageModels = await _settingsRepo.GetImageModelsAsync();
+        NotifyChanged();
+    }
+
+    public async Task DeleteImageModelAsync(string id)
+    {
+        await _settingsRepo.DeleteImageModelAsync(id);
+        ImageModels = await _settingsRepo.GetImageModelsAsync();
+        NotifyChanged();
+    }
+
     public string ResolveModelDisplayName(string modelId)
     {
         var model = Models.FirstOrDefault(m => m.Id == modelId);
+        return model?.Name ?? modelId;
+    }
+
+    public string ResolveImageModelDisplayName(string modelId)
+    {
+        var model = ImageModels.FirstOrDefault(m => m.Id == modelId);
         return model?.Name ?? modelId;
     }
 

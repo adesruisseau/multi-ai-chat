@@ -27,9 +27,19 @@ public sealed class PromptComposer
     {
         var hasRecalledContext = recalledScenes is { Count: > 0 };
         var activeParticipants = room.Agents.Where(IsActiveAgent).OrderBy(a => a.SortOrder).ToList();
-        var participants = string.Join(
-            " -> ",
-            activeParticipants.Select(a => a.Name));
+        var activeHumans = room.HumanParticipants
+            .Where(h => h.IsEnabled && h.ParticipationMode == ParticipationMode.TurnParticipant)
+            .OrderBy(h => h.SortOrder)
+            .ToList();
+
+        // Build a unified participant list including both humans and AI agents
+        var allParticipantNames = activeHumans
+            .Select(h => h.Name + " (human)")
+            .Concat(activeParticipants.Select(a => a.Name))
+            .ToList();
+        var participants = allParticipantNames.Count > 0
+            ? string.Join(" -> ", allParticipantNames)
+            : string.Join(" -> ", activeParticipants.Select(a => a.Name));
         var transcript = string.Join(
             "\n\n",
             recentTurns.Select(t => $"{t.Speaker}:\n{t.Content}"));
