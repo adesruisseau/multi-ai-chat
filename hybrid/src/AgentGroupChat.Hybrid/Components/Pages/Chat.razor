@@ -75,7 +75,7 @@ else
     <MudPaper Class="pa-4 mb-4" Elevation="1">
         @if (!_generatingImage)
         {
-            <MudTextField @bind-Value="_userInput" Label="@WhosMessage" Class="mb-3" OnKeyDown="OnKeyDown" Lines="8"
+            <MudTextField @bind-Value="_userInput" Label="@WhosMessage" Class="mb-3" OnKeyDown="OnKeyDown" Lines="8" Disabled="@ConvoState.IsRunning"
                           Immediate="true" />
         }
         else
@@ -145,8 +145,15 @@ else
         await Task.Delay(100);
         if (ConvoState.Messages.Count != _lastMessageCount)
         {
-            _lastMessageCount = ConvoState.Messages.Count;
-            await JS.InvokeVoidAsync("scrollToBottom", _chatDiv);
+            try 
+            {
+                _lastMessageCount = ConvoState.Messages.Count;
+                await JS.InvokeVoidAsync("scrollToBottom", _chatDiv);
+            }
+            catch
+            {
+                await LogService.LogAsync(LogCategory.System, "Focus Chat JS", "An error occurred while trying to focus the chat window.");
+            }
         }
     }
 
@@ -257,15 +264,17 @@ else
     }
 
     private async Task Run()
-    {
+   {
+
         if (RoomState.SelectedRoom is null) return;
         if (ConvoState.IsRunning) return;
-
+        ConvoState.IsRunning = true;
         var room = RoomState.SelectedRoom;
 
         if (!string.IsNullOrWhiteSpace(_userInput))
         {
-            var speaker = GetActiveHumanSpeaker(room);
+            var resumeIndex = ComputeResumeAgentIndex(room);
+            var speaker = GetActiveHumanSpeaker(room, resumeIndex);
             ConvoState.AddUserMessage(_userInput, speaker.Name, speaker.AccentHex, speaker.BackgroundHex);
             await TranscriptRepo.AppendAsync(new TranscriptTurn
             {
@@ -274,7 +283,9 @@ else
                 Content = _userInput,
                 AccentHex = speaker.AccentHex,
                 BackgroundHex = speaker.BackgroundHex,
+                
             });
+            var userTextToNarrate = _userInput;
             _userInput = string.Empty;
             // Narrate user message before agents start
             var ttsSettings = BuildSpeechSettings(room);
@@ -283,9 +294,9 @@ else
                 var voice = !string.IsNullOrWhiteSpace(speaker.TtsVoice)
                     ? speaker.TtsVoice
                     : RoomSpeechResolver.GetUserVoice(room, AppState.Settings);
-                await Speech.SpeakAsync(ttsSettings, _userInput, voice, CancellationToken.None);
+                await Speech.SpeakAsync(ttsSettings, userTextToNarrate, voice, CancellationToken.None);
             }
-
+            
 
         }
         else if (ConvoState.SessionTurns.Count == 0)
@@ -296,7 +307,7 @@ else
         // Clean up any stale thinking placeholders from a previous failed run
         ConvoState.RemoveThinkingPlaceholders();
 
-        ConvoState.IsRunning = true;
+        
         ConvoState.SetStatus("Running");
         _cts = new CancellationTokenSource();
 
@@ -624,11 +635,11 @@ else
 
     private static readonly HumanSpeaker _defaultSpeaker = new("You", "", "", "");
 
-    private static HumanSpeaker GetActiveHumanSpeaker(RoomConfig room)
+    private static HumanSpeaker GetActiveHumanSpeaker(RoomConfig room, int currentSortOrder)
     {
         var active = room.Agents.FirstOrDefault(h =>
-            h.IsHumanParticipant);
-        if (active is not null)
+            h.SortOrder == currentSortOrder);
+        if (active is not null && active.IsHumanParticipant)
             return new HumanSpeaker(active.Name, active.AccentHex, active.BackgroundHex, active.TtsVoice);
         return _defaultSpeaker;
     }

@@ -36,7 +36,7 @@ public sealed class ConversationState
         {
             Speaker = speakerName,
             Content = text,
-            IsUser = true,
+            IsUser = false,
             AccentHex = accentHex,
             BackgroundHex = backgroundHex,
         });

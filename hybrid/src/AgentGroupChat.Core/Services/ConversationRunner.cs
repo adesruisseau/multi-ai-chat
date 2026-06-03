@@ -226,9 +226,11 @@ public sealed class ConversationRunner
                     if (agentIndex + 1 < enabledAgents.Count && !room.PauseAfterEveryReply)
                     {
                         var nextAgent = enabledAgents[agentIndex + 1];
-                        OnAgentMessageStarted?.Invoke(nextAgent, Thinking);
-                        OnStatusChanged?.Invoke($"{nextAgent.Name} thinking");
-
+                        if (!nextAgent.IsHumanParticipant)
+                        {
+                            OnAgentMessageStarted?.Invoke(nextAgent, Thinking);
+                            OnStatusChanged?.Invoke($"{nextAgent.Name} thinking");
+                        }
                         try
                         {
                             prefetchTask = ExecuteAgentTurnInternalAsync(
