@@ -107,6 +107,7 @@ public sealed class DataMigrator
             await AddColumnIfMissingAsync(conn, "Agents", "SuspendedByAgentId", "TEXT NOT NULL DEFAULT ''");
             await AddColumnIfMissingAsync(conn, "Agents", "SuspendedUntilRound", "INTEGER");
             await AddColumnIfMissingAsync(conn, "Agents", "SuspensionReason", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Agents", "IsHumanParticipant", "BOOLEAN DEFAULT FALSE");
 
             await AddColumnIfMissingAsync(conn, "AppSettings", "KokoroUserVoice", "TEXT NOT NULL DEFAULT ''");
 

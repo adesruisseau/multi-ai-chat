@@ -75,7 +75,7 @@ else
     <MudPaper Class="pa-4 mb-4" Elevation="1">
         @if (!_generatingImage)
         {
-            <MudTextField @bind-Value="_userInput" Label="Your message" Class="mb-3" OnKeyDown="OnKeyDown" Lines="8"
+            <MudTextField @bind-Value="_userInput" Label="@WhosMessage" Class="mb-3" OnKeyDown="OnKeyDown" Lines="8"
                           Immediate="true" />
         }
         else
@@ -138,6 +138,7 @@ else
     [Inject]
     private IJSRuntime JS { get; set; } = default!;
     private int _lastMessageCount;
+    private string WhosMessage = "Message";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -274,7 +275,7 @@ else
                 AccentHex = speaker.AccentHex,
                 BackgroundHex = speaker.BackgroundHex,
             });
-
+            _userInput = string.Empty;
             // Narrate user message before agents start
             var ttsSettings = BuildSpeechSettings(room);
             if (ttsSettings.Enabled)
@@ -285,7 +286,7 @@ else
                 await Speech.SpeakAsync(ttsSettings, _userInput, voice, CancellationToken.None);
             }
 
-            _userInput = string.Empty;
+
         }
         else if (ConvoState.SessionTurns.Count == 0)
         {
@@ -303,7 +304,6 @@ else
         {
             // Determine which agent to resume from based on the last transcript turn
             var resumeIndex = ComputeResumeAgentIndex(room);
-
             await Runner.RunAsync(
                 room,
                 agent => ResolveSettings(agent),
@@ -405,9 +405,15 @@ else
     /// Returns 0 if a fresh round should start.
     /// </summary>
     private int ComputeResumeAgentIndex(RoomConfig room) =>
-        ConversationRunner.ComputeResumeAgentIndex(room.Agents, ConvoState.SessionTurns, room.HumanParticipants);
+        ConversationRunner.ComputeResumeAgentIndex(room.Agents, ConvoState.SessionTurns);
 
-    private void OnConvoChanged() => InvokeAsync(StateHasChanged);
+    private void OnConvoChanged()
+    {
+        var room = RoomState.SelectedRoom;
+        var nextSpeaker = RoomState.SelectedRoom.Agents.Where(x => x.SortOrder == ComputeResumeAgentIndex(room)).First().Name;
+        WhosMessage = $"{nextSpeaker}'s Message";
+        InvokeAsync(StateHasChanged);
+    }
 
     private SpeechService.SpeechSettings BuildSpeechSettings(RoomConfig? room = null) =>
         RoomSpeechResolver.BuildSettings(room ?? RoomState.SelectedRoom, AppState.Settings);
@@ -565,7 +571,7 @@ else
             imagePrompt += $"\r\nLast Narrative Text: {narrativeText}";
         }
 
-        string currentRoomStateActions = await MemoryRepo.GetAsync(RoomState.SelectedRoom.Id, "", MemoryKind.SharedRoom);
+        string currentRoomStateActions = await MemoryRepo.GetAsync(RoomState.SelectedRoom.Id, null, MemoryKind.SharedRoom);
         imagePrompt += $"\r\nCurrent Room Information: {currentRoomStateActions}";
     }
 
@@ -620,8 +626,8 @@ else
 
     private static HumanSpeaker GetActiveHumanSpeaker(RoomConfig room)
     {
-        var active = room.HumanParticipants.FirstOrDefault(h =>
-            h.IsEnabled && h.ParticipationMode == ParticipationMode.TurnParticipant);
+        var active = room.Agents.FirstOrDefault(h =>
+            h.IsHumanParticipant);
         if (active is not null)
             return new HumanSpeaker(active.Name, active.AccentHex, active.BackgroundHex, active.TtsVoice);
         return _defaultSpeaker;

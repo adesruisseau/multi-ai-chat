@@ -430,39 +430,50 @@ public sealed class ConversationRunner
 
     public static int ComputeResumeAgentIndex(
         IReadOnlyList<AgentConfig> agents,
-        IReadOnlyList<TranscriptTurn> sessionTurns,
-        IReadOnlyList<HumanParticipantConfig>? humanParticipants = null)
+        IReadOnlyList<TranscriptTurn> sessionTurns)
     {
-        var enabledAgents = agents.Where(a => a.IsEnabled && !a.IsTemporarilySuspended).ToList();
-        if (enabledAgents.Count <= 1) return 0;
-        if (sessionTurns.Count == 0) return 0;
-
-        var humanNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "You" };
-        if (humanParticipants is not null)
+        try
         {
-            foreach (var h in humanParticipants.Where(h => h.IsEnabled))
-                humanNames.Add(h.Name);
+            var lastAgent = agents.Where(x => x.Name.Equals(sessionTurns.Last().Speaker, StringComparison.OrdinalIgnoreCase)).First();
+            if (agents.OrderBy(x => x.SortOrder).Last() == lastAgent)
+            {
+                return 0;
+            }
+            else
+            {
+                return lastAgent.SortOrder + 1;
+            }
+        }
+        catch
+        {
+            return 0;
         }
 
-        var spokenThisRound = new List<string>();
-        for (int i = sessionTurns.Count - 1; i >= 0; i--)
-        {
-            var t = sessionTurns[i];
-            if (humanNames.Contains(t.Speaker)) break;
-            if (enabledAgents.Any(a => a.Name == t.Speaker))
-                spokenThisRound.Insert(0, t.Speaker);
-            if (spokenThisRound.Count >= enabledAgents.Count) break;
-        }
 
-        if (spokenThisRound.Count == 0) return 0;
-        if (spokenThisRound.Count >= enabledAgents.Count) return 0;
+        //var enabledAgents = agents.Where(a => a.IsEnabled && !a.IsTemporarilySuspended).ToList();
+        //if (enabledAgents.Count <= 1) return 0;
+        //if (sessionTurns.Count == 0) return 0;
 
-        var lastSpeaker = spokenThisRound[^1];
-        var lastIdx = enabledAgents.FindIndex(a => a.Name == lastSpeaker);
-        if (lastIdx < 0) return 0;
+        
 
-        var nextIdx = lastIdx + 1;
-        return nextIdx < enabledAgents.Count ? nextIdx : 0;
+        //var spokenThisRound = new List<string>();
+        //for (int i = sessionTurns.Count - 1; i >= 0; i--)
+        //{
+        //    var t = sessionTurns[i];
+        //    if (enabledAgents.Any(a => a.Name == t.Speaker))
+        //        spokenThisRound.Insert(0, t.Speaker);
+        //    if (spokenThisRound.Count >= enabledAgents.Count) break;
+        //}
+
+        //if (spokenThisRound.Count == 0) return 0;
+        //if (spokenThisRound.Count >= enabledAgents.Count) return 0;
+
+        //var lastSpeaker = spokenThisRound[^1];
+        //var lastIdx = enabledAgents.FindIndex(a => a.Name == lastSpeaker);
+        //if (lastIdx < 0) return 0;
+
+        //var nextIdx = lastIdx + 1;
+        //return nextIdx < enabledAgents.Count ? nextIdx : 0;
     }
 
     private static bool IsPrivilegedAgent(RoomConfig room, AgentConfig agent) =>

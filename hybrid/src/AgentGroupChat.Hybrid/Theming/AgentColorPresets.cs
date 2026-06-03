@@ -9,9 +9,12 @@ public static class AgentColorPresets
         new("Terracotta", "#C56A54", "#F9E5DE"),
         new("Ocean",      "#2E6799", "#DDE9F3"),
         new("Berry",      "#984566", "#F3DFEA"),
+        new("Plum",       "#800080", "#FFCCFF"),
         new("Forest",     "#3A6C4C", "#DEF0E4"),
+        new("Mustard",    "#B4B43C", "#ECECC6"),
         new("Gold",       "#8F6617", "#F5EDDA"),
         new("Slate",      "#506070", "#E4E8EC"),
+        new("Mono",       "#D9D9D9", "#F2F2F2")
     ];
 
     public static readonly ColorPreset[] DarkPresets =
@@ -19,9 +22,12 @@ public static class AgentColorPresets
         new("Terracotta", "#E39B74", "#3A2018"),
         new("Ocean",      "#6EACDF", "#142838"),
         new("Berry",      "#D889AB", "#321828"),
+        new("Plum",       "#660066", "#330033"),
         new("Forest",     "#7AB18B", "#142A1C"),
+        new("Mustard",    "#CCCC66", "#606020"),
         new("Gold",       "#D6A44A", "#2E2410"),
         new("Slate",      "#96A7B5", "#1C2630"),
+        new("Mono",       "#262626", "#0D0D0D")
     ];
 
     public static ColorPreset[] GetPresets(bool isDarkMode) => isDarkMode ? DarkPresets : LightPresets;

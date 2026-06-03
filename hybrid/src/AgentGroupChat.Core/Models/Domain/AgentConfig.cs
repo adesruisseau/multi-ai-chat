@@ -21,4 +21,5 @@ public sealed class AgentConfig
     public int? SuspendedUntilRound { get; set; }
     public string SuspensionReason { get; set; } = string.Empty;
     public int SortOrder { get; set; }
+    public bool IsHumanParticipant { get; set; }
 }

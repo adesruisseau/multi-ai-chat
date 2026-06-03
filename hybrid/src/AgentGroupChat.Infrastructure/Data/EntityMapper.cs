@@ -163,6 +163,7 @@ public static class EntityMapper
         SuspendedUntilRound = e.SuspendedUntilRound,
         SuspensionReason = e.SuspensionReason,
         SortOrder = e.SortOrder,
+        IsHumanParticipant = e.IsHumanParticipant,
     };
 
     public static AgentEntity ToEntity(AgentConfig d) => new()
@@ -179,6 +180,7 @@ public static class EntityMapper
         SuspendedUntilRound = d.SuspendedUntilRound,
         SuspensionReason = d.SuspensionReason,
         SortOrder = d.SortOrder,
+        IsHumanParticipant = d.IsHumanParticipant,
     };
 
     public static HumanParticipantConfig ToDomain(HumanParticipantEntity e) => new()
