@@ -251,7 +251,7 @@
         {
             RoomId = Room.Id,
             Name = isHumanParticipant ? $"Player {Room.Agents.Where(x => x.IsHumanParticipant).Count() + 1}" : $"Agent {Room.Agents.Where(x => !x.IsHumanParticipant).Count() + 1}",
-            SortOrder = Room.HumanParticipants.Count,
+            SortOrder = Room.Agents.Count,
             IsHumanParticipant = isHumanParticipant,
             AccentHex = randomColor.AccentHex,
             BackgroundHex = randomColor.BackgroundHex

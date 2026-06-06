@@ -5,10 +5,22 @@ namespace AgentGroupChat.Core.Services;
 
 public sealed class TurnExecutor
 {
-    private const string AgentOutputTransportPrompt =
-        "Transport format: return exactly two XML blocks and nothing else. " +
-        "Use <reply>...</reply> for the visible in-character turn and <future_note>...</future_note> for a short private scratchpad. " +
-        "Always close both tags. If there is no future note, return <future_note></future_note>.";
+    private const string AgentOutputTransportPrompt = @"
+    ========================
+    TRANSPORT FORMAT (STRICT)
+    ========================
+
+    Return a response with exactly two XML blocks:
+
+    <reply>
+    (in-character DM narration only)
+    </reply>
+
+    <future_note>
+    (short private planning notes only)
+    </future_note>
+
+    No extra text.";
 
     private readonly LlmClient _llmClient;
     private readonly LogService _logService;
@@ -27,16 +39,15 @@ public sealed class TurnExecutor
     {
         var messages = new List<LlmChatMessage>
         {
-            new(LlmRoles.System, agent.SystemPrompt),
+            new(LlmRoles.System, prompt),
             new(LlmRoles.System, AgentOutputTransportPrompt),
-            new(LlmRoles.User, prompt),
         };
 
         await _logService.LogAsync(
             LogCategory.Request,
             agent.Name,
             $"→ {settings.ConnectionName} / {settings.Model}",
-            $"[System Prompt]\n{agent.SystemPrompt}\n\n[Transport Prompt]\n{AgentOutputTransportPrompt}\n\n[User Prompt]\n{prompt}");
+            $"[System Prompt]\n{prompt}\n\n[Transport Prompt]\n{AgentOutputTransportPrompt}");
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         LlmCompletionResult result;
