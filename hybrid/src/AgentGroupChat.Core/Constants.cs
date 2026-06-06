@@ -31,6 +31,7 @@ public static class LlmTransports
 public static class ImageTransports
 {
     public const string ComfyUI = "ComfyUI";
+    public const string EasyDiffusion = "Easy Diffusion";
     public const string OpenAiImages = "OpenAI Images";
 
     public const string GoogleImagen = "Google Imagen";
