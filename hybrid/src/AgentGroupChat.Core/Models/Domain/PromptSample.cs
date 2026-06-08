@@ -2,7 +2,7 @@ namespace AgentGroupChat.Core.Models.Domain;
 
 public sealed class PromptSample
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;

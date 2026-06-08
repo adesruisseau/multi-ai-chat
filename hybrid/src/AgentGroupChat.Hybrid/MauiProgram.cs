@@ -24,8 +24,9 @@ public static class MauiProgram
 		builder.Services.AddMauiBlazorWebView();
 		builder.Services.AddMudServices();
 
-		// Database
-		var dbPath = Path.Combine(
+        // Database
+        //C:\Users\...\AppData\Local\AgentGroupChat\agentgroupchat.db
+        var dbPath = Path.Combine(
 			Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 			"AgentGroupChat", "agentgroupchat.db");
 		Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);

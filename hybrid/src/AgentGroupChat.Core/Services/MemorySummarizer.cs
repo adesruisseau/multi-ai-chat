@@ -10,17 +10,20 @@ public sealed class MemorySummarizer
     private readonly PromptComposer _promptComposer;
     private readonly IMemoryRepository _memoryRepo;
     private readonly ISceneArchiveRepository _sceneArchiveRepo;
+    private readonly IPromptSampleRepository _promptSampleRepository;
 
     public MemorySummarizer(
         LlmClient llmClient,
         PromptComposer promptComposer,
         IMemoryRepository memoryRepo,
-        ISceneArchiveRepository sceneArchiveRepo)
+        ISceneArchiveRepository sceneArchiveRepo,
+        IPromptSampleRepository promptSampleRepository)
     {
         _llmClient = llmClient;
         _promptComposer = promptComposer;
         _memoryRepo = memoryRepo;
         _sceneArchiveRepo = sceneArchiveRepo;
+        _promptSampleRepository = promptSampleRepository;
     }
 
     public async Task RefreshAsync(
@@ -54,9 +57,12 @@ public sealed class MemorySummarizer
 
         try
         {
+            var sharedRoomMemoryPrompt = await _promptSampleRepository.GetAsync(room.SharedRoomMemoryPromptSampleId);
             var roomMessages = new List<LlmChatMessage>
             {
-                new("system", _promptComposer.BuildSharedRoomMemorySystemPrompt(room, profile)),
+                
+
+                new("system", _promptComposer.BuildSharedRoomMemorySystemPrompt(room, profile, sharedRoomMemoryPrompt.PromptText)),
                 new("user", _promptComposer.BuildSharedRoomMemoryUserPrompt(
                     room, profile, existingRoomMemory, existingDurableMemory, roundTurns, sessionTurns)),
             };
@@ -106,9 +112,12 @@ public sealed class MemorySummarizer
                     Math.Min(baseSummarizerSettings.MaxCompletionTokens, 1200), 280, 1200),
             };
             var sharedRoomMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
+
+            var durableMemoryPrompt = await _promptSampleRepository.GetAsync(room.DurableMemoryPromptSampleId);
+
             var durableMessages = new List<LlmChatMessage>
             {
-                new("system", _promptComposer.BuildDurableMemorySystemPrompt()),
+                new("system", durableMemoryPrompt.PromptText),
                 new("user", _promptComposer.BuildDurableMemoryUserPrompt(
                     room, existingDurableMemory, sharedRoomMemory, roundTurns, sessionTurns, room.RecentTurnsWindow)),
             };

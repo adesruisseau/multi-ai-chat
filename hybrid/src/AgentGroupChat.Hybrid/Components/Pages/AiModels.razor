@@ -63,8 +63,65 @@
                             @_testResult
                         </MudAlert>
                     }
-
-                    <MudTable Items="AppState.Models" Dense="true" Hover="true">
+                    <MudExpansionPanels>
+                        @foreach (var model in AppState.Models)
+                        {
+                            <MudExpansionPanel Text="@model.Name">
+                                <MudGrid>
+                                    <!--Name | Conn-->
+                                    <MudItem xs="6">
+                                        <MudTextField @bind-Value="model.Name" Label="Name"/>
+                                        <MudText Typo="Typo.body1">Generic name you will see instead of the model Id on other pages.</MudText>
+                                    </MudItem>
+                                    <MudItem xs="6">
+                                        <MudSelect @bind-Value="model.ConnectionId" T="string" Label="Connection">
+                                            @foreach (var conn in AppState.Connections)
+                                            {
+                                                <MudSelectItem T="string" Value="@conn.Id">@conn.Name</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    <!--ModelId | Notes-->
+                                    <MudItem xs="6">
+                                        <MudTextField @bind-Value="model.ModelId" Label="Model Id" />
+                                        <MudText Typo="Typo.body1">Exact ModelId for the AI service.</MudText>
+                                    </MudItem>
+                                    <MudItem xs="6">
+                                        <MudTextField @bind-Value="model.Notes" Label="Notes" />
+                                    </MudItem>
+                                    <!--Temperature | MaxTokens-->
+                                    <MudItem xs="6">
+                                        <MudNumericField Min="0.0M" Max="1.0M" T="decimal" Step=".1M" Value="model.Temperature" Label="Temperature" />
+                                        <MudText Typo="Typo.body1">Lower temperature makes models behave more deterministically. <br />
+                                            Higher temperature makes them more creative and random. <br />
+                                            Start with 0.7 and fine-tune.</MudText>
+                                    </MudItem>
+                                    <MudItem xs="6">
+                                        <MudNumericField Min="0" Max="32000" T="int" Step="8" Value="model.MaxTokens" Label="Max Tokens" />
+                                        <MudText Typo="Typo.body1">
+                                            Force the model to a max token usage.<br />
+                                            Low values may cut off message completion<br />
+                                            High values may exhaust token quotas faster.
+                                        </MudText>
+                                    </MudItem>
+                                    <!-- Save | Test | Delete-->
+                                    <MudItem xs="2">
+                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SaveModel(model)">Save</MudButton>
+                                    </MudItem>
+                                    <MudItem xs="2">
+                                        <MudButton Variant="Variant.Outlined"Color="Color.Primary" OnClick="() => TestModel(model)" Disabled="_isTesting">Test</MudButton>
+                                    </MudItem>
+                                    <MudItem xs="2">
+                                        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => DeleteModel(model.Id)">Delete</MudButton>
+                                    </MudItem>
+                                    <MudItem xs="6">
+                                        <MudText>&nbsp;</MudText>
+                                    </MudItem>
+                                </MudGrid>
+                            </MudExpansionPanel>
+                        }
+                    </MudExpansionPanels>
+                    @* <MudTable Items="AppState.Models" Dense="true" Hover="true">
                         <HeaderContent>
                             <MudTh>Name</MudTh>
                             <MudTh>Connection</MudTh>
@@ -92,7 +149,7 @@
                                 </MudStack>
                             </MudTd>
                         </RowTemplate>
-                    </MudTable>
+                    </MudTable> *@
                 </MudPaper>
             </MudItem>
         </MudGrid>
@@ -331,7 +388,7 @@
             var provider = LlmProviderMapping.FromTransport(connection.Transport);
 
             var settings = new LlmRequestSettings(
-                provider, connection.Endpoint, model.ModelId, connection.ApiKey,
+                provider, connection.Endpoint, model.ModelId, connection.ApiKey, model.Temperature,
                 80, connection.Transport, connection.Name);
 
             var result = await LlmClient.CompleteAsync(settings,
@@ -341,6 +398,7 @@
             var preview = result.Content.Length > 180 ? result.Content[..180] + "..." : result.Content;
             _testResult = $"Test passed for '{model.Name}'. Response: {preview}";
             _testSeverity = Severity.Success;
+            await SaveModel(model);
         }
         catch (Exception ex)
         {

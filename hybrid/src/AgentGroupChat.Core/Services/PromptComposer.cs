@@ -15,6 +15,7 @@ public sealed class PromptComposer
     public string BuildAgentPrompt(
         RoomConfig room,
         AgentConfig agent,
+        string promptText,
         int iteration,
         int maxIterations,
         string sharedRoomMemory,
@@ -67,23 +68,30 @@ public sealed class PromptComposer
             ? string.Empty
             : "- If you request a privileged action, place it only inside a nested <privileged_actions> block within <future_note>. Never place privileged-action tags in <reply>.";
 
-        var prompt = agent.SystemPrompt
-                                 .Replace("###roomTopic###", room.Topic)
-                                 .Replace("###participants###", participants)
-                                 .Replace("###roomRound###", roomRound.ToString())
-                                 .Replace("###agentName###", agent.Name)
-                                 .Replace("###privateMemory###", privateMemory)
-                                 .Replace("###recalledSection###", recalledSection)
-                                 .Replace("###roomMemory###", sharedRoomMemory)
-                                 .Replace("###durableMemory###", durable)
-                                 .Replace("###transcript###", transcript)
-                                 + privilegedActionsSection
-                                 + inactiveParticipantsSection
-                                 + offSceneSection
-                                 + privilegedActionInstruction
-                                 + inactiveParticipantsInstruction
-                                 + offSceneInstruction
-                                 ;
+
+
+
+
+var prompt = promptText
+.Replace("###roomTopic###", room.Topic)
+.Replace("###participants###", participants)
+.Replace("###roomRound###", roomRound.ToString())
+.Replace("###agentName###", agent.Name)
+.Replace("###agentPrompt###", agent.SystemPrompt)
++ @$"
+<privateMemory>{privateMemory}</privateMemory>
+<transcript>{transcript}</transcript>
+<recallMemory>{recalledSection}</recallMemory>
+<sharedRoomMemory>{sharedRoomMemory}</sharedRoomMemory>
+<durableMemory>{durable}</durableMemory>
+"
++ privilegedActionsSection
++ inactiveParticipantsSection
++ offSceneSection
++ privilegedActionInstruction
++ inactiveParticipantsInstruction
++ offSceneInstruction
+;
 
 
 
@@ -91,15 +99,16 @@ public sealed class PromptComposer
         return prompt;
     }
 
-    public string BuildSharedRoomMemorySystemPrompt(RoomConfig room, SceneSummarizerProfile profile)
+    public string BuildSharedRoomMemorySystemPrompt(RoomConfig room, SceneSummarizerProfile profile, string promptText)
     {
-        if (IsCustomLevel(room.SummarizationLevel)
-            && !string.IsNullOrWhiteSpace(room.SummarizerPromptOverride))
+        if (IsCustomLevel(room.SummarizationLevel))
         {
-            return room.SummarizerPromptOverride.Trim();
+            return promptText;
         }
 
-        return BuildDefaultSharedRoomMemorySystemPrompt(profile);
+        var summarizerProfile = GetSummarizerProfile(room);
+
+        return summarizerProfile.CompressionInstruction;
     }
 
     public string BuildSharedRoomMemoryUserPrompt(
@@ -138,102 +147,7 @@ Rewrite only the shared room memory so it reflects the latest state accurately.
 """;
     }
 
-    public string BuildDurableMemorySystemPrompt()
-    {
-        return """
-You maintain hidden durable memory for a multi-agent conversation.
 
-Your job is to preserve stable campaign facts that should remain true across many rounds, scenes, and locations.
-
-Be conservative.
-Do not roleplay.
-Do not narrate.
-Do not speculate.
-Do not write prose paragraphs.
-
-Return exactly one tagged section and nothing else:
-
-<durable_memory>
-[Main Storyline]
-
-* bullet(s)
-
-[Optional Storylines]
-
-* bullet(s)
-
-[Sticky Facts]
-
-* bullet(s)
-
-[Ongoing Threads]
-
-* bullet(s)
-
-[Resolved Threads]
-
-* bullet(s)
-  </durable_memory>
-
-Rules:
-
-* Durable memory represents long-lived campaign knowledge.
-* Prefer preserving information over rewriting it.
-* Only modify existing entries when newer transcripts clearly supersede or resolve them.
-* Do not remove facts merely because they were not mentioned recently.
-* Do not invent future events, motivations, secrets, or story developments.
-
-[Main Storyline]
-
-* The single primary objective currently driving the campaign.
-* Keep this stable whenever possible.
-* Do not replace it unless it has been clearly completed, abandoned, or superseded by events.
-* Use concise objective-oriented wording rather than narrative summaries.
-
-[Optional Storylines]
-
-* Secondary objectives, side quests, investigations, obligations, relationships, or personal goals.
-* Keep these stable until clearly resolved.
-* Add new entries only when they persist beyond a single scene.
-
-[Sticky Facts]
-
-* World truths.
-* Named entities.
-* Persistent locations.
-* Established relationships.
-* Major inventory or artifacts.
-* Lasting injuries, conditions, debts, promises, oaths, or affiliations.
-* Explicit quest state that should survive scene transitions.
-* Facts should be objective and verifiable.
-
-[Ongoing Threads]
-
-* Long-running mysteries.
-* Unresolved dangers.
-* Active investigations.
-* Campaign-scale obligations.
-* Goals expected to span multiple scenes.
-
-[Resolved Threads]
-
-* Recently completed storylines, quests, mysteries, obligations, or investigations.
-* Keep resolved entries for a short period to prevent accidental reintroduction.
-* Remove older resolved entries when space is needed.
-
-Additional Rules:
-
-* Do not store temporary emotions, dialogue, jokes, scene descriptions, combat narration, travel narration, or momentary tactics.
-* Do not store information that only matters within the current scene.
-* Prefer factual statements over interpretations.
-* Prefer objective state over dramatic summaries.
-* Preserve proper nouns whenever available.
-* If no durable memory exists, create an initial [Main Storyline] based on the campaign's current primary objective.
-* If the current [Main Storyline] is resolved, identify the next campaign-level objective and promote it to [Main Storyline].
-* If multiple objectives compete, choose the one most central to the campaign's forward progress.
-* The purpose of this memory is to prevent plot drift, forgotten commitments, forgotten characters, and forgotten objectives.
-""";
-    }
 
     public string BuildDurableMemoryUserPrompt(
         RoomConfig room,
@@ -307,97 +221,6 @@ Update the durable memory conservatively.
             room.SummarizerMaxCharacters >= 1800 ? room.SummarizerMaxCharacters : defaults.Item3,
             room.SummarizerBroaderTurns >= 1 ? room.SummarizerBroaderTurns : defaults.Item4,
             defaults.Item5, defaults.Item6);
-    }
-
-    private static string BuildDefaultSharedRoomMemorySystemPrompt(SceneSummarizerProfile profile)
-    {
-        return """
-You maintain hidden shared room memory for a multi-agent conversation.
-
-Your job is to preserve the active scene and enough context for the next few rounds without carrying unnecessary detail.
-
-Be concise.
-Do not roleplay.
-Do not imitate character voices.
-Do not narrate.
-Do not write prose paragraphs.
-
-Return exactly one tagged section and nothing else:
-
-<shared_room_memory>
-
-[Current Scene]
-* Purpose:
-* Progress:
-* Exit Conditions:
-[Current State]
-* bullet(s)
-[Immediate Threads]
-* bullet(s)
-[Long-Term Threads]
-* bullet(s)
-[Narrative Momentum]
-* Current Mode:
-* Desired Next Mode:
-* Desired Focus:
-[Recent Important Events]
-* bullet(s)
-</shared_room_memory>
-Rules:
-General:
-* Shared room memory should preserve only information likely to matter within the next few rounds.
-* Prefer scene continuity over campaign continuity.
-* Remove information that has become irrelevant to the active scene.
-* Keep entries concise, factual, and information-dense.
-[Current Scene]
-* Identify why the current scene exists.
-* Progress should describe how close the scene is to fulfilling its purpose.
-* Exit Conditions should describe what must occur before the scene naturally transitions.
-* When a scene's purpose has been fulfilled, reflect that clearly.
-* Do not create new scene purposes unless the transcripts establish one.
-[Current State]
-* Preserve location, participants, inventory, injuries, risks, ongoing actions, active NPCs, environmental conditions, and important constraints.
-* Preserve only details relevant to the next few rounds.
-[Actor Intent]
-* Keep one or two bullets per major actor when their goals are likely to influence upcoming actions.
-* Remove stale intentions once fulfilled or abandoned.
-* Prefer immediate goals over personality descriptions.
-[Immediate Threads]
-* Questions, decisions, obstacles, or opportunities likely to be addressed within the next few rounds.
-* Remove threads immediately once resolved.
-[Long-Term Threads]
-* References to active campaign objectives that still influence the current scene.
-* Keep brief.
-* Do not duplicate Durable Memory.
-[Narrative Momentum]
-* Current Mode should describe the current type of play:
-  * Dialogue
-  * Investigation
-  * Travel
-  * Encounter
-  * Planning
-  * Social
-  * Exploration
-  * Transition
-* Desired Next Mode should indicate the most natural next phase based on recent events.
-* Desired Focus should describe what the scene should naturally encourage next.
-* Do not force escalation.
-* Prefer resolution and transition when a scene's purpose has been achieved.
-[Recent Important Events]
-* Preserve only the few events most likely to affect immediate decisions.
-* Remove older events once their consequences have been absorbed into Current State.
-
-Additional Rules:
-* Do not store dialogue excerpts unless the exact wording matters.
-* Do not store temporary emotions or roleplay flavor.
-* Do not store repeated information already represented elsewhere.
-* Do not speculate about future events.
-* Do not invent hidden motives or story developments.
-* If an encounter, chase, negotiation, investigation, or obstacle has already served its purpose, reflect that progress rather than repeatedly restating the obstacle.
-* The purpose of this memory is to prevent scene drift, repetitive encounters, forgotten immediate context, and stalled progression.
-"""
-        + $"\n- {profile.CompressionInstruction}"
-        + $"\n- {profile.SectionBudgetInstruction}";
     }
 
     public static string ExtractTaggedContent(string value, string tagName)

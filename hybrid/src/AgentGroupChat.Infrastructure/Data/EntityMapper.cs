@@ -164,6 +164,7 @@ public static class EntityMapper
         SuspensionReason = e.SuspensionReason,
         SortOrder = e.SortOrder,
         IsHumanParticipant = e.IsHumanParticipant,
+        PromptSampleId = e.PromptSampleId,
     };
 
     public static AgentEntity ToEntity(AgentConfig d) => new()
@@ -181,6 +182,7 @@ public static class EntityMapper
         SuspensionReason = d.SuspensionReason,
         SortOrder = d.SortOrder,
         IsHumanParticipant = d.IsHumanParticipant,
+        PromptSampleId = d.PromptSampleId,
     };
 
     public static HumanParticipantConfig ToDomain(HumanParticipantEntity e) => new()
@@ -212,12 +214,13 @@ public static class EntityMapper
         Id = e.Id, Name = e.Name, Topic = e.Topic,
         WaitForUserReply = e.WaitForUserReply, PauseAfterEveryReply = e.PauseAfterEveryReply,
         AgentDelaySeconds = e.AgentDelaySeconds,
-        MaxTokens = e.MaxTokens, RecentTurnsWindow = e.RecentTurnsWindow,
+        //MaxTokens = e.MaxTokens, RecentTurnsWindow = e.RecentTurnsWindow,
         UserCompactionBudget = e.UserCompactionBudget, SummarizerModelId = e.SummarizerModelId,
         SummarizationLevel = e.SummarizationLevel, SummarizerMaxTokens = e.SummarizerMaxTokens,
         SummarizerMaxLines = e.SummarizerMaxLines, SummarizerMaxCharacters = e.SummarizerMaxCharacters,
         SummarizerBroaderTurns = e.SummarizerBroaderTurns,
         SummarizerPromptOverride = e.SummarizerPromptOverride,
+        
         TtsEnabledOverride = e.TtsEnabledOverride,
         TtsProviderOverride = e.TtsProviderOverride,
         TtsFallbackVoice = e.TtsFallbackVoice,
@@ -242,6 +245,9 @@ public static class EntityMapper
         SortOrder = e.SortOrder,
         Agents = e.Agents.Select(ToDomain).OrderBy(a => a.SortOrder).ToList(),
         HumanParticipants = e.HumanParticipants.Select(ToDomain).OrderBy(h => h.SortOrder).ToList(),
+        SharedRoomMemoryPromptSampleId = e.SharedRoomMemoryPromptSampleId,
+        DurableMemoryPromptSampleId = e.DurableMemoryPromptSampleId,
+        NpcPromptSampleId = e.NpcPromptSampleId
     };
 
     public static RoomEntity ToEntity(RoomConfig d) => new()
@@ -249,7 +255,7 @@ public static class EntityMapper
         Id = d.Id, Name = d.Name, Topic = d.Topic,
         WaitForUserReply = d.WaitForUserReply, PauseAfterEveryReply = d.PauseAfterEveryReply,
         AgentDelaySeconds = d.AgentDelaySeconds,
-        MaxTokens = d.MaxTokens, RecentTurnsWindow = d.RecentTurnsWindow,
+        //MaxTokens = d.MaxTokens, RecentTurnsWindow = d.RecentTurnsWindow,
         UserCompactionBudget = d.UserCompactionBudget, SummarizerModelId = d.SummarizerModelId,
         SummarizationLevel = d.SummarizationLevel, SummarizerMaxTokens = d.SummarizerMaxTokens,
         SummarizerMaxLines = d.SummarizerMaxLines, SummarizerMaxCharacters = d.SummarizerMaxCharacters,
@@ -279,6 +285,9 @@ public static class EntityMapper
         SortOrder = d.SortOrder,
         Agents = d.Agents.Select(ToEntity).ToList(),
         HumanParticipants = d.HumanParticipants.Select(ToEntity).ToList(),
+        SharedRoomMemoryPromptSampleId = d.SharedRoomMemoryPromptSampleId,
+        DurableMemoryPromptSampleId = d.DurableMemoryPromptSampleId,
+        NpcPromptSampleId = d.NpcPromptSampleId
     };
 
     public static TranscriptTurn ToDomain(TranscriptTurnEntity e) => new()

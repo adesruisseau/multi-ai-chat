@@ -13,7 +13,7 @@ public sealed class TurnExecutor
     Return a response with exactly two XML blocks:
 
     <reply>
-    (in-character DM narration only)
+    (in-character narration only)
     </reply>
 
     <future_note>

@@ -1,6 +1,7 @@
 using AgentGroupChat.Core.Models.Domain;
 using AgentGroupChat.Core.Models.Llm;
 using AgentGroupChat.Core.Services.Interfaces;
+using NAudio.MediaFoundation;
 using System.Text.RegularExpressions;
 using static AgentGroupChat.Core.ChatPlaceholders;
 using static AgentGroupChat.Core.XmlTags;
@@ -16,6 +17,7 @@ public sealed class ConversationRunner
     private readonly IMemoryRepository _memoryRepo;
     private readonly IRoomRepository _roomRepo;
     private readonly ISettingsRepository _settingsRepo;
+    private readonly IPromptSampleRepository _promptSampleRepository;
     private readonly SceneRetrievalService _sceneRetrievalService;
     private readonly SpeechService _speechService;
 
@@ -68,6 +70,7 @@ public sealed class ConversationRunner
         IMemoryRepository memoryRepo,
         IRoomRepository roomRepo,
         ISettingsRepository settingsRepo,
+        IPromptSampleRepository promptSampleRepository,
         SceneRetrievalService sceneRetrievalService,
         SpeechService speechService)
     {
@@ -78,6 +81,7 @@ public sealed class ConversationRunner
         _memoryRepo = memoryRepo;
         _roomRepo = roomRepo;
         _settingsRepo = settingsRepo;
+        _promptSampleRepository = promptSampleRepository;
         _sceneRetrievalService = sceneRetrievalService;
         _speechService = speechService;
     }
@@ -152,7 +156,7 @@ public sealed class ConversationRunner
 
             var pendingActions = new List<RequestedPrivilegedAction>();
             Task<(string Response, string FutureNote, LlmCompletionResult RawResult)>? prefetchTask = null;
-
+            Task? endOfRoundWork = null;
             for (var agentIndex = agentStart; agentIndex < enabledAgents.Count; agentIndex++)
             {
                 ct.ThrowIfCancellationRequested();
@@ -241,9 +245,25 @@ public sealed class ConversationRunner
                             prefetchTask = null;
                         }
                     }
+                    if (agentIndex == enabledAgents.Count - 1)
+                    {
+                        endOfRoundWork = RefreshRoundMemoryAsync(room, baseSummarizerSettings, completedRounds, sessionTurns, userMemoryRefreshed, iteration, roundNumber, roundAnchor, agent, ct);
+                    }
 
                     // Wait for speech to finish before showing the next agent's result
                     await speechTask;
+
+                    if (endOfRoundWork is not null)
+                    {
+                        OnStatusChanged?.Invoke("Updating memory...");
+                        await endOfRoundWork;
+
+                        if (pendingActions.Count > 0)
+                        {
+                            OnStatusChanged?.Invoke("Applying privileged actions...");
+                            await ApplyPrivilegedActionsAsync(room, agent, pendingActions, roundNumber);
+                        }
+                    }
                 }
 
                 // PauseAfterEveryReply: pause after each agent, let user interject
@@ -253,27 +273,8 @@ public sealed class ConversationRunner
                     OnStatusChanged?.Invoke("Waiting for you");
                     return;
                 }
-
-                if (agentIndex == enabledAgents.Count - 1)
-                {
-                    var roundTurns = sessionTurns.Skip(roundAnchor).ToList();
-                    var shouldPromoteDurable = (userMemoryRefreshed && iteration == 1)
-                        || string.IsNullOrWhiteSpace(
-                            await _memoryRepo.GetAsync(room.Id, null, MemoryKind.Durable))
-                        || (completedRounds + iteration) % 3 == 0;
-
-                    OnStatusChanged?.Invoke("Updating memory...");
-                    await _memorySummarizer.RefreshAsync(
-                        room, baseSummarizerSettings, roundTurns, sessionTurns,
-                        shouldPromoteDurable, s => OnLog?.Invoke(s), ct);
-
-                    if (pendingActions.Count > 0)
-                    {
-                        OnStatusChanged?.Invoke("Applying privileged actions...");
-                        await ApplyPrivilegedActionsAsync(room, agent, pendingActions, roundNumber);
-                    }
-                }
-                else if (room.AgentDelaySeconds > 0 && OnSpeechGate is null)
+                
+                else if (room.AgentDelaySeconds > 0 && OnSpeechGate is null && room.TtsEnabledOverride == false)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(room.AgentDelaySeconds), ct);
                 }
@@ -289,6 +290,20 @@ public sealed class ConversationRunner
 
         OnSystemMessage?.Invoke("Run complete.");
         OnStatusChanged?.Invoke("Complete");
+    }
+
+    private async Task RefreshRoundMemoryAsync(RoomConfig room, LlmRequestSettings baseSummarizerSettings, int completedRounds, List<TranscriptTurn> sessionTurns, bool userMemoryRefreshed, int iteration, int roundNumber, int roundAnchor, AgentConfig agent, CancellationToken ct)
+    {
+        var roundTurns = sessionTurns.Skip(roundAnchor).ToList();
+        var shouldPromoteDurable = (userMemoryRefreshed && iteration == 1)
+            || string.IsNullOrWhiteSpace(
+                await _memoryRepo.GetAsync(room.Id, null, MemoryKind.Durable))
+            || (completedRounds + iteration) % 3 == 0;
+
+        OnStatusChanged?.Invoke("Updating memory...");
+        await _memorySummarizer.RefreshAsync(
+            room, baseSummarizerSettings, roundTurns, sessionTurns,
+            shouldPromoteDurable, s => OnLog?.Invoke(s), ct);
     }
 
     private async Task<bool> TryRefreshMemoryFromPendingUserTurnsAsync(
@@ -351,12 +366,14 @@ public sealed class ConversationRunner
         var agentShortMemory = await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentShort);
         var recentTurns = SelectRecentTurns(sessionTurns, agentIndex, enabledAgents.Count, room.RecentTurnsWindow);
 
+        var promptTemplate = await _promptSampleRepository.GetAsync(agent.PromptSampleId);
+
         var agentRecalledScenes = roundRecalledScenes is { Count: > 0 }
             ? (includeDurableMemory ? roundRecalledScenes.Take(2).ToList() : roundRecalledScenes.Take(1).ToList())
             : null;
 
         var prompt = _promptComposer.BuildAgentPrompt(
-            room, agent, iteration, maxIterations,
+            room, agent, promptTemplate.PromptText, iteration, maxIterations,
             sharedRoomMemory, durableMemory, agentLongMemory, agentShortMemory,
             recentTurns, includeDurableMemory, agentRecalledScenes);
         var agentSettings = settingsResolver(agent);
@@ -834,6 +851,7 @@ public sealed class ConversationRunner
             IsNpc = true,
             SpawnedByAgentId = sourceAgent.Id,
             SortOrder = sortOrder,
+            PromptSampleId = room.NpcPromptSampleId
         };
     }
 

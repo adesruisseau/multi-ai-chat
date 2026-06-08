@@ -5,6 +5,7 @@
 @inject AgentGroupChat.Core.Services.ConversationRunner Runner
 @inject AgentGroupChat.Core.Services.Interfaces.IMemoryRepository MemoryRepo
 @inject AgentGroupChat.Core.Services.Interfaces.ITranscriptRepository TranscriptRepo
+@inject AgentGroupChat.Core.Services.Interfaces.ISceneArchiveRepository SceneArchiveRepo
 @inject AgentGroupChat.Core.Services.SpeechService Speech
 @inject AgentGroupChat.Core.Services.LogService LogService
 @inject AgentGroupChat.Core.Services.ImageClient ImageClient
@@ -27,7 +28,6 @@
         </MudSelect>
         <MudButton OnClick="LoadRoom" Variant="Variant.Outlined">Load</MudButton>
         <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearRoom" Disabled="ConvoState.IsRunning">Clear Room</MudButton>
-        <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearLogs" Disabled="ConvoState.IsRunning">Clear Logs</MudButton>
     </MudStack>
 </MudPaper>
 
@@ -37,8 +37,9 @@
 }
 else
 {
-    <div @ref="_chatDiv" style="max-height:600px; overflow-y:auto;">
-    <MudPaper Class="pa-4 mb-4" Elevation="1">
+    <div @ref="_chatDiv" style="overflow-y:auto;">
+    <MudPaper Class="pa-4 mb-4" Elevation="1" Style="height: 600px">
+        <MudText Typo="Typo.h5">Chat</MudText>
         @{ var isDark = AppState.Settings.UiTheme == "Dark"; }
         @{ var visibleMessages = ConvoState.Messages.Where(m => !m.IsSystem).ToList(); }
         @for (int i = 0; i < visibleMessages.Count; i++)
@@ -264,7 +265,7 @@ else
     }
 
     private async Task Run()
-   {
+    {
 
         if (RoomState.SelectedRoom is null) return;
         if (ConvoState.IsRunning) return;
@@ -283,7 +284,7 @@ else
                 Content = _userInput,
                 AccentHex = speaker.AccentHex,
                 BackgroundHex = speaker.BackgroundHex,
-                
+
             });
             var userTextToNarrate = _userInput;
             _userInput = string.Empty;
@@ -296,7 +297,7 @@ else
                     : RoomSpeechResolver.GetUserVoice(room, AppState.Settings);
                 await Speech.SpeakAsync(ttsSettings, userTextToNarrate, voice, CancellationToken.None);
             }
-            
+
 
         }
         else if (ConvoState.SessionTurns.Count == 0)
@@ -307,7 +308,7 @@ else
         // Clean up any stale thinking placeholders from a previous failed run
         ConvoState.RemoveThinkingPlaceholders();
 
-        
+
         ConvoState.SetStatus("Running");
         _cts = new CancellationTokenSource();
 
@@ -360,12 +361,9 @@ else
         if (RoomState.SelectedRoom is null) return;
         await TranscriptRepo.ClearAsync(RoomState.SelectedRoom.Id);
         await MemoryRepo.ClearAllForRoomAsync(RoomState.SelectedRoom.Id);
-        ConvoState.Clear();
-    }
-
-    private async Task ClearLogs()
-    {
+        await SceneArchiveRepo.DeleteAllForRoomAsync(RoomState.SelectedRoom.Id);
         await LogService.ClearAsync();
+        ConvoState.Clear();
     }
 
     private async Task OnKeyDown(KeyboardEventArgs e)
@@ -391,19 +389,13 @@ else
 
         var provider = LlmProviderMapping.FromTransport(connection.Transport);
 
-        var maxCompletionTokens = agent?.MaxTokensOverride
-            ?? (agent is null
-                ? (RoomState.SelectedRoom?.SummarizerMaxTokens >= 140
-                    ? RoomState.SelectedRoom.SummarizerMaxTokens
-                    : RoomState.SelectedRoom?.MaxTokens)
-                : RoomState.SelectedRoom?.MaxTokens)
-            ?? 300;
-
+        var maxCompletionTokens = (agent is null) ? catalogEntry.MaxTokens : RoomState.SelectedRoom!.SummarizerMaxTokens;
         return new LlmRequestSettings(
             provider,
             connection.Endpoint,
             catalogEntry.ModelId,
             connection.ApiKey,
+            catalogEntry.Temperature,
             maxCompletionTokens,
             connection.Transport,
             connection.Name);

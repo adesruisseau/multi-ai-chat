@@ -108,8 +108,13 @@ public sealed class DataMigrator
             await AddColumnIfMissingAsync(conn, "Agents", "SuspendedUntilRound", "INTEGER");
             await AddColumnIfMissingAsync(conn, "Agents", "SuspensionReason", "TEXT NOT NULL DEFAULT ''");
             await AddColumnIfMissingAsync(conn, "Agents", "IsHumanParticipant", "BOOLEAN DEFAULT FALSE");
-
+            await AddColumnIfMissingAsync(conn, "AiModels", "Temperature", "DECIMAL NOT NULL DEFAULT 0.7");
+            await AddColumnIfMissingAsync(conn, "AiModels", "MaxTokens", "INTEGER NOT NULL DEFAULT 512");
+            await AddColumnIfMissingAsync(conn, "Agents", "PromptSampleId", "INTEGER NOT NULL DEFAULT 1");
             await AddColumnIfMissingAsync(conn, "AppSettings", "KokoroUserVoice", "TEXT NOT NULL DEFAULT ''");
+            await AddColumnIfMissingAsync(conn, "Rooms", "SharedRoomMemoryPromptSampleId", "INTEGER NOT NULL DEFAULT 1");
+            await AddColumnIfMissingAsync(conn, "Rooms", "DurableMemoryPromptSampleId", "INTEGER NOT NULL DEFAULT 1");
+            await AddColumnIfMissingAsync(conn, "Rooms", "NpcPromptSampleId", "INTEGER NOT NULL DEFAULT 1");
 
             await CreateTableIfMissingAsync(conn, "ImageConnections", """
                 CREATE TABLE "ImageConnections" (
@@ -148,7 +153,7 @@ public sealed class DataMigrator
 
             await CreateTableIfMissingAsync(conn, "PromptSamples", """
                 CREATE TABLE "PromptSamples" (
-                    "Id" TEXT NOT NULL PRIMARY KEY,
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                     "Name" TEXT NOT NULL DEFAULT '',
                     "Category" TEXT NOT NULL DEFAULT '',
                     "Description" TEXT NOT NULL DEFAULT '',
@@ -213,6 +218,9 @@ public sealed class DataMigrator
             await conn.CloseAsync();
         }
     }
+
+    
+    
 
     private static async Task AddColumnIfMissingAsync(
         System.Data.Common.DbConnection conn, string table, string column, string definition)
