@@ -5,8 +5,8 @@ namespace AgentGroupChat.Core.Services.Interfaces;
 public interface IPromptSampleRepository
 {
     Task<IReadOnlyList<PromptSample>> GetAllAsync();
-    Task<PromptSample?> GetAsync(string id);
+    Task<PromptSample?> GetAsync(int id);
     Task SaveAsync(PromptSample sample);
-    Task DeleteAsync(string id);
+    Task DeleteAsync(int id);
     Task SeedBuiltInsIfEmptyAsync();
 }

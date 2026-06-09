@@ -18,6 +18,8 @@ public sealed class RoomConfig
     public int SummarizerMaxCharacters { get; set; } = 5600;
     public int SummarizerBroaderTurns { get; set; } = 6;
     public string SummarizerPromptOverride { get; set; } = string.Empty;
+    public int SharedRoomMemoryPromptSampleId { get; set; } = 1;
+    public int DurableMemoryPromptSampleId { get; set; } = 1;
     public bool? TtsEnabledOverride { get; set; }
     public string TtsProviderOverride { get; set; } = string.Empty;
     public string TtsFallbackVoice { get; set; } = string.Empty;
@@ -34,6 +36,7 @@ public sealed class RoomConfig
     public bool EnableNpcSpawning { get; set; }
     public string PrivilegedAgentId { get; set; } = string.Empty;
     public string NpcModelId { get; set; } = string.Empty;
+    public int NpcPromptSampleId { get; set; } = 1;
     public string NpcDefaultMaleVoice { get; set; } = string.Empty;
     public string NpcDefaultFemaleVoice { get; set; } = string.Empty;
     public int? NpcMaxTokens { get; set; }

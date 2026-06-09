@@ -26,6 +26,7 @@ public sealed record LlmRequestSettings(
     string Endpoint,
     string Model,
     string ApiKey,
+    decimal Temperature,
     int MaxCompletionTokens,
     string ProviderLabel,
     string ConnectionName,

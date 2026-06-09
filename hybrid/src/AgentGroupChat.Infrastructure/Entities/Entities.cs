@@ -49,6 +49,8 @@ public class AiModelEntity
     public string ConnectionId { get; set; } = string.Empty;
     public string ModelId { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
+    public decimal Temperature { get; set; } = 0.7m;
+    public int MaxTokens { get; set; } = 512;
     public int SortOrder { get; set; }
 }
 
@@ -86,7 +88,8 @@ public class ImageModelEntity
 public class PromptSampleEntity
 {
     [Key]
-    public string Id { get; set; } = string.Empty;
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
@@ -120,6 +123,8 @@ public class RoomEntity
     public int SummarizerMaxCharacters { get; set; } = 5600;
     public int SummarizerBroaderTurns { get; set; } = 6;
     public string SummarizerPromptOverride { get; set; } = string.Empty;
+    public int SharedRoomMemoryPromptSampleId { get; set; } = 1;
+    public int DurableMemoryPromptSampleId { get; set; } = 1;
     public bool? TtsEnabledOverride { get; set; }
     public string TtsProviderOverride { get; set; } = string.Empty;
     public string TtsFallbackVoice { get; set; } = string.Empty;
@@ -136,6 +141,7 @@ public class RoomEntity
     public bool EnableNpcSpawning { get; set; }
     public string PrivilegedAgentId { get; set; } = string.Empty;
     public string NpcModelId { get; set; } = string.Empty;
+    public int NpcPromptSampleId { get; set; } = 1;
     public string NpcDefaultMaleVoice { get; set; } = string.Empty;
     public string NpcDefaultFemaleVoice { get; set; } = string.Empty;
     public int? NpcMaxTokens { get; set; }
@@ -189,6 +195,7 @@ public class AgentEntity
     public string SuspensionReason { get; set; } = string.Empty;
     public int SortOrder { get; set; }
     public bool IsHumanParticipant { get; set; }
+    public int PromptSampleId { get; set; } = 1;
     public RoomEntity? Room { get; set; }
 }
 

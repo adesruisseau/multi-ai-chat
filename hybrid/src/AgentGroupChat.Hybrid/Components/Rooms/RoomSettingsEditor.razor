@@ -1,7 +1,9 @@
 @inject AppState AppState
 @inject AgentGroupChat.Core.Services.SpeechService Speech
+@inject PromptLibraryState PromptLibraryState
 @using AgentGroupChat.Core.Services
 @using static AgentGroupChat.Core.TtsProviders
+
 
 <MudText Typo="Typo.h4" Class="mt-4 mb-2">Basics</MudText>
 <MudItem Class="ml-4">
@@ -13,389 +15,451 @@
 </MudItem>
 <br />
 <br />
-<MudText Typo="Typo.h4" Class="mb-2">Turn Flow</MudText>
-<MudSwitch @bind-Value="Room.WaitForUserReply" Label="Wait for user reply" Color="Color.Primary" />
+<MudExpansionPanels>
+    <MudExpansionPanel>
+        <TitleContent>
+            <MudText Typo="Typo.h5">Turn Flow</MudText>
+        </TitleContent>
+        <ChildContent>
+            <MudSwitch @bind-Value="Room.WaitForUserReply" Label="Wait for user reply" Color="Color.Primary" />
 
-<MudItem Class="ml-4">
-    <MudText Typo="Typo.body1" Class="mb-2">
-        If enabled, the room will pause after each round of agent replies, waiting for the user to click "Continue" or send another message before proceeding.
-        If disabled, the room will still pause based on the amount of 'Rounds' configured in the Chat tab.
-    </MudText>
+            <MudItem Class="ml-4">
+                <MudText Typo="Typo.body1" Class="mb-2">
+                    If enabled, the room will pause after each round of agent replies, waiting for the user to click "Continue" or send another message before proceeding.
+                    If disabled, the room will still pause based on the amount of 'Rounds' configured in the Chat tab.
+                </MudText>
 
-    @if (Room.WaitForUserReply)
-    {
-        <MudItem Class="ml-4">
-        <MudRadioGroup @bind-Value="Room.PauseAfterEveryReply" Class="mb-2">
-            <MudRadio Value="false" Color="Color.Primary" T="bool">Pause at end of round</MudRadio>
-            <MudRadio Value="true" Color="Color.Primary" T="bool">Pause after every agent reply</MudRadio>
-        </MudRadioGroup>
-        </MudItem>
-    }
-    <br />
-    <MudGrid>
-        <MudItem xs="6">
-            <MudNumericField @bind-Value="Room.AgentDelaySeconds" Label="Seconds between agents" Min="1" />
-            <MudText Typo="Typo.body1">
-                This adds a delay between each agent's turn within a single round.<br />
-                Raise this number to prevent throttling or rate limit issues with your AI provider, 
-                especially if agents are using the same model. 
+                @if (Room.WaitForUserReply)
+                {
+                    <MudItem Class="ml-4">
+                    <MudRadioGroup @bind-Value="Room.PauseAfterEveryReply" Class="mb-2">
+                        <MudRadio Value="false" Color="Color.Primary" T="bool">Pause at end of round</MudRadio>
+                        <MudRadio Value="true" Color="Color.Primary" T="bool">Pause after every agent reply</MudRadio>
+                    </MudRadioGroup>
+                    </MudItem>
+                }
+                <br />
+                <MudGrid>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="Room.AgentDelaySeconds" Label="Seconds between agents" Min="1" />
+                        <MudText Typo="Typo.body1">
+                            This adds a delay between each agent's turn within a single round.<br />
+                            Raise this number to prevent throttling or rate limit issues with your AI provider, 
+                            especially if agents are using the same model. 
+                        </MudText>
+                    </MudItem>
+                    @*
+                    I am temporarily disabling this as we attempt to move to agent-specific max token settings
+                    Instead of allowing freeform "recent transcript turns, it seems easier to just set the recent transcripts sent equal to the number of players in the room"
+                    <MudItem xs="6"> 
+                        <MudNumericField @bind-Value="Room.MaxTokens" Label="Max tokens" Min="50" />
+                        <MudText Typo="Typo.body1">
+                            This is the maximum number of tokens that an agent's reply can contain before being cut off. <br />
+                            Set this according to the typical length of replies you want, and the limits of your AI provider.<br />
+                            Warning: may truncate replies if set too low.
+                        </MudText>
+                    </MudItem>
+                    <br />
+                    <MudItem xs="6"> 
+                        <MudNumericField @bind-Value="Room.RecentTurnsWindow" Label="Recent transcript turns" Min="1" />
+                        <MudText Typo="Typo.body1">
+                            How many agent/user replies are included as token context for each agent request.<br />
+                            Set this to the same number of agents in the room as a starting point.<br />
+                            This does not affect the summarizer agents transcript window.
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="Room.UserCompactionBudget" Label="User compaction budget" Min="200" />
+                        <MudText Typo="Typo.body1">
+                            How many tokens, agent requests will be compacted to when context is high.
+                        </MudText>
+                    </MudItem> *@
+                </MudGrid>
+            </MudItem>
+        </ChildContent>
+    </MudExpansionPanel>
+    <MudExpansionPanel>
+        <TitleContent>
+            <MudText Typo="Typo.h5">Summarizer</MudText>
+        </TitleContent>
+        <ChildContent>
+            <ul class="ml-4" style="list-style-type: none;">
+                <li>
+                    The summarizer is the agent that runs after the last agent replies in every round.
+                </li>
+                <li>
+                    The summarizer stores the conversation history and feeds it back to the agents as context.<br />
+                    It has a big impact on the quality of the conversation and how well agents can remember 
+                    and refer back to previous interactions.
+                </li>
+                <li>
+                    Longer running conversations with many agents may require a fine tuned custom summarizer.
+                </li>
+            </ul>
+            <br />
+            <MudItem Class="ml-4">
+            <MudSelect @bind-Value="Room.SummarizerModelId" Label="Summarizer Model" ShrinkLabel="true" Class="mb-2">
+                <MudSelectItem T="string" Value="@string.Empty">(Use global default)</MudSelectItem>
+                @foreach (var model in Models)
+                {
+                    <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect @bind-Value="Room.SummarizationLevel" Label="Compression Level" Class="mb-2">
+                <MudSelectItem T="string" Value="@("Aggressive")">Aggressive</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Semi-Aggressive")">Semi-Aggressive</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Moderate")">Moderate</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Semi-Relaxed")">Semi-Relaxed</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Relaxed")">Relaxed</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Custom")">Custom</MudSelectItem>
+            </MudSelect>
+            <MudText Typo="Typo.body1" Class="mb-2">
+                <ul class="ml-4" style="list-style-type: none;">
+                    <li>
+                        Aggressive summarization may lead to loss of important details.
+                    </li>
+                    <li> 
+                        Relaxed summarization may cause context overflow and increased token usage.
+                    </li>
+                </ul>
             </MudText>
-        </MudItem>
-        <MudItem xs="6">
-            <MudNumericField @bind-Value="Room.MaxTokens" Label="Max tokens" Min="50" />
-            <MudText Typo="Typo.body1">
-                This is the maximum number of tokens that an agent's reply can contain before being cut off. <br />
-                Set this according to the typical length of replies you want, and the limits of your AI provider.<br />
-                Warning: may truncate replies if set too low.
-            </MudText>
-        </MudItem>
-        <br />
-        <MudItem xs="6">
-            <MudNumericField @bind-Value="Room.RecentTurnsWindow" Label="Recent transcript turns" Min="1" />
-            <MudText Typo="Typo.body1">
-                How many agent/user replies are included as token context for each agent request.<br />
-                Set this to the same number of agents in the room as a starting point.<br />
-                This does not affect the summarizer agents transcript window.
-            </MudText>
-        </MudItem>
-        <MudItem xs="6">
-            <MudNumericField @bind-Value="Room.UserCompactionBudget" Label="User compaction budget" Min="200" />
-            <MudText Typo="Typo.body1">
-                How many tokens, agent requests will be compacted to when context is high.
-            </MudText>
-        </MudItem>
-    </MudGrid>
-</MudItem>
+            @if (Room.SummarizationLevel == "Custom")
+            {
+                <MudGrid>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="Room.SummarizerMaxTokens" Label="Summarizer max tokens" Min="140" />
+                        <MudText Typo="Typo.body1" Class="ml-4">
+                                The maximum number of tokens that an agent's summary can contain before being cut off. <br />
+                            Set this according to the typical length of replies you want, and the limits of your AI provider.
+                            Warning: may truncate replies if set too low.
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="Room.SummarizerMaxLines" Label="Summarizer max lines" Min="12" />
+                        <MudText Typo="Typo.body1" Class="ml-4">
+                            The maximum number of lines that an agent's summary can generate. <br />
+                            Additional guardrail to prevent runaway token usage, since summaries can get very verbose.
+                            Warning: may truncate replies if set too low.
+                        </MudText>
+                    </MudItem>
 
-<br />
-<br />
-
-<MudText Typo="Typo.h4" Class="mb-2">Summarizer</MudText>
-<MudText Typo="Typo.body1" Class="mb-8">
-    <ul class="ml-4" style="list-style-type: none;">
-        <li>
-            The summarizer is the agent that runs after the last agent replies in every round.
-        </li>
-        <li>
-            The summarizer stores the conversation history and feeds it back to the agents as context.<br />
-            It has a big impact on the quality of the conversation and how well agents can remember 
-            and refer back to previous interactions.
-        </li>
-        <li>
-            Longer running conversations with many agents may require a fine tuned custom summarizer.
-        </li>
-    </ul>
-</MudText>
-<br />
-<MudItem Class="ml-4">
-<MudSelect @bind-Value="Room.SummarizerModelId" Label="Summarizer Model" ShrinkLabel="true" Class="mb-2">
-    <MudSelectItem T="string" Value="@string.Empty">(Use global default)</MudSelectItem>
-    @foreach (var model in Models)
-    {
-        <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
-    }
-</MudSelect>
-<MudSelect @bind-Value="Room.SummarizationLevel" Label="Compression Level" Class="mb-2">
-    <MudSelectItem T="string" Value="@("Aggressive")">Aggressive</MudSelectItem>
-    <MudSelectItem T="string" Value="@("Semi-Aggressive")">Semi-Aggressive</MudSelectItem>
-    <MudSelectItem T="string" Value="@("Moderate")">Moderate</MudSelectItem>
-    <MudSelectItem T="string" Value="@("Semi-Relaxed")">Semi-Relaxed</MudSelectItem>
-    <MudSelectItem T="string" Value="@("Relaxed")">Relaxed</MudSelectItem>
-    <MudSelectItem T="string" Value="@("Custom")">Custom</MudSelectItem>
-</MudSelect>
-<MudText Typo="Typo.body1" Class="mb-2">
-    <ul class="ml-4" style="list-style-type: none;">
-        <li>
-            Aggressive summarization may lead to loss of important details.
-        </li>
-        <li> 
-            Relaxed summarization may cause context overflow and increased token usage.
-        </li>
-    </ul>
-</MudText>
-@if (Room.SummarizationLevel == "Custom")
-{
-    <MudGrid>
-        <MudItem xs="6">
-            <MudNumericField @bind-Value="Room.SummarizerMaxTokens" Label="Summarizer max tokens" Min="140" />
-            <MudText Typo="Typo.body1" Class="ml-4">
-                    The maximum number of tokens that an agent's summary can contain before being cut off. <br />
-                Set this according to the typical length of replies you want, and the limits of your AI provider.
-                Warning: may truncate replies if set too low.
-            </MudText>
-        </MudItem>
-        <MudItem xs="6">
-            <MudNumericField @bind-Value="Room.SummarizerMaxLines" Label="Summarizer max lines" Min="12" />
-            <MudText Typo="Typo.body1" Class="ml-4">
-                The maximum number of lines that an agent's summary can generate. <br />
-                Additional guardrail to prevent runaway token usage, since summaries can get very verbose.
-                Warning: may truncate replies if set too low.
-            </MudText>
-        </MudItem>
-
-        <br />
-        <MudItem xs="6">
-            <MudNumericField @bind-Value="Room.SummarizerMaxCharacters" Label="Summarizer max characters" Min="1800" />
-            <MudText Typo="Typo.body1" Class="ml-4">
-                    The maximum number of characters that an agent's summary can contain before being cut off. <br />
-                Additional guardrail to prevent runaway token usage, since summaries can get very verbose.
-                Warning: may truncate replies if set too low.
-            </MudText>
-        </MudItem>
+                    <br />
+                    <MudItem xs="6">
+                        <MudNumericField @bind-Value="Room.SummarizerMaxCharacters" Label="Summarizer max characters" Min="1800" />
+                        <MudText Typo="Typo.body1" Class="ml-4">
+                                The maximum number of characters that an agent's summary can contain before being cut off. <br />
+                            Additional guardrail to prevent runaway token usage, since summaries can get very verbose.
+                            Warning: may truncate replies if set too low.
+                        </MudText>
+                    </MudItem>
         
-        <MudItem xs="6">
-            <MudNumericField @bind-Value="Room.SummarizerBroaderTurns" Label="Broader transcript turns" Min="1" />
-            <MudText Typo="Typo.body1" Class="ml-4">
-                    How many agent/user messages are included as token context for each agent to summarize.<br />
-                Set as 2 to 3 times the number of agents in the room as a starting point.
+                    @* <MudItem xs="6">
+                        <MudNumericField @bind-Value="Room.SummarizerBroaderTurns" Label="Broader transcript turns" Min="1" />
+                        <MudText Typo="Typo.body1" Class="ml-4">
+                                How many agent/user messages are included as token context for each agent to summarize.<br />
+                            Set as 2 to 3 times the number of agents in the room as a starting point.
+                        </MudText>
+                    </MudItem> *@
+
+                </MudGrid>
+                <br />
+                    <MudItem xs="12">
+                        <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">Prompt Library</MudText>
+                            @if (OrderedPromptSamples.Count == 0)
+                            {
+                                <MudAlert Severity="Severity.Info" Dense="true">
+                                    No prompt samples are available yet.
+                                </MudAlert>
+                            }
+                            else
+                            {
+                                <MudGrid>
+                                    <MudItem xs="6">
+                                        <MudSelect T="int" @bind-Value="Room.SharedRoomMemoryPromptSampleId" Label="Shared Room Memory Prompt">
+
+                                            @foreach (var sample in OrderedPromptSamples)
+                                            {
+                                                <MudSelectItem T="int" Value="@sample.Id">
+                                                    @sample.Name
+                                                </MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="6">
+                                        <MudSelect T="int" @bind-Value="Room.DurableMemoryPromptSampleId" Label="Durable Memory Prompt">
+
+                                            @foreach (var sample in OrderedPromptSamples)
+                                            {
+                                                <MudSelectItem T="int" Value="@sample.Id">
+                                                    @sample.Name
+                                                </MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                </MudGrid>
+                            }
+                        </MudPaper>
+                    </MudItem>
+            }
+            </MudItem>
+        </ChildContent>
+    </MudExpansionPanel>
+    <MudExpansionPanel>
+        <TitleContent>
+            <MudText Typo="Typo.h5">Speech</MudText>
+        </TitleContent>
+        <ChildContent>
+            <MudItem Class="ml-4">
+                <MudText Typo="Typo.body1" Class="mb-2">
+                    Keep speech behavior with the room instead of the Chat page. Rate and live pause or resume still stay in Chat, but the room now controls whether speech is on, which provider it uses, the room-wide fallback voice, and your own voice.
+                </MudText>
+                <MudSwitch Value="@GetResolvedSpeechEnabled()" Label="Enable speech in this room" Color="Color.Primary" T="bool" ValueChanged="OnSpeechEnabledChanged" />
+                @if (Room.TtsEnabledOverride.HasValue && Room.TtsEnabledOverride == true)
+                {
+                    <MudGrid>
+                        <MudItem xs="12" md="6">
+                            <MudSelect Value="@Room.TtsProviderOverride" Label="Speech provider" ShrinkLabel="true" T="string" ValueChanged="OnSpeechProviderChanged">
+                                <MudSelectItem T="string" Value="@string.Empty">(Use app default: @AppState.Settings.TtsProvider)</MudSelectItem>
+                                <MudSelectItem T="string" Value="@(Local)">Local</MudSelectItem>
+                                <MudSelectItem T="string" Value="@(Piper)">Piper</MudSelectItem>
+                                <MudSelectItem T="string" Value="@(Kokoro)">Kokoro</MudSelectItem>
+                            </MudSelect>
+                            <MudText Typo="Typo.body1">
+                                Technical provider config such as Kokoro's base URL or Piper's executable path still uses the app-level settings store. This room decides which provider to use and which voices it should prefer.
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
+                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="TestSpeechProviderAsync" Disabled="_testingSpeech">
+                                    @(_testingSpeech ? "Testing..." : "Test Provider")
+                                </MudButton>
+                                @if (UsesKokoro())
+                                {
+                                    <MudButton Variant="Variant.Outlined" OnClick="RefreshVoicesAsync" Disabled="_testingSpeech">Refresh Voices</MudButton>
+                                }
+                                @if (_canStartKokoroService)
+                                {
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="StartKokoroService">Start Service</MudButton>
+                                }
+                            </MudStack>
+                            @if (!string.IsNullOrWhiteSpace(_speechTestResult))
+                            {
+                                <MudText Typo="Typo.caption" Color="@(_speechTestOk ? Color.Success : Color.Error)">@_speechTestResult</MudText>
+                            }
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            @if (UsesKokoro() && _kokoroVoices.Count > 0)
+                            {
+                                <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
+                                    <MudSelect @bind-Value="Room.TtsFallbackVoice" Label="Room fallback voice" ShrinkLabel="true" T="string" Style="flex:1;">
+                                        <MudSelectItem T="string" Value="@string.Empty">(Use app default)</MudSelectItem>
+                                        @foreach (var voice in _kokoroVoices)
+                                        {
+                                            <MudSelectItem T="string" Value="@voice">@voice</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestFallbackVoiceAsync" Disabled="_previewingFallbackVoice || _testingSpeech">
+                                        @(_previewingFallbackVoice ? "Playing..." : "Test")
+                                    </MudButton>
+                                </MudStack>
+                            }
+                            else
+                            {
+                                <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
+                                    <MudTextField @bind-Value="Room.TtsFallbackVoice" Label="Room fallback voice" Style="flex:1;" />
+                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestFallbackVoiceAsync" Disabled="_previewingFallbackVoice || _testingSpeech">
+                                        @(_previewingFallbackVoice ? "Playing..." : "Test")
+                                    </MudButton>
+                                </MudStack>
+                            }
+                            <MudText Typo="Typo.body1">
+                                This is the default voice the room falls back to when an agent does not have its own voice override.
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            @if (UsesKokoro() && _kokoroVoices.Count > 0)
+                            {
+                                <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
+                                    <MudSelect @bind-Value="Room.TtsUserVoice" Label="Your voice" ShrinkLabel="true" T="string" Style="flex:1;">
+                                        <MudSelectItem T="string" Value="@string.Empty">(Use room fallback)</MudSelectItem>
+                                        @foreach (var voice in _kokoroVoices)
+                                        {
+                                            <MudSelectItem T="string" Value="@voice">@voice</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestUserVoiceAsync" Disabled="_previewingUserVoice || _testingSpeech">
+                                        @(_previewingUserVoice ? "Playing..." : "Test")
+                                    </MudButton>
+                                </MudStack>
+                            }
+                            else
+                            {
+                                <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
+                                    <MudTextField @bind-Value="Room.TtsUserVoice" Label="Your voice" Style="flex:1;" />
+                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestUserVoiceAsync" Disabled="_previewingUserVoice || _testingSpeech">
+                                        @(_previewingUserVoice ? "Playing..." : "Test")
+                                    </MudButton>
+                                </MudStack>
+                            }
+                            <MudText Typo="Typo.body1">
+                                If this is blank, your messages use the room fallback voice instead.
+                            </MudText>
+                        </MudItem>
+                    </MudGrid>
+                }
+            </MudItem>
+        </ChildContent>
+    </MudExpansionPanel>
+    <MudExpansionPanel>
+        <TitleContent>
+            <MudText Typo="Typo.h5">Scene Images</MudText>
+        </TitleContent>
+        <ChildContent>
+            <MudItem Class="ml-4">
+            <MudSwitch @bind-Value="Room.EnableSceneImageGeneration" Label="Enable Scene Image Generation" Color="Color.Primary" />
+            <MudText Typo="Typo.body1" Class="mb-2 ml-8">
+                You must have ComfyUI or another image generation service set up.
+                When enabled, the app can use room and agent context to support manual scene image generation workflows.<br />
+                Configure providers and run test generations from AI Models > Image, then choose the default image model for this room here.
             </MudText>
-        </MudItem>
-
-    </MudGrid>
-    <br />
-    <MudTextField @bind-Value="Room.SummarizerPromptOverride" Label="Custom summarizer prompt" Lines="12" />
-}
-</MudItem>
-
-
-<br />
-<br />
-
-<MudText Typo="Typo.h4" Class="mb-2">Speech</MudText>
-<MudItem Class="ml-4">
-<MudText Typo="Typo.body1" Class="mb-2">
-    Keep speech behavior with the room instead of the Chat page. Rate and live pause or resume still stay in Chat, but the room now controls whether speech is on, which provider it uses, the room-wide fallback voice, and your own voice.
-</MudText>
-<MudSwitch Value="@GetResolvedSpeechEnabled()" Label="Enable speech in this room" Color="Color.Primary" T="bool" ValueChanged="OnSpeechEnabledChanged" />
-<MudGrid>
-    <MudItem xs="12" md="6">
-        <MudSelect Value="@Room.TtsProviderOverride" Label="Speech provider" ShrinkLabel="true" T="string" ValueChanged="OnSpeechProviderChanged">
-            <MudSelectItem T="string" Value="@string.Empty">(Use app default: @AppState.Settings.TtsProvider)</MudSelectItem>
-            <MudSelectItem T="string" Value="@(Local)">Local</MudSelectItem>
-            <MudSelectItem T="string" Value="@(Piper)">Piper</MudSelectItem>
-            <MudSelectItem T="string" Value="@(Kokoro)">Kokoro</MudSelectItem>
-        </MudSelect>
-        <MudText Typo="Typo.body1">
-            Technical provider config such as Kokoro's base URL or Piper's executable path still uses the app-level settings store. This room decides which provider to use and which voices it should prefer.
-        </MudText>
-    </MudItem>
-    <MudItem xs="12" md="6">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="TestSpeechProviderAsync" Disabled="_testingSpeech">
-                @(_testingSpeech ? "Testing..." : "Test Provider")
-            </MudButton>
-            @if (UsesKokoro())
+            @if (Room.EnableSceneImageGeneration)
             {
-                <MudButton Variant="Variant.Outlined" OnClick="RefreshVoicesAsync" Disabled="_testingSpeech">Refresh Voices</MudButton>
+                @if (ImageModels.Count > 0)
+                {
+                    <MudSelect @bind-Value="Room.SceneImageModelId" Label="Default image model" ShrinkLabel="true" Class="mb-2">
+                        <MudSelectItem T="string" Value="@string.Empty">(No room override)</MudSelectItem>
+                        @foreach (var imageModel in ImageModels)
+                        {
+                            <MudSelectItem T="string" Value="@imageModel.Id">@imageModel.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                        No image models are configured yet. Add them under AI Models > Image to enable provider tests and room defaults.
+                    </MudAlert>
+                }
+                <MudSwitch @bind-Value="Room.UseCreativeImageGeneration"
+                       Label="Use for creative image generation"
+                       Color="Color.Primary"
+                       Disabled="@(!Room.EnableSceneImageGeneration)" />
+                <MudText Typo="Typo.body1" Class="mb-2  ml-8">
+                    Turning this on displays appearance text boxes for each agent, which is mainly used for creative, role-playing, and scene-image workflows.
+                </MudText>
+                <MudTextField @bind-Value="Room.SceneImageStyleNotes" Label="Style notes" Lines="4" Class="mb-2" />
+                <MudText Typo="Typo.body1" Class="mb-2  ml-8">
+                     How you want the image generation agent to render scene images, 
+                     such as art style, color palette, or composition notes.
+                </MudText>
+                <MudTextField @bind-Value="Room.SceneImageNegativePrompt" Label="Negative prompt / exclusions" Lines="4" />
+                <MudText Typo="Typo.body1" Class="mb-2  ml-8">
+                    Specific things you want the image generation agent to avoid when rendering scene images, 
+                    such as "blurry", "low quality", or specific elements or colors.
+                </MudText>
             }
-            @if (_canStartKokoroService)
+            </MudItem>
+
+        </ChildContent>
+    </MudExpansionPanel>
+    <MudExpansionPanel>
+        <TitleContent>
+            <MudText Typo="Typo.h5">Privileged Actions</MudText>
+        </TitleContent>
+        <ChildContent>
+            <MudItem Class="ml-4">
+            <MudText Typo="Typo.body1" Class="mb-2">
+                Enabling privileged actions allows one agent in the room to perform special functions.<br />
+                This feature is especially useful for scenarios where you want a specific agent to have enhanced capabilities, 
+                such as spawning temporary agents to participate in the chat, as well as suspending long-term agents.<br />
+                The privileged agent should be the last enabled permanent agent in turn order for best results.
+                </MudText>
+            <MudSwitch @bind-Value="Room.EnablePrivilegedActions" Label="Enable Privileged Actions" Color="Color.Primary" />
+            @if (Room.EnablePrivilegedActions)
             {
-                <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="StartKokoroService">Start Service</MudButton>
-            }
-        </MudStack>
-        @if (!string.IsNullOrWhiteSpace(_speechTestResult))
-        {
-            <MudText Typo="Typo.caption" Color="@(_speechTestOk ? Color.Success : Color.Error)">@_speechTestResult</MudText>
-        }
-    </MudItem>
-    <MudItem xs="12" md="6">
-        @if (UsesKokoro() && _kokoroVoices.Count > 0)
-        {
-            <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
-                <MudSelect @bind-Value="Room.TtsFallbackVoice" Label="Room fallback voice" ShrinkLabel="true" T="string" Style="flex:1;">
-                    <MudSelectItem T="string" Value="@string.Empty">(Use app default)</MudSelectItem>
-                    @foreach (var voice in _kokoroVoices)
+                <MudSelect @bind-Value="Room.PrivilegedAgentId" Label="Privileged Agent" ShrinkLabel="true" Class="mb-2 ml-8 mr-8" T="string">
+                    <MudSelectItem T="string" Value="@string.Empty">(Select agent)</MudSelectItem>
+                    @foreach (var privilegedAgent in GetPermanentAgents(Room))
                     {
-                        <MudSelectItem T="string" Value="@voice">@voice</MudSelectItem>
+                        <MudSelectItem T="string" Value="@privilegedAgent.Id">@privilegedAgent.Name</MudSelectItem>
                     }
                 </MudSelect>
-                <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestFallbackVoiceAsync" Disabled="_previewingFallbackVoice || _testingSpeech">
-                    @(_previewingFallbackVoice ? "Playing..." : "Test")
-                </MudButton>
-            </MudStack>
-        }
-        else
-        {
-            <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
-                <MudTextField @bind-Value="Room.TtsFallbackVoice" Label="Room fallback voice" Style="flex:1;" />
-                <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestFallbackVoiceAsync" Disabled="_previewingFallbackVoice || _testingSpeech">
-                    @(_previewingFallbackVoice ? "Playing..." : "Test")
-                </MudButton>
-            </MudStack>
-        }
-        <MudText Typo="Typo.body1">
-            This is the default voice the room falls back to when an agent does not have its own voice override.
-        </MudText>
-    </MudItem>
-    <MudItem xs="12" md="6">
-        @if (UsesKokoro() && _kokoroVoices.Count > 0)
-        {
-            <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
-                <MudSelect @bind-Value="Room.TtsUserVoice" Label="Your voice" ShrinkLabel="true" T="string" Style="flex:1;">
-                    <MudSelectItem T="string" Value="@string.Empty">(Use room fallback)</MudSelectItem>
-                    @foreach (var voice in _kokoroVoices)
-                    {
-                        <MudSelectItem T="string" Value="@voice">@voice</MudSelectItem>
-                    }
-                </MudSelect>
-                <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestUserVoiceAsync" Disabled="_previewingUserVoice || _testingSpeech">
-                    @(_previewingUserVoice ? "Playing..." : "Test")
-                </MudButton>
-            </MudStack>
-        }
-        else
-        {
-            <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
-                <MudTextField @bind-Value="Room.TtsUserVoice" Label="Your voice" Style="flex:1;" />
-                <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestUserVoiceAsync" Disabled="_previewingUserVoice || _testingSpeech">
-                    @(_previewingUserVoice ? "Playing..." : "Test")
-                </MudButton>
-            </MudStack>
-        }
-        <MudText Typo="Typo.body1">
-            If this is blank, your messages use the room fallback voice instead.
-        </MudText>
-    </MudItem>
-</MudGrid>
-</MudItem>
 
-
-<br />
-<br />
-
-
-<MudText Typo="Typo.h4" Class="mb-2">Scene Images</MudText>
-<MudItem Class="ml-4">
-<MudSwitch @bind-Value="Room.EnableSceneImageGeneration" Label="Enable Scene Image Generation" Color="Color.Primary" />
-<MudText Typo="Typo.body1" Class="mb-2 ml-8">
-    You must have ComfyUI or another image generation service set up.
-    When enabled, the app can use room and agent context to support manual scene image generation workflows.<br />
-    Configure providers and run test generations from AI Models > Image, then choose the default image model for this room here.
-</MudText>
-@if (Room.EnableSceneImageGeneration)
-{
-    @if (ImageModels.Count > 0)
-    {
-        <MudSelect @bind-Value="Room.SceneImageModelId" Label="Default image model" ShrinkLabel="true" Class="mb-2">
-            <MudSelectItem T="string" Value="@string.Empty">(No room override)</MudSelectItem>
-            @foreach (var imageModel in ImageModels)
-            {
-                <MudSelectItem T="string" Value="@imageModel.Id">@imageModel.Name</MudSelectItem>
-            }
-        </MudSelect>
-    }
-    else
-    {
-        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
-            No image models are configured yet. Add them under AI Models > Image to enable provider tests and room defaults.
-        </MudAlert>
-    }
-    <MudSwitch @bind-Value="Room.UseCreativeImageGeneration"
-           Label="Use for creative image generation"
-           Color="Color.Primary"
-           Disabled="@(!Room.EnableSceneImageGeneration)" />
-    <MudText Typo="Typo.body1" Class="mb-2  ml-8">
-        Turning this on displays appearance text boxes for each agent, which is mainly used for creative, role-playing, and scene-image workflows.
-    </MudText>
-    <MudTextField @bind-Value="Room.SceneImageStyleNotes" Label="Style notes" Lines="4" Class="mb-2" />
-    <MudText Typo="Typo.body1" Class="mb-2  ml-8">
-         How you want the image generation agent to render scene images, 
-         such as art style, color palette, or composition notes.
-    </MudText>
-    <MudTextField @bind-Value="Room.SceneImageNegativePrompt" Label="Negative prompt / exclusions" Lines="4" />
-    <MudText Typo="Typo.body1" Class="mb-2  ml-8">
-        Specific things you want the image generation agent to avoid when rendering scene images, 
-        such as "blurry", "low quality", or specific elements or colors.
-    </MudText>
-}
-</MudItem>
-
-
-<br />
-<br />
-
-
-<MudText Typo="Typo.h4" Class="mb-2">Privileged Actions</MudText>
-<MudItem Class="ml-4">
-<MudText Typo="Typo.body1" Class="mb-2">
-    Enabling privileged actions allows one agent in the room to perform special functions.<br />
-    This feature is especially useful for scenarios where you want a specific agent to have enhanced capabilities, 
-    such as spawning temporary agents to participate in the chat, as well as suspending long-term agents.<br />
-    The privileged agent should be the last enabled permanent agent in turn order for best results.
-    </MudText>
-<MudSwitch @bind-Value="Room.EnablePrivilegedActions" Label="Enable Privileged Actions" Color="Color.Primary" />
-@if (Room.EnablePrivilegedActions)
-{
-    <MudSelect @bind-Value="Room.PrivilegedAgentId" Label="Privileged Agent" ShrinkLabel="true" Class="mb-2 ml-8 mr-8" T="string">
-        <MudSelectItem T="string" Value="@string.Empty">(Select agent)</MudSelectItem>
-        @foreach (var privilegedAgent in GetPermanentAgents(Room))
-        {
-            <MudSelectItem T="string" Value="@privilegedAgent.Id">@privilegedAgent.Name</MudSelectItem>
-        }
-    </MudSelect>
-
-    @if (!IsPrivilegedAgentLast(Room))
-    {
-        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
-            For this MVP, the privileged agent should be the last enabled permanent agent in turn order.
-        </MudAlert>
-    }
+                @if (!IsPrivilegedAgentLast(Room))
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+                        For this MVP, the privileged agent should be the last enabled permanent agent in turn order.
+                    </MudAlert>
+                }
     
-    <MudSwitch @bind-Value="Room.EnableNpcSpawning" Label="Generate Temporary Agents" Color="Color.Primary" />
-    <MudItem Class="ml-8">
-    @if (Room.EnableNpcSpawning)
-    {
-        <MudGrid Class="mt-2">
-            <MudItem xs="6">
-                <MudSelect @bind-Value="Room.NpcModelId" Label="NPC Model" ShrinkLabel="true" T="string">
-                    <MudSelectItem T="string" Value="@string.Empty">(Use privileged agent model)</MudSelectItem>
-                    @foreach (var model in Models)
-                    {
-                        <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
-                    }
-                </MudSelect>
-                <MudText Typo="Typo.body1">
-                    The AI model that will be used for any temporary agents spawned in this room. 
-                    If not set, will use the same model as the privileged agent.
-                </MudText>
-            </MudItem>
-            <MudItem xs="6">
-                <MudNumericField @bind-Value="Room.MaxConcurrentNpcs" Label="Max concurrent NPCs" Min="1" Max="4" />
-                <MudText Typo="Typo.body1">Active NPCs: @GetActiveNpcCount(Room) / @Math.Max(1, Room.MaxConcurrentNpcs)</MudText>
+                <MudSwitch @bind-Value="Room.EnableNpcSpawning" Label="Generate Temporary Agents" Color="Color.Primary" />
+                <MudItem Class="ml-8">
+                @if (Room.EnableNpcSpawning)
+                {
+                    <MudGrid Class="mt-2">
+                        <MudItem xs="6">
+                            <MudSelect @bind-Value="Room.NpcModelId" Label="NPC Model" ShrinkLabel="true" T="string">
+                                <MudSelectItem T="string" Value="@string.Empty">(Use privileged agent model)</MudSelectItem>
+                                @foreach (var model in Models)
+                                {
+                                    <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudText Typo="Typo.body1">
+                                The AI model that will be used for any temporary agents spawned in this room. 
+                                If not set, will use the same model as the privileged agent.
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudNumericField @bind-Value="Room.MaxConcurrentNpcs" Label="Max concurrent NPCs" Min="1" Max="4" />
+                            <MudText Typo="Typo.body1">Active NPCs: @GetActiveNpcCount(Room) / @Math.Max(1, Room.MaxConcurrentNpcs)</MudText>
                 
-            </MudItem>
-            <MudItem xs="6">
-                <MudNumericField @bind-Value="Room.NpcMaxTokens" Label="NPC max tokens" Min="50" />
-                <MudText Typo="Typo.body1">
-                    The maximum number of tokens that an NPC agent's reply can contain before being cut off. 
-                    Set this according to the typical length of replies you want, and the limits of your AI provider.
-                    Warning: may truncate replies if set too low.
-                </MudText>
-            </MudItem>
-            <MudItem xs="6">
-                <MudNumericField @bind-Value="Room.NpcCompactionBudget" Label="NPC compaction budget" Min="80" />
-                <MudText Typo="Typo.body1">
-                    How many tokens an agent requests will be compacted to when context & memory is high.
-                </MudText>
-            </MudItem>
-            <MudItem xs="12">
-                <MudTextField @bind-Value="Room.NpcBaseInstructions" Label="Post-description agent instructions" Lines="6" />
-                <MudText Typo="Typo.body1">
-                    Instructions that are included in every agent request after the agent description. 
-                    This is a good place to put instructions for spawned NPC agents, such as how they should introduce themselves, or guidelines for how they should interact with other agents and the user.
-                 </MudText>
-            </MudItem>
-            <MudItem xs="12">
-                <MudText Typo="Typo.body1">
-                    Spawned NPC voices are assigned automatically. When Kokoro speech is active, male and female temporary agents will pick a gender-matched voice automatically; otherwise they fall back to the current default voice.
-                </MudText>
-            </MudItem>
-        </MudGrid>
-    }
-    </MudItem>
-}
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudNumericField @bind-Value="Room.NpcMaxTokens" Label="NPC max tokens" Min="50" />
+                            <MudText Typo="Typo.body1">
+                                The maximum number of tokens that an NPC agent's reply can contain before being cut off. 
+                                Set this according to the typical length of replies you want, and the limits of your AI provider.
+                                Warning: may truncate replies if set too low.
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudNumericField @bind-Value="Room.NpcCompactionBudget" Label="NPC compaction budget" Min="80" />
+                            <MudText Typo="Typo.body1">
+                                How many tokens an agent requests will be compacted to when context & memory is high.
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="Room.NpcBaseInstructions" Label="NPC agent instructions" Lines="6" />
+                            <MudText Typo="Typo.body1">
+                                Additional instructional text to send the NPC in addition to the selected template, if defined.
+                             </MudText>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudSelect T="int" @bind-Value="Room.NpcPromptSampleId" Label="NPC Prompt Template">
+                                @foreach (var sample in OrderedPromptSamples)
+                                {
+                                    <MudSelectItem T="int" Value="@sample.Id">
+                                        @sample.Name
+                                    </MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.body1">
+                                Spawned NPC voices are assigned automatically. When Kokoro speech is active, male and female temporary agents will pick a gender-matched voice automatically; otherwise they fall back to the current default voice.
+                            </MudText>
+                        </MudItem>
+                    </MudGrid>
+                }
+                </MudItem>
+            }
 
-</MudItem>
+            </MudItem>
+        </ChildContent>
+    </MudExpansionPanel>
+</MudExpansionPanels>
 
 @code {
     private const string SpeechPreviewSample = "Testing speech for this room.";
@@ -414,6 +478,18 @@
     private bool _previewingFallbackVoice;
     private bool _previewingUserVoice;
 
+
+    private List<PromptSample> OrderedPromptSamples => PromptLibraryState.Samples
+    .OrderByDescending(s => s.IsBuiltIn)
+    .ThenBy(s => s.SortOrder)
+    .ThenBy(s => s.Name)
+    .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!PromptLibraryState.IsLoaded)
+            await PromptLibraryState.LoadAsync();
+    }
     protected override async Task OnParametersSetAsync()
     {
         var provider = GetResolvedSpeechProvider();

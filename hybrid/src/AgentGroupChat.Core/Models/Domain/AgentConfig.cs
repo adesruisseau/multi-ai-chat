@@ -22,4 +22,5 @@ public sealed class AgentConfig
     public string SuspensionReason { get; set; } = string.Empty;
     public int SortOrder { get; set; }
     public bool IsHumanParticipant { get; set; }
+    public int PromptSampleId { get; set; } = 1;
 }

@@ -8,6 +8,8 @@ public sealed class AiModel
     public string ModelId { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
     public int SortOrder { get; set; }
+    public decimal Temperature { get; set; } = 0.7m;
+    public int MaxTokens { get; set; } = 512;
 
     /// <summary>Resolved at runtime from connection. Not persisted.</summary>
     public string ConnectionName { get; set; } = string.Empty;

@@ -116,17 +116,17 @@
                     <MudTextField @bind-Value="_draft.SourceLabel" Label="Source Label" Class="mb-2" />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudTextField @bind-Value="_draft.PromptText" Label="Prompt Text" Lines="16" Class="mb-2" />
+                    <MudTextField @bind-Value="_draft.PromptText" Label="Prompt Text" Lines="24" Class="mb-2" />
                 </MudItem>
             </MudGrid>
 
             <MudStack Row="true" Spacing="2">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveDraftAsync">Save</MudButton>
-                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DeleteSelectedAsync" Disabled="@string.IsNullOrWhiteSpace(_selectedSampleId)">Delete</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DeleteSelectedAsync" Disabled="@(_selectedSampleId <= 0)">Delete</MudButton>
             </MudStack>
         </MudPaper>
 
-        <MudPaper Class="pa-4" Elevation="1">
+        @* <MudPaper Class="pa-4" Elevation="1">
             <MudText Typo="Typo.h6" Class="mb-2">Apply Or Capture</MudText>
             <MudText Typo="Typo.body2" Class="mb-3">Choose a room and agent to copy this prompt into, or import the agent's current prompt as a new library draft.</MudText>
 
@@ -160,14 +160,14 @@
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="LoadFromAgentAsync" Disabled="!CanApplyToAgent">Load Agent Prompt Into Draft</MudButton>
                 </MudStack>
             }
-        </MudPaper>
+        </MudPaper> *@
     </MudItem>
 </MudGrid>
 
 @code {
     private string _searchText = string.Empty;
     private string _categoryFilter = string.Empty;
-    private string _selectedSampleId = string.Empty;
+    private int _selectedSampleId = 0;
     private string _targetRoomId = string.Empty;
     private string _targetAgentId = string.Empty;
     private PromptSample _draft = CreateEmptyDraft();
@@ -248,7 +248,7 @@
     private static bool Contains(string source, string term) =>
         source.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0;
 
-    private void SelectSample(string id)
+    private void SelectSample(int id)
     {
         var sample = PromptLibraryState.Samples.FirstOrDefault(s => s.Id == id);
         if (sample is null)
@@ -260,7 +260,7 @@
 
     private void CreateNewDraft()
     {
-        _selectedSampleId = string.Empty;
+        _selectedSampleId = 0;
         _draft = CreateEmptyDraft();
     }
 
@@ -273,10 +273,10 @@
             return;
         }
 
-        _selectedSampleId = string.Empty;
+        _selectedSampleId = 0;
         _draft = CloneSample(source, true);
         _draft.Name = string.IsNullOrWhiteSpace(source.Name) ? "Prompt Copy" : $"{source.Name} Copy";
-        _draft.ParentPromptSampleId = source.Id;
+        //_draft.ParentPromptSampleId = source.Id;
         _draft.SourceLabel = $"Forked from {source.Name}";
         _draft.SortOrder = NextUserSortOrder();
     }
@@ -309,7 +309,7 @@
 
     private async Task DeleteSelectedAsync()
     {
-        if (string.IsNullOrWhiteSpace(_selectedSampleId))
+        if (_selectedSampleId <= 0)
         {
             Snackbar.Add("Select a saved prompt before deleting it.", Severity.Warning);
             return;
@@ -317,7 +317,7 @@
 
         var deletedName = SelectedSample?.Name ?? "prompt";
         await PromptLibraryState.DeleteAsync(_selectedSampleId);
-        _selectedSampleId = string.Empty;
+        _selectedSampleId = 0;
 
         if (PromptLibraryState.Samples.Count > 0)
             SelectSample(PromptLibraryState.Samples[0].Id);
@@ -384,7 +384,7 @@
             return;
         }
 
-        _selectedSampleId = string.Empty;
+        _selectedSampleId = 0;
         _draft = CreateEmptyDraft();
         _draft.Name = string.IsNullOrWhiteSpace(agent.Name) ? "Imported Prompt" : $"{agent.Name} Prompt";
         _draft.Category = InferCategoryFromRoom(room.Name);
@@ -417,14 +417,12 @@
 
     private static PromptSample CloneSample(PromptSample sample, bool asNew) => new()
     {
-        Id = asNew ? Guid.NewGuid().ToString("N") : sample.Id,
         Name = sample.Name,
         Category = sample.Category,
         Description = sample.Description,
         PromptText = sample.PromptText,
         Tags = sample.Tags,
         IsBuiltIn = asNew ? false : sample.IsBuiltIn,
-        ParentPromptSampleId = asNew ? sample.Id : sample.ParentPromptSampleId,
         SourceLabel = sample.SourceLabel,
         SortOrder = asNew ? 0 : sample.SortOrder,
         CreatedAt = asNew ? DateTimeOffset.UtcNow : sample.CreatedAt,

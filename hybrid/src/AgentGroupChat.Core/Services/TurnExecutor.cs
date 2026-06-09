@@ -16,7 +16,7 @@ public sealed class TurnExecutor
 
 
     <reply>
-    
+    (in-character narration only)
     </reply>
 
     <future_note>

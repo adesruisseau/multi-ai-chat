@@ -27,7 +27,7 @@ public sealed class PromptLibraryState
         await LoadAsync();
     }
 
-    public async Task DeleteAsync(string id)
+    public async Task DeleteAsync(int id)
     {
         await _promptRepo.DeleteAsync(id);
         await LoadAsync();

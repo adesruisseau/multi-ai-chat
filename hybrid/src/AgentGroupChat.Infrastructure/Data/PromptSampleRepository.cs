@@ -22,7 +22,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
 
-    public async Task<PromptSample?> GetAsync(string id)
+    public async Task<PromptSample?> GetAsync(int id)
     {
         var entity = await _db.PromptSamples.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
         return entity is null ? null : EntityMapper.ToDomain(entity);
@@ -45,7 +45,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
         await _db.SaveChangesAsync();
     }
 
-    public async Task DeleteAsync(string id)
+    public async Task DeleteAsync(int id)
     {
         var entity = await _db.PromptSamples.FirstOrDefaultAsync(p => p.Id == id);
         if (entity is not null)
@@ -72,7 +72,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
         [
             new PromptSample
             {
-                Id = "builtin-dm-narrator-guide",
+                
                 Name = "DM Narrator Guide",
                 Category = "DM",
                 Description = "Runs a scene with clear narration, momentum, and room for player agency.",
@@ -86,7 +86,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                Id = "builtin-optimist-supportive",
+                
                 Name = "Optimist",
                 Category = "Companion",
                 Description = "Looks for practical hope, morale, and forward motion without becoming naive.",
@@ -100,7 +100,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                Id = "builtin-skeptic-devils-advocate",
+                
                 Name = "Skeptic",
                 Category = "Debate",
                 Description = "Pressure-tests plans by surfacing hidden assumptions and failure modes.",
@@ -114,7 +114,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                Id = "builtin-interviewer-facilitator",
+                
                 Name = "Interviewer",
                 Category = "Interview",
                 Description = "Pulls out detail with focused follow-up questions and concise summaries.",
@@ -128,7 +128,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                Id = "builtin-worldbuilder-lorekeeper",
+                
                 Name = "Worldbuilding Assistant",
                 Category = "Worldbuilding",
                 Description = "Expands setting details while keeping tone and continuity coherent.",
@@ -142,7 +142,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                Id = "builtin-tactical-planner",
+                
                 Name = "Tactical Planner",
                 Category = "Planning",
                 Description = "Breaks goals into steps, contingencies, and resource-aware decisions.",
@@ -156,7 +156,6 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                Id = "builtin-soft-spoken-companion",
                 Name = "Soft-Spoken Companion",
                 Category = "Companion",
                 Description = "Responds gently and empathetically while still contributing substance.",
