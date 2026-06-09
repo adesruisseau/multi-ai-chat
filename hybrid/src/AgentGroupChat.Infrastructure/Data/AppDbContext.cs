@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<MemoryBlockEntity> MemoryBlocks => Set<MemoryBlockEntity>();
     public DbSet<LogEntryEntity> LogEntries => Set<LogEntryEntity>();
     public DbSet<SceneArchiveEntity> SceneArchives => Set<SceneArchiveEntity>();
+    public DbSet<DataTrackerEntity> DataTrackers => Set<DataTrackerEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +32,12 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<RoomEntity>()
             .HasMany(r => r.HumanParticipants)
+            .WithOne(h => h.Room)
+            .HasForeignKey(h => h.RoomId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<RoomEntity>()
+            .HasMany(r => r.DataTrackers)
             .WithOne(h => h.Room)
             .HasForeignKey(h => h.RoomId)
             .OnDelete(DeleteBehavior.Cascade);
@@ -74,5 +81,15 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<SceneArchiveEntity>()
             .HasIndex(s => new { s.RoomId, s.RoundNumber });
+
+        modelBuilder.Entity<DataTrackerEntity>()
+            .HasIndex(d => new { d.RoomId, d.AgentId, d.DataKey })
+            .IsUnique()
+            .HasFilter("\"AgentId\" IS NOT NULL");
+
+        modelBuilder.Entity<DataTrackerEntity>()
+            .HasIndex(d => new { d.RoomId, d.DataKey })
+            .IsUnique()
+            .HasFilter("\"AgentId\" IS NULL");
     }
 }

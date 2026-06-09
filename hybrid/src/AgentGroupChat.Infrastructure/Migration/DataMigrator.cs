@@ -2,7 +2,9 @@ using AgentGroupChat.Core.Models.Domain;
 using AgentGroupChat.Core.Services.Interfaces;
 using AgentGroupChat.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using System.Xml;
 
 namespace AgentGroupChat.Infrastructure.Migration;
 
@@ -100,6 +102,11 @@ public sealed class DataMigrator
             await AddColumnIfMissingAsync(conn, "Rooms", "NpcCompactionBudget", "INTEGER NOT NULL DEFAULT 300");
             await AddColumnIfMissingAsync(conn, "Rooms", "NpcBaseInstructions", "TEXT NOT NULL DEFAULT ''");
             await AddColumnIfMissingAsync(conn, "Rooms", "MaxConcurrentNpcs", "INTEGER NOT NULL DEFAULT 2");
+            await AddColumnIfMissingAsync(conn, "Rooms", "UseSummarizer", "BOOLEAN DEFAULT FALSE");
+            await AddColumnIfMissingAsync(conn, "Rooms", "StoreSharedRoomMemory", "BOOLEAN DEFAULT FALSE");
+            await AddColumnIfMissingAsync(conn, "Rooms", "StoreDurableMemory", "BOOLEAN DEFAULT FALSE");
+            await AddColumnIfMissingAsync(conn, "Rooms", "StoreLongTermArchives", "BOOLEAN DEFAULT FALSE");
+
 
             await AddColumnIfMissingAsync(conn, "Agents", "AppearanceSummary", "TEXT NOT NULL DEFAULT ''");
             await AddColumnIfMissingAsync(conn, "Agents", "IsNpc", "INTEGER NOT NULL DEFAULT 0");
@@ -213,6 +220,41 @@ public sealed class DataMigrator
                     FOREIGN KEY ("RoomId") REFERENCES "Rooms" ("Id") ON DELETE CASCADE
                 )
                 """);
+
+            await CreateTableIfMissingAsync(conn, "DataTracking", """
+                CREATE TABLE "DataTracking" (
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "RoomId" TEXT NOT NULL,
+                    "AgentId" TEXT NULL,
+                    "DataKey" TEXT NOT NULL,
+                    "Value" TEXT NULL,
+                    "ValueType" TEXT NOT NULL DEFAULT 'string',
+                    "MinValue" REAL NULL,
+                    "MaxValue" REAL NULL,
+                    "Enabled" INTEGER NOT NULL DEFAULT 1,
+                    "CreatedAt" TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+                    FOREIGN KEY ("RoomId") REFERENCES "Rooms" ("Id") ON DELETE CASCADE,
+                    FOREIGN KEY ("AgentId") REFERENCES "Agents" ("Id") ON DELETE CASCADE,
+                    CHECK ("ValueType" IN ('string','int','float','decimal','bool','json')),
+                    CHECK (length("DataKey") > 0),
+                    CHECK ("Enabled" IN (0,1))
+                );
+                """);
+
+            await CreateIndexIfMissingAsync(conn, "UX_DataTracking_Room_Agent_Key",
+                """
+                    CREATE UNIQUE INDEX "UX_DataTracking_Room_Agent_Key"
+                    ON "DataTracking"("RoomId", "AgentId", "DataKey")
+                    WHERE "AgentId" IS NOT NULL;
+                """
+                );
+            await CreateIndexIfMissingAsync(conn, "UX_DataTracking_Room_Key_WhenNoAgent",
+                """
+                    CREATE UNIQUE INDEX "UX_DataTracking_Room_Key_WhenNoAgent"
+                    ON "DataTracking" ("RoomId", "DataKey")
+                    WHERE "AgentId" IS NULL;
+                """);
+
         }
         finally
         {

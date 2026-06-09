@@ -216,6 +216,10 @@ public static class EntityMapper
         AgentDelaySeconds = e.AgentDelaySeconds,
         //MaxTokens = e.MaxTokens, RecentTurnsWindow = e.RecentTurnsWindow,
         UserCompactionBudget = e.UserCompactionBudget, SummarizerModelId = e.SummarizerModelId,
+        UseSummarizer = e.UseSummarizer,
+        StoreSharedRoomMemory = e.StoreSharedRoomMemory,
+        StoreDurableMemory = e.StoreDurableMemory,
+        StoreLongTermArchives = e.StoreLongTermArchives,
         SummarizationLevel = e.SummarizationLevel, SummarizerMaxTokens = e.SummarizerMaxTokens,
         SummarizerMaxLines = e.SummarizerMaxLines, SummarizerMaxCharacters = e.SummarizerMaxCharacters,
         SummarizerBroaderTurns = e.SummarizerBroaderTurns,
@@ -245,6 +249,7 @@ public static class EntityMapper
         SortOrder = e.SortOrder,
         Agents = e.Agents.Select(ToDomain).OrderBy(a => a.SortOrder).ToList(),
         HumanParticipants = e.HumanParticipants.Select(ToDomain).OrderBy(h => h.SortOrder).ToList(),
+        DataTrackers = e.DataTrackers.Select(ToDomain).OrderBy(x => x.Id).ToList(),
         SharedRoomMemoryPromptSampleId = e.SharedRoomMemoryPromptSampleId,
         DurableMemoryPromptSampleId = e.DurableMemoryPromptSampleId,
         NpcPromptSampleId = e.NpcPromptSampleId
@@ -257,6 +262,10 @@ public static class EntityMapper
         AgentDelaySeconds = d.AgentDelaySeconds,
         //MaxTokens = d.MaxTokens, RecentTurnsWindow = d.RecentTurnsWindow,
         UserCompactionBudget = d.UserCompactionBudget, SummarizerModelId = d.SummarizerModelId,
+        UseSummarizer = d.UseSummarizer,
+        StoreSharedRoomMemory = d.StoreSharedRoomMemory,
+        StoreDurableMemory = d.StoreDurableMemory,
+        StoreLongTermArchives = d.StoreLongTermArchives,
         SummarizationLevel = d.SummarizationLevel, SummarizerMaxTokens = d.SummarizerMaxTokens,
         SummarizerMaxLines = d.SummarizerMaxLines, SummarizerMaxCharacters = d.SummarizerMaxCharacters,
         SummarizerBroaderTurns = d.SummarizerBroaderTurns,
@@ -285,6 +294,7 @@ public static class EntityMapper
         SortOrder = d.SortOrder,
         Agents = d.Agents.Select(ToEntity).ToList(),
         HumanParticipants = d.HumanParticipants.Select(ToEntity).ToList(),
+        DataTrackers = d.DataTrackers.Select(ToEntity).ToList(),
         SharedRoomMemoryPromptSampleId = d.SharedRoomMemoryPromptSampleId,
         DurableMemoryPromptSampleId = d.DurableMemoryPromptSampleId,
         NpcPromptSampleId = d.NpcPromptSampleId
@@ -331,5 +341,32 @@ public static class EntityMapper
         Label = d.Label, KeyEntities = d.KeyEntities,
         SharedRoomSnapshot = d.SharedRoomSnapshot, DurableSnapshot = d.DurableSnapshot,
         IsMajor = d.IsMajor, CreatedAt = d.CreatedAt,
+    };
+    public static DataTrackerConfig ToDomain(DataTrackerEntity e) => new()
+    {
+        Id = e.Id,
+        RoomId = e.RoomId,
+        AgentId = e.AgentId,
+        DataKey = e.DataKey,
+        Value = e.Value,
+        ValueType = e.ValueType,
+        MinValue = e.MinValue,
+        MaxValue = e.MaxValue,
+        Enabled = e.Enabled,
+        CreatedAt = e.CreatedAt
+    };
+
+    public static DataTrackerEntity ToEntity(DataTrackerConfig d) => new()
+    {
+        Id = d.Id,
+        RoomId = d.RoomId,
+        AgentId = d.AgentId,
+        DataKey = d.DataKey,
+        Value = d.Value,
+        ValueType = d.ValueType,
+        MinValue = d.MinValue,
+        MaxValue = d.MaxValue,
+        Enabled = d.Enabled,
+        CreatedAt = d.CreatedAt
     };
 }

@@ -10,4 +10,4 @@ $Env:WEB_PLAYER_PATH="$Env:PROJECT_ROOT/web"
 
 uv pip install -e ".[cpu]"
 uv run --no-sync python docker/scripts/download_model.py --output api/src/models/v1_0
-uv run --no-sync uvicorn api.src.main:app --host 127.0.0.1 --port 8000
+uv run --no-sync uvicorn api.src.main:app --host 127.0.0.1 --port 8880

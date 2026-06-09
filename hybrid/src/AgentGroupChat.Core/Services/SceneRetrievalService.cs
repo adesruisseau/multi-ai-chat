@@ -24,7 +24,7 @@ public sealed class SceneRetrievalService
         Action<string>? onLog,
         CancellationToken ct)
     {
-        if (!room.EnableSceneArchive) return [];
+        if (!room.StoreLongTermArchives) return [];
 
         var candidates = await _sceneArchiveRepo.GetByRoomAsync(room.Id);
         if (candidates.Count == 0) return [];

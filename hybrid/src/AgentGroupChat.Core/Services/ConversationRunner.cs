@@ -138,7 +138,7 @@ public sealed class ConversationRunner
             var roundAnchor = sessionTurns.Count;
 
             IReadOnlyList<SceneArchive>? roundRecalledScenes = null;
-            if (room.EnableSceneArchive)
+            if (room.StoreLongTermArchives)
             {
                 try
                 {
@@ -454,14 +454,16 @@ public sealed class ConversationRunner
     {
         try
         {
-            var lastAgent = agents.Where(x => x.Name.Equals(sessionTurns.Last().Speaker, StringComparison.OrdinalIgnoreCase)).First();
-            if (agents.OrderBy(x => x.SortOrder).Last() == lastAgent)
+            var enabledAgents = agents.OrderBy(x=>x.SortOrder).Where(a => a.IsEnabled && !a.IsTemporarilySuspended).ToList();
+            var lastAgentSpoken = agents.Where(x => x.Name.Equals(sessionTurns.Last().Speaker, StringComparison.OrdinalIgnoreCase)).First();
+            if (agents.OrderBy(x => x.SortOrder).Last() == lastAgentSpoken)
             {
                 return 0;
             }
             else
             {
-                return lastAgent.SortOrder + 1;
+                var nextAgent = enabledAgents.Where(x => x.SortOrder > lastAgentSpoken.SortOrder).First();
+                return nextAgent.SortOrder;
             }
         }
         catch
@@ -470,7 +472,7 @@ public sealed class ConversationRunner
         }
 
 
-        //var enabledAgents = agents.Where(a => a.IsEnabled && !a.IsTemporarilySuspended).ToList();
+        //
         //if (enabledAgents.Count <= 1) return 0;
         //if (sessionTurns.Count == 0) return 0;
 

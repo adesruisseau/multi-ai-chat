@@ -11,6 +11,10 @@ public sealed class RoomConfig
     public int MaxTokens { get; set; } = 300;
     public int RecentTurnsWindow { get; set; } = 6;
     public int UserCompactionBudget { get; set; } = 3200;
+    public bool UseSummarizer { get; set; } = false;
+    public bool StoreSharedRoomMemory { get; set; } = false;
+    public bool StoreDurableMemory { get; set; } = false;
+    public bool StoreLongTermArchives { get; set; } = false;
     public string SummarizerModelId { get; set; } = string.Empty;
     public string SummarizationLevel { get; set; } = "Moderate";
     public int SummarizerMaxTokens { get; set; } = 500;
@@ -46,4 +50,5 @@ public sealed class RoomConfig
     public int SortOrder { get; set; }
     public List<AgentConfig> Agents { get; set; } = new();
     public List<HumanParticipantConfig> HumanParticipants { get; set; } = new();
+    public List<DataTrackerConfig> DataTrackers { get; set; } = new();
 }

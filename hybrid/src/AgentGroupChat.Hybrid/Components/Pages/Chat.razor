@@ -389,7 +389,8 @@ else
 
         var provider = LlmProviderMapping.FromTransport(connection.Transport);
         
-        var maxCompletionTokens = (agent is not null) ? catalogEntry.MaxTokens : RoomState.SelectedRoom!.SummarizerMaxTokens;
+        var maxCompletionTokens = (agent is not null) ? (agent.MaxTokensOverride ?? catalogEntry.MaxTokens) : RoomState.SelectedRoom!.SummarizerMaxTokens;
+
         return new LlmRequestSettings(
             provider,
             connection.Endpoint,

@@ -60,6 +60,43 @@
                                           OnTestAgentVoice="TestAgentVoice" />
                     </MudTabPanel>
 
+                    <MudTabPanel Text="Data Trackers">
+                        <MudText Typo="Typo.h4">Track Room & Participant Data</MudText>
+                        <MudButton Variant="Variant.Filled" OnClick="AddDataTrackingPoint">Add New Tracker</MudButton>
+
+                        <MudGrid Class="mb-4">
+                        @foreach (var point in RoomState.SelectedRoom.DataTrackers)
+                        {
+                            <MudItem xs="2">
+                                <MudTextField @bind-Value="point.DataKey" Label="Name" />
+                            </MudItem>
+                            <MudItem xs="2">
+                                <MudSelect @bind-Value="point.ValueType" Label="Type">
+                                    <MudSelectItem Value="@("string")">String</MudSelectItem>
+                                    <MudSelectItem Value="@("int")">Integer</MudSelectItem>
+                                    <MudSelectItem Value="@("decimal")">Decimal</MudSelectItem>
+                                    <MudSelectItem Value="@("bool")">T/F</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="2">
+                                    <MudTextField @bind-Value="point.Value" Label="Value" Validation="@((Func<string, string>)(v => ValidateCustomValue(v, point)))" />
+                            </MudItem>
+                            @if (point.ValueType == "int" || point.ValueType == "decimal")
+                            {
+                                <MudItem xs="2">
+                                    <MudNumericField @bind-Value="point.MinValue" Label="MinValue" HideSpinButtons="true" />
+                                </MudItem>
+                                <MudItem xs="2">
+                                    <MudNumericField @bind-Value="point.MaxValue" Label="MinValue" />
+                                </MudItem>
+                            }
+                            <MudItem xs="2">
+                                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="() => DeleteDataPoint(point)">Delete</MudButton>
+                            </MudItem>
+                        }
+                        </MudGrid>
+                    </MudTabPanel>
+
                     @* <MudTabPanel Text="Human Participants">
                         <RoomHumanParticipantsEditor Room="room"
                                                      KokoroVoices="_kokoroVoices"
@@ -191,5 +228,50 @@
     public void Dispose()
     {
         RoomState.OnChange -= StateHasChanged;
+    }
+
+    private async Task AddDataTrackingPoint()
+    {
+        var room = RoomState.SelectedRoom;
+        if (room is null) return;
+
+        room.DataTrackers.Add(new DataTrackerConfig() { RoomId = room.Id });
+    }
+
+
+    private async Task DeleteDataPoint(DataTrackerConfig point)
+    {
+        var room = RoomState.SelectedRoom.DataTrackers.Remove(point);
+        
+    }
+
+    private string ValidateCustomValue(string value, DataTrackerConfig point)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "Value is required";
+
+        switch (point.ValueType)
+        {
+            case "string":
+                return null;
+
+            case "int":
+                return int.TryParse(value, out _)
+                    ? null
+                    : "Must be a valid integer";
+
+            case "decimal":
+                return decimal.TryParse(value, out _)
+                    ? null
+                    : "Must be a valid decimal";
+
+            case "bool":
+                return bool.TryParse(value, out _)
+                    ? null
+                    : "Must be true/false";
+
+            default:
+                return "Unknown type";
+        }
     }
 }

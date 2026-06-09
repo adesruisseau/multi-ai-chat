@@ -116,6 +116,10 @@ public class RoomEntity
     public int MaxTokens { get; set; } = 300;
     public int RecentTurnsWindow { get; set; } = 6;
     public int UserCompactionBudget { get; set; } = 3200;
+    public bool UseSummarizer { get; set; } = false;
+    public bool StoreSharedRoomMemory { get; set; } = false;
+    public bool StoreDurableMemory { get; set; } = false;
+    public bool StoreLongTermArchives { get; set; } = false;
     public string SummarizerModelId { get; set; } = string.Empty;
     public string SummarizationLevel { get; set; } = "Moderate";
     public int SummarizerMaxTokens { get; set; } = 500;
@@ -151,6 +155,7 @@ public class RoomEntity
     public int SortOrder { get; set; }
     public List<AgentEntity> Agents { get; set; } = new();
     public List<HumanParticipantEntity> HumanParticipants { get; set; } = new();
+    public List<DataTrackerEntity> DataTrackers { get; set; } = new();
 }
 
 [Table("HumanParticipants")]
@@ -255,4 +260,21 @@ public class SceneArchiveEntity
     public string DurableSnapshot { get; set; } = string.Empty;
     public bool IsMajor { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+}
+[Table("DataTracking")]
+public class DataTrackerEntity
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public int Id { get; set; }
+    public string RoomId { get; set; } = string.Empty;
+    public string? AgentId { get; set; } = null;
+    public string DataKey { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
+    public string ValueType { get; set; } = "string";
+    public double? MinValue { get; set; }
+    public double? MaxValue { get; set; }
+    public bool Enabled { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public RoomEntity? Room { get; set; }
 }

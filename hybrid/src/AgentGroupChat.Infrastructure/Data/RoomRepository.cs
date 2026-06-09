@@ -12,7 +12,7 @@ public sealed class RoomRepository : IRoomRepository
 
     public async Task<List<RoomConfig>> GetAllAsync()
     {
-        var entities = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants)
+        var entities = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants).Include(r => r.DataTrackers)
             .OrderBy(r => r.SortOrder).AsNoTracking().ToListAsync();
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
@@ -26,7 +26,7 @@ public sealed class RoomRepository : IRoomRepository
 
     public async Task SaveAsync(RoomConfig room)
     {
-        var existing = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants)
+        var existing = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants).Include(d => d.DataTrackers)
             .FirstOrDefaultAsync(r => r.Id == room.Id);
 
         if (existing is null)
@@ -53,18 +53,23 @@ public sealed class RoomRepository : IRoomRepository
                     _db.Entry(existingAgent).CurrentValues.SetValues(EntityMapper.ToEntity(agent));
             }
 
-            var incomingHumanIds = room.HumanParticipants.Select(h => h.Id).ToHashSet();
+            var existingDataTrackers = existing.DataTrackers.Select(x => x.Id).ToHashSet();
+            var incomingDataTrackers = room.DataTrackers.Select(x => x.Id).ToHashSet();
 
-            foreach (var removed in existing.HumanParticipants.Where(h => !incomingHumanIds.Contains(h.Id)).ToList())
-                _db.HumanParticipants.Remove(removed);
+            foreach (var removed in existing.DataTrackers.Where(x => !incomingDataTrackers.Contains(x.Id)).ToList())
+                _db.DataTrackers.Remove(removed);
 
-            foreach (var human in room.HumanParticipants)
+            foreach (var tracker in room.DataTrackers)
             {
-                var existingHuman = existing.HumanParticipants.FirstOrDefault(h => h.Id == human.Id);
-                if (existingHuman is null)
-                    _db.HumanParticipants.Add(EntityMapper.ToEntity(human));
+                var existingTracker = existing.DataTrackers.FirstOrDefault(x => x.Id == tracker.Id);
+                if (existingTracker is null)
+                {
+                    _db.DataTrackers.Add(EntityMapper.ToEntity(tracker));
+                }
                 else
-                    _db.Entry(existingHuman).CurrentValues.SetValues(EntityMapper.ToEntity(human));
+                {
+                    _db.Entry(existingTracker).CurrentValues.SetValues(EntityMapper.ToEntity(tracker));
+                }
             }
         }
 
