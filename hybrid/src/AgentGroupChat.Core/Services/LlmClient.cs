@@ -28,6 +28,8 @@ public sealed class LlmClient
         [property: JsonPropertyName("top_k")] int? TopK = null,
         [property: JsonPropertyName("repeat_penalty")] double? RepeatPenalty = null,
         [property: JsonPropertyName("num_predict")] int? NumPredict = null,
+        [property: JsonPropertyName("think")] bool Think = false,
+        [property: JsonPropertyName("thinking")] bool Thinking = false,
         [property: JsonPropertyName("seed")] int? Seed = null);
 
     private sealed record GroqRequestDto(
@@ -40,6 +42,8 @@ public sealed class LlmClient
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("messages")] IEnumerable<ChatMessageDto> Messages,
         [property: JsonPropertyName("stream")] bool Stream,
+        [property: JsonPropertyName("think")] bool Think = false,
+        [property: JsonPropertyName("thinking")] bool Thinking = false,
         [property: JsonPropertyName("options")] OllamaOptionsDto? Options = null);
 
     private static IEnumerable<ChatMessageDto> ToDto(IReadOnlyList<LlmChatMessage> messages) =>
@@ -115,13 +119,14 @@ public sealed class LlmClient
         LlmRequestSettings settings, IReadOnlyList<LlmChatMessage> messages, CancellationToken ct)
     {
         var ollamaOptions = new OllamaOptionsDto(
-            temperature: 0.4, TopP: 0.9, TopK: 40, RepeatPenalty: 1.1, NumPredict: settings.MaxCompletionTokens);
+            temperature: Decimal.ToDouble(settings.Temperature), Think: false, Thinking: false, NumPredict: settings.MaxCompletionTokens);
 
 
         using var request = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint);
-        var payload = new OllamaRequestDto(settings.Model, ToDto(messages), false, Options: ollamaOptions);
+        
+        var payload = new OllamaRequestDto(settings.Model, ToDto(messages), false, Options: ollamaOptions, Think: false, Thinking: false);
         request.Content = JsonContent(payload);
-
+        
         using var response = await _httpClient.SendAsync(request, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)

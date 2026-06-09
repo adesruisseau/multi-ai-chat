@@ -388,8 +388,8 @@ else
             throw new InvalidOperationException($"Connection '{catalogEntry.ConnectionId}' not found.");
 
         var provider = LlmProviderMapping.FromTransport(connection.Transport);
-
-        var maxCompletionTokens = (agent is null) ? catalogEntry.MaxTokens : RoomState.SelectedRoom!.SummarizerMaxTokens;
+        
+        var maxCompletionTokens = (agent is not null) ? catalogEntry.MaxTokens : RoomState.SelectedRoom!.SummarizerMaxTokens;
         return new LlmRequestSettings(
             provider,
             connection.Endpoint,
@@ -604,6 +604,7 @@ else
 
         }
         _generatingImage = false;
+        StateHasChanged();
     }
 
     private void CancelGenerateImageAsync()

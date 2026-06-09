@@ -16,11 +16,11 @@ public sealed class TurnExecutor
 
 
     <reply>
-    (in-character narration only)
+    (current turn in-character narration only)
     </reply>
 
     <future_note>
-    
+    (private memory for future self)
     </future_note>
 
     ";
@@ -104,7 +104,7 @@ public sealed class TurnExecutor
         var taggedReply = TryExtractTaggedContentWithSalvage(replySource, "reply", allowTextBeforeClosingTag: true);
         var visibleResponse = string.IsNullOrWhiteSpace(taggedReply)
             ? StripTransportTagMarkers(replySource)
-            : taggedReply;
+            : StripTransportTagMarkers(taggedReply);
 
         if (string.IsNullOrWhiteSpace(visibleResponse))
         {

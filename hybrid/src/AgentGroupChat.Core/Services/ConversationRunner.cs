@@ -115,6 +115,7 @@ public sealed class ConversationRunner
             throw new InvalidOperationException("Enable at least one agent before running.");
 
         var sessionTurns = await _transcriptRepo.GetAsync(room.Id);
+        
         var userMemoryRefreshed = await TryRefreshMemoryFromPendingUserTurnsAsync(
             room, baseSummarizerSettings, enabledAgents, sessionTurns,
             startFromAgentIndex, ct);
@@ -320,7 +321,7 @@ public sealed class ConversationRunner
         var agentNames = new HashSet<string>(
             enabledAgents.Select(a => a.Name),
             StringComparer.OrdinalIgnoreCase);
-        if (agentNames.Contains(sessionTurns[^1].Speaker))
+        if (agentNames.Contains(sessionTurns[^1].Speaker) || sessionTurns[^1].Speaker == "Image")
             return false;
 
         var seedTurns = sessionTurns

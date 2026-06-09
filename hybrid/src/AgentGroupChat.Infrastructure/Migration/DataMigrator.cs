@@ -2,6 +2,7 @@ using AgentGroupChat.Core.Models.Domain;
 using AgentGroupChat.Core.Services.Interfaces;
 using AgentGroupChat.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 
 namespace AgentGroupChat.Infrastructure.Migration;
 
@@ -220,7 +221,12 @@ public sealed class DataMigrator
     }
 
     
-    
+    private static async Task DropTableAsync(System.Data.Common.DbConnection conn, string table)
+    {
+        using var drop = conn.CreateCommand();
+        drop.CommandText = $"DROP TABLE \"{table}\"";
+        await drop.ExecuteNonQueryAsync();
+    }
 
     private static async Task AddColumnIfMissingAsync(
         System.Data.Common.DbConnection conn, string table, string column, string definition)

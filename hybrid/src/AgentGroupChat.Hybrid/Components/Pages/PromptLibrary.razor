@@ -126,41 +126,6 @@
             </MudStack>
         </MudPaper>
 
-        @* <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.h6" Class="mb-2">Apply Or Capture</MudText>
-            <MudText Typo="Typo.body2" Class="mb-3">Choose a room and agent to copy this prompt into, or import the agent's current prompt as a new library draft.</MudText>
-
-            @if (RoomState.Rooms.Count == 0)
-            {
-                <MudAlert Severity="Severity.Info">No rooms exist yet. You can still edit the library now and apply prompts after you create a room.</MudAlert>
-            }
-            else
-            {
-                <MudGrid>
-                    <MudItem xs="12" md="6">
-                        <MudSelect T="string" Value="@_targetRoomId" ValueChanged="OnTargetRoomChanged" Label="Target Room" Class="mb-2">
-                            @foreach (var room in RoomState.Rooms.OrderBy(r => r.SortOrder))
-                            {
-                                <MudSelectItem T="string" Value="@room.Id">@room.Name</MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-                    <MudItem xs="12" md="6">
-                        <MudSelect T="string" Value="@_targetAgentId" ValueChanged="OnTargetAgentChanged" Label="Target Agent" Class="mb-2" Disabled="!AvailableAgents.Any()">
-                            @foreach (var agent in AvailableAgents)
-                            {
-                                <MudSelectItem T="string" Value="@agent.Id">@agent.Name</MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-                </MudGrid>
-
-                <MudStack Row="true" Spacing="2">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ApplyToAgentAsync" Disabled="!CanApplyToAgent">Apply To Agent</MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="LoadFromAgentAsync" Disabled="!CanApplyToAgent">Load Agent Prompt Into Draft</MudButton>
-                </MudStack>
-            }
-        </MudPaper> *@
     </MudItem>
 </MudGrid>
 
@@ -214,11 +179,6 @@
 
         if (PromptLibraryState.Samples.Count > 0)
             SelectSample(PromptLibraryState.Samples[0].Id);
-
-        if (RoomState.SelectedRoom is not null)
-            await OnTargetRoomChanged(RoomState.SelectedRoom.Id);
-        else if (RoomState.Rooms.Count > 0)
-            await OnTargetRoomChanged(RoomState.Rooms.OrderBy(r => r.SortOrder).First().Id);
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);
@@ -255,7 +215,7 @@
             return;
 
         _selectedSampleId = sample.Id;
-        _draft = CloneSample(sample, false);
+        _draft = sample;
     }
 
     private void CreateNewDraft()
@@ -300,10 +260,6 @@
 
         await PromptLibraryState.SaveAsync(_draft);
         _selectedSampleId = _draft.Id;
-        var refreshed = PromptLibraryState.Samples.FirstOrDefault(s => s.Id == _draft.Id);
-        if (refreshed is not null)
-            _draft = CloneSample(refreshed, false);
-
         Snackbar.Add($"Saved '{_draft.Name}'.", Severity.Success);
     }
 
@@ -327,83 +283,9 @@
         Snackbar.Add($"Deleted '{deletedName}'.", Severity.Success);
     }
 
-    private async Task OnTargetRoomChanged(string roomId)
-    {
-        _targetRoomId = roomId;
-        _targetAgentId = AvailableAgents.FirstOrDefault()?.Id ?? string.Empty;
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private void OnTargetAgentChanged(string agentId)
-    {
-        _targetAgentId = agentId;
-    }
-
-    private async Task ApplyToAgentAsync()
-    {
-        var room = RoomState.Rooms.FirstOrDefault(r => r.Id == _targetRoomId);
-        if (room is null)
-        {
-            Snackbar.Add("Select a valid room before applying a prompt.", Severity.Warning);
-            return;
-        }
-
-        var agent = room.Agents.FirstOrDefault(a => a.Id == _targetAgentId);
-        if (agent is null)
-        {
-            Snackbar.Add("Select a valid agent before applying a prompt.", Severity.Warning);
-            return;
-        }
-
-        agent.SystemPrompt = _draft.PromptText;
-        await RoomState.SaveRoomAsync(room);
-        await OnTargetRoomChanged(room.Id);
-
-        Snackbar.Add($"Applied '{_draft.Name}' to {agent.Name} in {room.Name}.", Severity.Success);
-    }
-
-    private async Task LoadFromAgentAsync()
-    {
-        var room = RoomState.Rooms.FirstOrDefault(r => r.Id == _targetRoomId);
-        if (room is null)
-        {
-            Snackbar.Add("Select a valid room before importing a prompt.", Severity.Warning);
-            return;
-        }
-
-        var agent = room.Agents.FirstOrDefault(a => a.Id == _targetAgentId);
-        if (agent is null)
-        {
-            Snackbar.Add("Select a valid agent before importing a prompt.", Severity.Warning);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(agent.SystemPrompt))
-        {
-            Snackbar.Add($"{agent.Name} does not have a system prompt to import yet.", Severity.Warning);
-            return;
-        }
-
-        _selectedSampleId = 0;
-        _draft = CreateEmptyDraft();
-        _draft.Name = string.IsNullOrWhiteSpace(agent.Name) ? "Imported Prompt" : $"{agent.Name} Prompt";
-        _draft.Category = InferCategoryFromRoom(room.Name);
-        _draft.Description = $"Saved from {agent.Name} in {room.Name}.";
-        _draft.PromptText = agent.SystemPrompt;
-        _draft.SourceLabel = $"Saved from {agent.Name} in {room.Name}";
-        _draft.Tags = "imported,agent";
-        _draft.SortOrder = NextUserSortOrder();
-
-        await InvokeAsync(StateHasChanged);
-        Snackbar.Add($"Loaded {agent.Name}'s current prompt into the editor as a new draft.", Severity.Success);
-    }
-
     private int NextUserSortOrder() => PromptLibraryState.Samples.Count == 0
         ? 0
         : PromptLibraryState.Samples.Max(s => s.SortOrder) + 1;
-
-    private static string InferCategoryFromRoom(string roomName) =>
-        string.IsNullOrWhiteSpace(roomName) ? "Imported" : roomName;
 
     private static PromptSample CreateEmptyDraft() => new()
     {
