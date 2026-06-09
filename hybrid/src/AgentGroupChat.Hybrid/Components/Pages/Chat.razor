@@ -264,7 +264,7 @@ else
     }
 
     private async Task Run()
-   {
+    {
 
         if (RoomState.SelectedRoom is null) return;
         if (ConvoState.IsRunning) return;
@@ -283,7 +283,7 @@ else
                 Content = _userInput,
                 AccentHex = speaker.AccentHex,
                 BackgroundHex = speaker.BackgroundHex,
-                
+
             });
             var userTextToNarrate = _userInput;
             _userInput = string.Empty;
@@ -296,7 +296,7 @@ else
                     : RoomSpeechResolver.GetUserVoice(room, AppState.Settings);
                 await Speech.SpeakAsync(ttsSettings, userTextToNarrate, voice, CancellationToken.None);
             }
-            
+
 
         }
         else if (ConvoState.SessionTurns.Count == 0)
@@ -307,7 +307,7 @@ else
         // Clean up any stale thinking placeholders from a previous failed run
         ConvoState.RemoveThinkingPlaceholders();
 
-        
+
         ConvoState.SetStatus("Running");
         _cts = new CancellationTokenSource();
 
@@ -609,7 +609,7 @@ else
         {
             await LogService.LogAsync(LogCategory.System, "Image Generation Failure", "The image failed to return", ex.Message);
             _imagePreviewDataUrl = string.Empty;
-            
+
         }
         _generatingImage = false;
     }
@@ -633,7 +633,7 @@ else
 
     private record HumanSpeaker(string Name, string AccentHex, string BackgroundHex, string TtsVoice);
 
-    private static readonly HumanSpeaker _defaultSpeaker = new("You", "", "", "");
+    private static readonly HumanSpeaker _defaultSpeaker = new(Core.SpeakerNames.DefaultHuman, "", "", "");
 
     private static HumanSpeaker GetActiveHumanSpeaker(RoomConfig room, int currentSortOrder)
     {

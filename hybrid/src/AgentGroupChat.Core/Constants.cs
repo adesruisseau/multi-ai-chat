@@ -57,5 +57,5 @@ public static class ActorKinds
 
 public static class SpeakerNames
 {
-    public const string DefaultHuman = "You";
+    public const string DefaultHuman = "Narrator";
 }

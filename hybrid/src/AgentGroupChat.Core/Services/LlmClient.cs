@@ -22,6 +22,14 @@ public sealed class LlmClient
         [property: JsonPropertyName("stream")] bool Stream,
         [property: JsonPropertyName("max_tokens")] int MaxTokens);
 
+    private sealed record OllamaOptionsDto(
+        [property: JsonPropertyName("temperature")] double? temperature = null,
+        [property: JsonPropertyName("top_p")] double? TopP = null,
+        [property: JsonPropertyName("top_k")] int? TopK = null,
+        [property: JsonPropertyName("repeat_penalty")] double? RepeatPenalty = null,
+        [property: JsonPropertyName("num_predict")] int? NumPredict = null,
+        [property: JsonPropertyName("seed")] int? Seed = null);
+
     private sealed record GroqRequestDto(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("messages")] IEnumerable<ChatMessageDto> Messages,
@@ -31,7 +39,8 @@ public sealed class LlmClient
     private sealed record OllamaRequestDto(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("messages")] IEnumerable<ChatMessageDto> Messages,
-        [property: JsonPropertyName("stream")] bool Stream);
+        [property: JsonPropertyName("stream")] bool Stream,
+        [property: JsonPropertyName("options")] OllamaOptionsDto? Options = null);
 
     private static IEnumerable<ChatMessageDto> ToDto(IReadOnlyList<LlmChatMessage> messages) =>
         messages.Select(m => new ChatMessageDto(m.Role, m.Content));
@@ -105,8 +114,12 @@ public sealed class LlmClient
     private async Task<LlmCompletionResult> CompleteOllamaAsync(
         LlmRequestSettings settings, IReadOnlyList<LlmChatMessage> messages, CancellationToken ct)
     {
+        var ollamaOptions = new OllamaOptionsDto(
+            temperature: 0.4, TopP: 0.9, TopK: 40, RepeatPenalty: 1.1, NumPredict: settings.MaxCompletionTokens);
+
+
         using var request = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint);
-        var payload = new OllamaRequestDto(settings.Model, ToDto(messages), false);
+        var payload = new OllamaRequestDto(settings.Model, ToDto(messages), false, Options: ollamaOptions);
         request.Content = JsonContent(payload);
 
         using var response = await _httpClient.SendAsync(request, ct);

@@ -11,16 +11,19 @@ public sealed class TurnExecutor
     ========================
 
     Return a response with exactly two XML blocks:
+    - <reply> block will contain your generated output
+    - <future_note> block will contain any generated notes to carry forward privately 
+
 
     <reply>
-    (in-character DM narration only)
+    
     </reply>
 
     <future_note>
-    (short private planning notes only)
+    
     </future_note>
 
-    No extra text.";
+    ";
 
     private readonly LlmClient _llmClient;
     private readonly LogService _logService;
