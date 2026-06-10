@@ -63,14 +63,26 @@ public static class EntityMapper
 
     public static AiModel ToDomain(AiModelEntity e) => new()
     {
-        Id = e.Id, Name = e.Name, ConnectionId = e.ConnectionId,
-        ModelId = e.ModelId, Notes = e.Notes, SortOrder = e.SortOrder,
+        Id = e.Id, 
+        Name = e.Name, 
+        ConnectionId = e.ConnectionId,
+        ModelId = e.ModelId, 
+        Notes = e.Notes, 
+        SortOrder = e.SortOrder,
+        Temperature = e.Temperature,
+        MaxTokens = e.MaxTokens
     };
 
     public static AiModelEntity ToEntity(AiModel d) => new()
     {
-        Id = d.Id, Name = d.Name, ConnectionId = d.ConnectionId,
-        ModelId = d.ModelId, Notes = d.Notes, SortOrder = d.SortOrder,
+        Id = d.Id, 
+        Name = d.Name, 
+        ConnectionId = d.ConnectionId,
+        ModelId = d.ModelId, 
+        Notes = d.Notes, 
+        SortOrder = d.SortOrder,
+        Temperature = d.Temperature,
+        MaxTokens = d.MaxTokens
     };
 
     public static ImageConnection ToDomain(ImageConnectionEntity e) => new()
@@ -353,7 +365,9 @@ public static class EntityMapper
         MinValue = e.MinValue,
         MaxValue = e.MaxValue,
         Enabled = e.Enabled,
-        CreatedAt = e.CreatedAt
+        CreatedAt = e.CreatedAt,
+        PromptText = e.PromptText,
+        PrivilegedAgentPrompt = e.PrivilegedAgentPrompt
     };
 
     public static DataTrackerEntity ToEntity(DataTrackerConfig d) => new()
@@ -367,6 +381,8 @@ public static class EntityMapper
         MinValue = d.MinValue,
         MaxValue = d.MaxValue,
         Enabled = d.Enabled,
-        CreatedAt = d.CreatedAt
+        CreatedAt = d.CreatedAt,
+        PromptText = d.PromptText,
+        PrivilegedAgentPrompt = d.PrivilegedAgentPrompt
     };
 }

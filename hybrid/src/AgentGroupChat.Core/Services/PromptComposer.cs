@@ -69,10 +69,23 @@ public sealed class PromptComposer
             : "- If you request a privileged action, place it only inside a nested <privileged_actions> block within <future_note>. Never place privileged-action tags in <reply>.";
         var dataTrackers = room.DataTrackers.Where(x => x.AgentId == agent.Id || x.AgentId == null).ToList();
         var dataTrackerPrompt = "Data Tracking Values:";
+        
         dataTrackers.ForEach(x =>
         {
+            var agentPromptInstructions = room.PrivilegedAgentId == agent.Id ? BuildDataTrackerPointSection(room, x) : x.PromptText;
+            var xmlTag = "";
+            if (x.ValueType == "int" || x.ValueType == "decimal")
+            {
+                 xmlTag = $"{x.DataKey} Min=\"{x.MinValue}\" Max=\"{x.MaxValue}\" ValueType=\"{x.ValueType}\"";
+            }
+            else
+            {
+                xmlTag = $"<{x.DataKey} ValueType=\"{x.ValueType}\">";
+            }
             dataTrackerPrompt += $"""
-            <{x.DataKey}>{x.Value}</{x.DataKey}>
+            {agentPromptInstructions}
+            
+            <{xmlTag}>{x.Value}</{x.DataKey}>
             """;
         });
 
@@ -393,6 +406,18 @@ Update the durable memory conservatively.
             : "- NPC spawning is disabled for this room.";
 
         return $"\n<npc_management>\nYou may request privileged lifecycle changes by placing them inside a nested `<privileged_actions>` block within `<future_note>`.\n{npcInstructions}\n- Use `<suspend_agent name=\"Name\" rounds=\"N\">reason</suspend_agent>` to remove a permanent character from the active roster for N upcoming rounds.\n- Use `<resume_agent name=\"Name\">reason</resume_agent>` to return a suspended permanent character to play next round.\n- Only suspend permanent characters who are genuinely off-scene, asleep, separated, or otherwise unavailable.\n- Do not suspend yourself.\n- Use at most two privileged lifecycle actions in one turn.\n- Do not place privileged-action tags in `<reply>`.\n</npc_management>\n";
+    }
+
+    private static string BuildDataTrackerPointSection(RoomConfig room, DataTrackerConfig config)
+    {
+        if (!room.EnablePrivilegedActions || room.PrivilegedAgentId == null)
+            return string.Empty;
+
+        var outputPrompt = config.PrivilegedAgentPrompt
+            + $"Use <update_tracker key=\"{config.DataKey}\" value=\"\" /> to update a value tracked in the room.";
+
+        return outputPrompt;
+
     }
 
     private static string FormatSuspensionDescriptor(AgentConfig agent)

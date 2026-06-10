@@ -4,6 +4,7 @@ using AgentGroupChat.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using System.Runtime.InteropServices;
 using System.Xml;
 
 namespace AgentGroupChat.Infrastructure.Migration;
@@ -254,7 +255,8 @@ public sealed class DataMigrator
                     ON "DataTracking" ("RoomId", "DataKey")
                     WHERE "AgentId" IS NULL;
                 """);
-
+            await AddColumnIfMissingAsync(conn, "DataTracking", "PromptText", "TEXT NULL");
+            await AddColumnIfMissingAsync(conn, "DataTracking", "PrivilegedAgentPrompt", "TEXT NULL");
         }
         finally
         {

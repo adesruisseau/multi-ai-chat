@@ -90,6 +90,13 @@
                                     <MudNumericField @bind-Value="point.MaxValue" Label="MinValue" />
                                 </MudItem>
                             }
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="point.PromptText" Label="Agent Prompt Text" />
+                            </MudItem>
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="point.PrivilegedAgentPrompt" Label="Privileged Agent Prompt Text" />
+                            </MudItem>
+
                             <MudItem xs="2">
                                 <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="() => DeleteDataPoint(point)">Delete</MudButton>
                             </MudItem>

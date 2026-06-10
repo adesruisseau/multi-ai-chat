@@ -16,5 +16,7 @@ namespace AgentGroupChat.Core.Models.Domain
         public double? MaxValue { get; set; }
         public bool Enabled { get; set; } = true;
         public DateTimeOffset CreatedAt { get; set; }
+        public string PromptText { get; set; }
+        public string PrivilegedAgentPrompt { get; set; }
     }
 }

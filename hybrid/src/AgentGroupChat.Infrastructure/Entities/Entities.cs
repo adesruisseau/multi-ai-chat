@@ -277,4 +277,6 @@ public class DataTrackerEntity
     public bool Enabled { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
     public RoomEntity? Room { get; set; }
+    public string PromptText { get; set; }
+    public string PrivilegedAgentPrompt { get; set; }
 }

@@ -91,13 +91,13 @@
                                     </MudItem>
                                     <!--Temperature | MaxTokens-->
                                     <MudItem xs="6">
-                                        <MudNumericField Min="0.0M" Max="1.0M" T="decimal" Step=".1M" Value="model.Temperature" Label="Temperature" />
+                                        <MudNumericField Min="0.0M" Max="1.0M" T="decimal" Step=".1M" @bind-Value="model.Temperature" Label="Temperature" />
                                         <MudText Typo="Typo.body1">Lower temperature makes models behave more deterministically. <br />
                                             Higher temperature makes them more creative and random. <br />
                                             Start with 0.7 and fine-tune.</MudText>
                                     </MudItem>
                                     <MudItem xs="6">
-                                        <MudNumericField Min="0" Max="32000" T="int" Step="8" Value="model.MaxTokens" Label="Max Tokens" />
+                                        <MudNumericField Min="0" Max="32000" T="int" Step="8" @bind-Value="model.MaxTokens" Label="Max Tokens" />
                                         <MudText Typo="Typo.body1">
                                             Force the model to a max token usage.<br />
                                             Low values may cut off message completion<br />

@@ -246,9 +246,15 @@ public sealed class LlmClient
     private static string ResolveGeminiEndpoint(LlmRequestSettings settings)
     {
         var ep = settings.Endpoint.Trim().TrimEnd('/');
-        if (ep.Contains(":generateContent", StringComparison.OrdinalIgnoreCase)) return ep;
-        if (ep.Contains("/models/", StringComparison.OrdinalIgnoreCase)) return $"{ep}:generateContent";
-        return $"{ep}/{settings.Model}:generateContent";
+
+        if (ep.EndsWith(":generateContent", StringComparison.OrdinalIgnoreCase))
+            return ep;
+
+        if (ep.Contains("/chat/completions", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                "OpenAI endpoint supplied to Gemini provider.");
+
+        return $"{ep}/models/{settings.Model}:generateContent";
     }
 
     private static StringContent JsonContent(object payload) =>
