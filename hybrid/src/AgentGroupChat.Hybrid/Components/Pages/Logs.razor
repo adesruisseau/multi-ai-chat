@@ -4,7 +4,8 @@
 @inject AgentGroupChat.Core.Services.Interfaces.IMemoryRepository MemoryRepo
 @inject AgentGroupChat.Core.Services.Interfaces.ISceneArchiveRepository SceneArchiveRepo
 @implements IDisposable
-
+<MudGrid Justify="Justify.Center">
+    <MudItem xs="8" >
 <MudText Typo="Typo.h4" GutterBottom="true">Memory & Logs</MudText>
 <br />
 <MudTabs Rounded="true">
@@ -92,7 +93,7 @@
                 @foreach (var agent in RoomState.SelectedRoom.Agents)
                 {
                     var shortBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentShort);
-                    @* var longBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentLong); *@
+                    var longBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentLong);
 
                     <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
@@ -108,11 +109,11 @@
                                 <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(shortBlock, "(No short-term scratchpad yet.)")</pre>
                             </MudItem>
                             @*Currently abandoning agent-specific long-term memory storage.*@
-                            @* <MudItem xs="12" md="6"> 
+                             <MudItem xs="12" md="6"> 
                                 <MudText Typo="Typo.caption" Class="mb-1">Long-Term Agent Memory</MudText>
                                 <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(longBlock)</MudText>
                                 <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(longBlock, "(No long-term agent memory yet.)")</pre>
-                            </MudItem> *@
+                            </MudItem> 
                         </MudGrid>
                     </MudPaper>
                 }
@@ -222,7 +223,7 @@
         </MudPaper>
     
         <MudPaper Elevation="1">
-            <MudTable Items="_entries.OrderByDescending(x => x.Id)" Dense="true" Hover="true" Striped="true" FixedHeader="true" Height="500px">
+            <MudTable Items="_entries.OrderByDescending(x => x.Id)" Dense="true" Hover="true" Striped="true" FixedHeader="true" Height="800px">
                 <HeaderContent>
                     <MudTh Style="width:90px">Category</MudTh>
                     <MudTh Style="width:110px">Source</MudTh>
@@ -263,6 +264,8 @@
         </MudPaper>
     </MudTabPanel>
 </MudTabs>
+</MudItem>
+</MudGrid>
 @code {
     private const int MaxLogEntries = 50;
     private static readonly string[] _allCategories = Enum.GetNames<LogCategory>();

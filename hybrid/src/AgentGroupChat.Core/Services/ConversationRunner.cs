@@ -8,7 +8,7 @@ using static AgentGroupChat.Core.XmlTags;
 
 namespace AgentGroupChat.Core.Services;
 
-public sealed class ConversationRunner
+public sealed partial class ConversationRunner
 {
     private readonly PromptComposer _promptComposer;
     private readonly TurnExecutor _turnExecutor;
@@ -21,21 +21,7 @@ public sealed class ConversationRunner
     private readonly SceneRetrievalService _sceneRetrievalService;
     private readonly SpeechService _speechService;
 
-    private static readonly Regex PrivilegedActionsBlockRegex = new(
-        @"<privileged_actions>\s*(?<body>.*?)\s*</privileged_actions>",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-    private static readonly Regex SpawnNpcRegex = new(
-        @"<spawn_npc\b(?<attrs>[^>]*)>(?<body>.*?)</spawn_npc>",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-    private static readonly Regex DismissNpcRegex = new(
-        @"<dismiss_npc\b(?<attrs>[^>]*)>(?<body>.*?)</dismiss_npc>",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-    private static readonly Regex SuspendAgentRegex = new(
-        @"<suspend_agent\b(?<attrs>[^>]*)>(?<body>.*?)</suspend_agent>",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
-    private static readonly Regex ResumeAgentRegex = new(
-        @"<resume_agent\b(?<attrs>[^>]*)>(?<body>.*?)</resume_agent>",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+
     private static readonly (string AccentHex, string BackgroundHex)[] NpcColorPresets =
     [
         ("#C56A54", "#F9E5DE"),
@@ -46,21 +32,7 @@ public sealed class ConversationRunner
         ("#506070", "#E4E8EC"),
     ];
 
-    private enum PrivilegedActionKind
-    {
-        ResumeAgent,
-        DismissNpc,
-        SuspendAgent,
-        SpawnNpc,
-    }
-
-    private sealed record RequestedPrivilegedAction(
-        PrivilegedActionKind Kind,
-        int Index,
-        string Name,
-        string Body,
-        string? Gender = null,
-        int? Rounds = null);
+    
 
     public ConversationRunner(
         PromptComposer promptComposer,
@@ -109,6 +81,7 @@ public sealed class ConversationRunner
         int startFromAgentIndex = 0)
     {
         await AutoResumeExpiredSuspensionsAsync(room, completedRounds + 1);
+        var appSettings = await _settingsRepo.GetAsync();
 
         var enabledAgents = GetActiveAgents(room);
         if (enabledAgents.Count == 0)
@@ -218,13 +191,19 @@ public sealed class ConversationRunner
                 OnAgentMessageCompleted?.Invoke(agent, response);
                 OnLog?.Invoke($"{agent.Name}: {rawResult.UsageSummary ?? "no usage info"}");
 
+                var currentSpeechGate = OnSpeechGate;
+                var shouldSpeak = currentSpeechGate is not null || RoomSpeechResolver.IsSpeechEnabled(room, appSettings);
+                Task? speechTask = null;
+
                 // Speech gate with lookahead prefetch for the next agent
-                if (OnSpeechGate is not null)
+                if (shouldSpeak)
                 {
                     OnStatusChanged?.Invoke($"{agent.Name} speaking");
 
                     // Start speech (will run concurrently with prefetch below)
-                    var speechTask = OnSpeechGate(agent, response, ct);
+                    speechTask = currentSpeechGate is not null
+                        ? currentSpeechGate(agent, response, ct)
+                        : SpeakWithRoomSettingsAsync(room, agent, response, appSettings, ct);
 
                     // While this agent speaks, fire the next agent's API call
                     // Skip prefetch if PauseAfterEveryReply is on (user wants to interject)
@@ -246,24 +225,28 @@ public sealed class ConversationRunner
                             prefetchTask = null;
                         }
                     }
-                    if (agentIndex == enabledAgents.Count - 1)
-                    {
-                        endOfRoundWork = RefreshRoundMemoryAsync(room, baseSummarizerSettings, completedRounds, sessionTurns, userMemoryRefreshed, iteration, roundNumber, roundAnchor, agent, ct);
-                    }
+                }
 
+                if (agentIndex == enabledAgents.Count - 1)
+                {
+                    endOfRoundWork = RefreshRoundMemoryAsync(room, baseSummarizerSettings, completedRounds, sessionTurns, userMemoryRefreshed, iteration, roundNumber, roundAnchor, agent, ct);
+                }
+
+                if (speechTask is not null)
+                {
                     // Wait for speech to finish before showing the next agent's result
                     await speechTask;
+                }
 
-                    if (endOfRoundWork is not null)
+                if (endOfRoundWork is not null)
+                {
+                    OnStatusChanged?.Invoke("Updating memory...");
+                    await endOfRoundWork;
+
+                    if (pendingActions.Count > 0)
                     {
-                        OnStatusChanged?.Invoke("Updating memory...");
-                        await endOfRoundWork;
-
-                        if (pendingActions.Count > 0)
-                        {
-                            OnStatusChanged?.Invoke("Applying privileged actions...");
-                            await ApplyPrivilegedActionsAsync(room, agent, pendingActions, roundNumber);
-                        }
+                        OnStatusChanged?.Invoke("Applying privileged actions...");
+                        await ApplyPrivilegedActionsAsync(room, agent, pendingActions, roundNumber);
                     }
                 }
 
@@ -275,7 +258,7 @@ public sealed class ConversationRunner
                     return;
                 }
                 
-                else if (room.AgentDelaySeconds > 0 && OnSpeechGate is null && room.TtsEnabledOverride == false)
+                else if (room.AgentDelaySeconds > 0 && speechTask is null)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(room.AgentDelaySeconds), ct);
                 }
@@ -291,6 +274,23 @@ public sealed class ConversationRunner
 
         OnSystemMessage?.Invoke("Run complete.");
         OnStatusChanged?.Invoke("Complete");
+    }
+
+    private Task SpeakWithRoomSettingsAsync(
+        RoomConfig room,
+        AgentConfig agent,
+        string content,
+        AppSettings appSettings,
+        CancellationToken ct)
+    {
+        var settings = RoomSpeechResolver.BuildSettings(room, appSettings);
+        if (!settings.Enabled)
+            return Task.CompletedTask;
+
+        var voice = string.IsNullOrWhiteSpace(agent.TtsVoice)
+            ? RoomSpeechResolver.GetFallbackVoice(room, appSettings)
+            : agent.TtsVoice;
+        return _speechService.SpeakAsync(settings, content, voice, ct);
     }
 
     private async Task RefreshRoundMemoryAsync(RoomConfig room, LlmRequestSettings baseSummarizerSettings, int completedRounds, List<TranscriptTurn> sessionTurns, bool userMemoryRefreshed, int iteration, int roundNumber, int roundAnchor, AgentConfig agent, CancellationToken ct)
@@ -498,11 +498,7 @@ public sealed class ConversationRunner
         //return nextIdx < enabledAgents.Count ? nextIdx : 0;
     }
 
-    private static bool IsPrivilegedAgent(RoomConfig room, AgentConfig agent) =>
-        room.EnablePrivilegedActions
-        && !agent.IsNpc
-        && string.Equals(agent.Id, room.PrivilegedAgentId, StringComparison.Ordinal);
-
+    
     private async Task AutoResumeExpiredSuspensionsAsync(RoomConfig room, int roundNumber)
     {
         var resumedAgents = room.Agents
@@ -535,265 +531,7 @@ public sealed class ConversationRunner
         await _roomRepo.SaveAsync(room);
     }
 
-    private (string CleanedFutureNote, IReadOnlyList<RequestedPrivilegedAction> Actions) ParsePrivilegedActions(
-        RoomConfig room,
-        AgentConfig agent,
-        string futureNote)
-    {
-        if (string.IsNullOrWhiteSpace(futureNote))
-            return (futureNote, []);
-
-        var blockMatch = PrivilegedActionsBlockRegex.Match(futureNote);
-        if (!blockMatch.Success)
-            return (futureNote, []);
-
-        var cleanedFutureNote = PrivilegedActionsBlockRegex.Replace(futureNote, string.Empty).Trim();
-        var actionBlock = blockMatch.Groups["body"].Value;
-
-        if (!IsPrivilegedAgent(room, agent))
-        {
-            OnLog?.Invoke($"PrivilegedActions.Rejected: {agent.Name} is not allowed to manage privileged actions.");
-            return (cleanedFutureNote, []);
-        }
-
-        var requestedActions = ParseRequestedPrivilegedActions(actionBlock)
-            .OrderBy(a => a.Index)
-            .ToList();
-        if (requestedActions.Count == 0)
-        {
-            OnLog?.Invoke($"PrivilegedActions.Rejected: {agent.Name} emitted an empty privileged action block.");
-            return (cleanedFutureNote, []);
-        }
-
-        OnLog?.Invoke($"PrivilegedActions.Requested: {agent.Name} requested {string.Join(", ", requestedActions.Select(DescribePrivilegedAction))}.");
-        var validatedActions = ValidateRequestedPrivilegedActions(room, agent, requestedActions);
-        return (cleanedFutureNote, validatedActions);
-    }
-
-    private List<RequestedPrivilegedAction> ValidateRequestedPrivilegedActions(
-        RoomConfig room,
-        AgentConfig sourceAgent,
-        IReadOnlyList<RequestedPrivilegedAction> requestedActions)
-    {
-        var accepted = new List<RequestedPrivilegedAction>();
-        var limitedActions = requestedActions.OrderBy(a => a.Index).Take(2).ToList();
-        if (requestedActions.Count > limitedActions.Count)
-            OnLog?.Invoke($"PrivilegedActions.Rejected: ignored {requestedActions.Count - limitedActions.Count} excess action(s) beyond the two-action limit.");
-
-        var seenKinds = new HashSet<PrivilegedActionKind>();
-        var enabledAgentsByName = room.Agents
-            .Where(a => a.IsEnabled)
-            .GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-        var suspendedPermanentNames = new HashSet<string>(
-            room.Agents.Where(a => a.IsEnabled && !a.IsNpc && a.IsTemporarilySuspended).Select(a => a.Name),
-            StringComparer.OrdinalIgnoreCase);
-        var activeNpcNames = new HashSet<string>(
-            room.Agents.Where(a => a.IsEnabled && a.IsNpc).Select(a => a.Name),
-            StringComparer.OrdinalIgnoreCase);
-        var activeNpcCount = activeNpcNames.Count;
-        var maxNpcCount = Math.Max(1, room.MaxConcurrentNpcs);
-
-        foreach (var action in limitedActions.OrderBy(a => GetActionPhaseOrder(a.Kind)).ThenBy(a => a.Index))
-        {
-            if (!seenKinds.Add(action.Kind))
-            {
-                OnLog?.Invoke($"PrivilegedActions.Rejected: only one {action.Kind} action is allowed per turn.");
-                continue;
-            }
-
-            switch (action.Kind)
-            {
-                case PrivilegedActionKind.ResumeAgent:
-                    if (!enabledAgentsByName.TryGetValue(action.Name, out var resumeTarget)
-                        || resumeTarget.IsNpc
-                        || !resumeTarget.IsTemporarilySuspended)
-                    {
-                        OnLog?.Invoke($"PrivilegedActions.Rejected: cannot resume '{action.Name}' because they are not a suspended permanent agent.");
-                        continue;
-                    }
-
-                    suspendedPermanentNames.Remove(resumeTarget.Name);
-                    accepted.Add(action);
-                    OnLog?.Invoke($"PermanentAgent.ResumeQueued: {resumeTarget.Name}");
-                    break;
-
-                case PrivilegedActionKind.DismissNpc:
-                    if (!enabledAgentsByName.TryGetValue(action.Name, out var dismissTarget)
-                        || !dismissTarget.IsNpc)
-                    {
-                        OnLog?.Invoke($"PrivilegedActions.Rejected: cannot dismiss '{action.Name}' because they are not an active NPC.");
-                        continue;
-                    }
-
-                    activeNpcNames.Remove(dismissTarget.Name);
-                    enabledAgentsByName.Remove(dismissTarget.Name);
-                    activeNpcCount = Math.Max(0, activeNpcCount - 1);
-                    accepted.Add(action);
-                    OnLog?.Invoke($"NpcAgent.DismissQueued: {dismissTarget.Name}");
-                    break;
-
-                case PrivilegedActionKind.SuspendAgent:
-                    if (!enabledAgentsByName.TryGetValue(action.Name, out var suspendTarget)
-                        || suspendTarget.IsNpc)
-                    {
-                        OnLog?.Invoke($"PrivilegedActions.Rejected: cannot suspend '{action.Name}' because they are not an enabled permanent agent.");
-                        continue;
-                    }
-
-                    if (string.Equals(suspendTarget.Id, room.PrivilegedAgentId, StringComparison.Ordinal))
-                    {
-                        OnLog?.Invoke($"PrivilegedActions.Rejected: the privileged agent cannot suspend itself.");
-                        continue;
-                    }
-
-                    if (suspendedPermanentNames.Contains(suspendTarget.Name))
-                    {
-                        OnLog?.Invoke($"PrivilegedActions.Rejected: '{suspendTarget.Name}' is already suspended.");
-                        continue;
-                    }
-
-                    suspendedPermanentNames.Add(suspendTarget.Name);
-                    accepted.Add(action);
-                    OnLog?.Invoke($"PermanentAgent.SuspendQueued: {suspendTarget.Name}");
-                    break;
-
-                case PrivilegedActionKind.SpawnNpc:
-                    if (!room.EnableNpcSpawning)
-                    {
-                        OnLog?.Invoke($"PrivilegedActions.Rejected: NPC spawning is disabled for this room.");
-                        continue;
-                    }
-
-                    if (string.IsNullOrWhiteSpace(action.Name) || string.IsNullOrWhiteSpace(action.Body))
-                    {
-                        OnLog?.Invoke("PrivilegedActions.Rejected: spawn_npc requires a name and character description.");
-                        continue;
-                    }
-
-                    if (!string.Equals(action.Gender, "male", StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(action.Gender, "female", StringComparison.OrdinalIgnoreCase))
-                    {
-                        OnLog?.Invoke($"PrivilegedActions.Rejected: spawn_npc '{action.Name}' must use gender='male' or gender='female'.");
-                        continue;
-                    }
-
-                    if (enabledAgentsByName.ContainsKey(action.Name))
-                    {
-                        OnLog?.Invoke($"PrivilegedActions.Rejected: an enabled agent named '{action.Name}' already exists.");
-                        continue;
-                    }
-
-                    if (activeNpcCount >= maxNpcCount)
-                    {
-                        OnLog?.Invoke($"PrivilegedActions.Rejected: NPC slot limit {activeNpcCount}/{maxNpcCount} has been reached.");
-                        continue;
-                    }
-
-                    enabledAgentsByName[action.Name] = new AgentConfig { Name = action.Name, IsNpc = true };
-                    activeNpcNames.Add(action.Name);
-                    activeNpcCount++;
-                    accepted.Add(action);
-                    OnLog?.Invoke($"NpcAgent.SpawnQueued: {action.Name}");
-                    break;
-            }
-        }
-
-        return accepted;
-    }
-
-    private async Task ApplyPrivilegedActionsAsync(
-        RoomConfig room,
-        AgentConfig sourceAgent,
-        IReadOnlyList<RequestedPrivilegedAction> actions,
-        int roundNumber)
-    {
-        if (actions.Count == 0)
-            return;
-
-        var roomChanged = false;
-        AppSettings? appSettings = null;
-        IReadOnlyList<string> kokoroVoices = [];
-
-        if (actions.Any(a => a.Kind == PrivilegedActionKind.SpawnNpc))
-        {
-            appSettings = await _settingsRepo.GetAsync();
-            if (RoomSpeechResolver.UsesKokoro(room, appSettings))
-                kokoroVoices = await _speechService.FetchKokoroVoicesAsync(appSettings.KokoroBaseUrl);
-        }
-
-        foreach (var action in actions.Where(a => a.Kind == PrivilegedActionKind.ResumeAgent))
-        {
-            var target = room.Agents.FirstOrDefault(a => a.IsEnabled && !a.IsNpc && a.IsTemporarilySuspended && string.Equals(a.Name, action.Name, StringComparison.OrdinalIgnoreCase));
-            if (target is null)
-                continue;
-
-            var reason = target.SuspensionReason;
-            target.IsTemporarilySuspended = false;
-            target.SuspendedByAgentId = string.Empty;
-            target.SuspendedUntilRound = null;
-            target.SuspensionReason = string.Empty;
-            roomChanged = true;
-
-            await AddOffSceneNoticeAsync(
-                room,
-                target,
-                BuildOffSceneNotice(
-                    reason,
-                    string.IsNullOrWhiteSpace(action.Body)
-                        ? "You have rejoined the active scene. You did not directly witness the rounds that occurred while you were off-scene."
-                        : action.Body));
-            OnLog?.Invoke($"PermanentAgent.ResumeApplied: {target.Name}");
-        }
-
-        foreach (var action in actions.Where(a => a.Kind == PrivilegedActionKind.DismissNpc))
-        {
-            var target = room.Agents.FirstOrDefault(a => a.IsEnabled && a.IsNpc && string.Equals(a.Name, action.Name, StringComparison.OrdinalIgnoreCase));
-            if (target is null)
-                continue;
-
-            target.IsEnabled = false;
-            target.IsTemporarilySuspended = false;
-            target.SuspendedByAgentId = string.Empty;
-            target.SuspendedUntilRound = null;
-            target.SuspensionReason = string.Empty;
-            roomChanged = true;
-
-            await _memoryRepo.SaveAsync(room.Id, target.Id, MemoryKind.AgentShort, string.Empty);
-            await AppendDurableDepartureNoteAsync(room, target.Name, action.Body);
-            OnLog?.Invoke($"NpcAgent.DismissApplied: {target.Name}");
-        }
-
-        foreach (var action in actions.Where(a => a.Kind == PrivilegedActionKind.SuspendAgent))
-        {
-            var target = room.Agents.FirstOrDefault(a => a.IsEnabled && !a.IsNpc && !a.IsTemporarilySuspended && string.Equals(a.Name, action.Name, StringComparison.OrdinalIgnoreCase));
-            if (target is null)
-                continue;
-
-            target.IsTemporarilySuspended = true;
-            target.SuspendedByAgentId = sourceAgent.Id;
-            target.SuspendedUntilRound = action.Rounds.HasValue && action.Rounds.Value > 0
-                ? roundNumber + action.Rounds.Value
-                : null;
-            target.SuspensionReason = NormalizeReason(action.Body, "Off-scene until resumed.");
-            roomChanged = true;
-
-            OnLog?.Invoke(target.SuspendedUntilRound.HasValue
-                ? $"PermanentAgent.SuspendApplied: {target.Name} through round {target.SuspendedUntilRound.Value}"
-                : $"PermanentAgent.SuspendApplied: {target.Name} until resumed");
-        }
-
-        foreach (var action in actions.Where(a => a.Kind == PrivilegedActionKind.SpawnNpc))
-        {
-            var npc = CreateSpawnedNpc(room, sourceAgent, action, appSettings, kokoroVoices);
-            room.Agents.Add(npc);
-            roomChanged = true;
-            OnLog?.Invoke($"NpcAgent.SpawnApplied: {npc.Name}");
-        }
-
-        if (roomChanged)
-            await _roomRepo.SaveAsync(room);
-    }
+    
 
     private async Task AppendDurableDepartureNoteAsync(RoomConfig room, string npcName, string reason)
     {
@@ -828,35 +566,7 @@ public sealed class ConversationRunner
         return $"{prior} {current} You did not directly witness the rounds that occurred while you were absent; react only from your current knowledge and what has now been conveyed to you.";
     }
 
-    private AgentConfig CreateSpawnedNpc(
-        RoomConfig room,
-        AgentConfig sourceAgent,
-        RequestedPrivilegedAction action,
-        AppSettings? appSettings,
-        IReadOnlyList<string> kokoroVoices)
-    {
-        var (accentHex, backgroundHex) = ChooseNpcColors(room);
-        var voice = ResolveNpcVoice(room, action, appSettings, kokoroVoices);
-        var sortOrder = room.Agents.Count == 0 ? 0 : room.Agents.Max(a => a.SortOrder) + 1;
-
-        return new AgentConfig
-        {
-            RoomId = room.Id,
-            Name = action.Name.Trim(),
-            ModelId = string.IsNullOrWhiteSpace(room.NpcModelId) ? sourceAgent.ModelId : room.NpcModelId.Trim(),
-            SystemPrompt = BuildNpcSystemPrompt(room, action),
-            IsEnabled = true,
-            MaxTokensOverride = room.NpcMaxTokens,
-            CompactionBudget = room.NpcCompactionBudget > 0 ? room.NpcCompactionBudget : 300,
-            AccentHex = accentHex,
-            BackgroundHex = backgroundHex,
-            TtsVoice = string.IsNullOrWhiteSpace(voice) ? string.Empty : voice.Trim(),
-            IsNpc = true,
-            SpawnedByAgentId = sourceAgent.Id,
-            SortOrder = sortOrder,
-            PromptSampleId = room.NpcPromptSampleId
-        };
-    }
+    
 
     private static string ResolveNpcVoice(
         RoomConfig room,
@@ -916,101 +626,7 @@ public sealed class ConversationRunner
         }
     }
 
-    private static string BuildNpcSystemPrompt(RoomConfig room, RequestedPrivilegedAction action)
-    {
-        var baseInstructions = string.IsNullOrWhiteSpace(room.NpcBaseInstructions)
-            ? "Stay in character and respond only as this NPC. Follow the scene being driven by the narrator and the current room state. Do not act as narrator, adjudicator, or DM. Do not emit privileged-action tags."
-            : room.NpcBaseInstructions.Trim();
-        var description = NormalizeReason(action.Body, "Secondary NPC in the current scene.");
-
-        return $"""
-{baseInstructions}
-
-Character Name: {action.Name.Trim()}
-Character Description:
-{description}
-""";
-    }
-
-    private static (string AccentHex, string BackgroundHex) ChooseNpcColors(RoomConfig room)
-    {
-        var usedColors = new HashSet<string>(
-            room.Agents.Where(a => a.IsEnabled).Select(a => a.AccentHex),
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (var preset in NpcColorPresets)
-        {
-            if (!usedColors.Contains(preset.AccentHex))
-                return preset;
-        }
-
-        return NpcColorPresets[^1];
-    }
-
-    private static List<RequestedPrivilegedAction> ParseRequestedPrivilegedActions(string actionBlock)
-    {
-        var actions = new List<RequestedPrivilegedAction>();
-        CollectActions(actions, actionBlock, ResumeAgentRegex, PrivilegedActionKind.ResumeAgent, attrs => null, attrs => null);
-        CollectActions(actions, actionBlock, DismissNpcRegex, PrivilegedActionKind.DismissNpc, attrs => null, attrs => null);
-        CollectActions(actions, actionBlock, SuspendAgentRegex, PrivilegedActionKind.SuspendAgent, attrs => null, attrs => ParseNullableInt(ExtractAttributeValue(attrs, "rounds")));
-        CollectActions(actions, actionBlock, SpawnNpcRegex, PrivilegedActionKind.SpawnNpc, attrs => ExtractAttributeValue(attrs, "gender"), attrs => null);
-        return actions.OrderBy(a => a.Index).ToList();
-    }
-
-    private static void CollectActions(
-        ICollection<RequestedPrivilegedAction> actions,
-        string block,
-        Regex regex,
-        PrivilegedActionKind kind,
-        Func<string, string?> genderSelector,
-        Func<string, int?> roundsSelector)
-    {
-        foreach (Match match in regex.Matches(block))
-        {
-            var attrs = match.Groups["attrs"].Value;
-            actions.Add(new RequestedPrivilegedAction(
-                kind,
-                match.Index,
-                ExtractAttributeValue(attrs, "name"),
-                match.Groups["body"].Value.Trim(),
-                genderSelector(attrs),
-                roundsSelector(attrs)));
-        }
-    }
-
-    private static string DescribePrivilegedAction(RequestedPrivilegedAction action) =>
-        action.Kind switch
-        {
-            PrivilegedActionKind.SpawnNpc => $"spawn NPC '{action.Name}'",
-            PrivilegedActionKind.DismissNpc => $"dismiss NPC '{action.Name}'",
-            PrivilegedActionKind.SuspendAgent => action.Rounds.HasValue
-                ? $"suspend '{action.Name}' for {action.Rounds.Value} round(s)"
-                : $"suspend '{action.Name}' until resumed",
-            PrivilegedActionKind.ResumeAgent => $"resume '{action.Name}'",
-            _ => action.Kind.ToString(),
-        };
-
-    private static int GetActionPhaseOrder(PrivilegedActionKind kind) =>
-        kind switch
-        {
-            PrivilegedActionKind.ResumeAgent => 0,
-            PrivilegedActionKind.DismissNpc => 1,
-            PrivilegedActionKind.SuspendAgent => 2,
-            PrivilegedActionKind.SpawnNpc => 3,
-            _ => 99,
-        };
-
-    private static string ExtractAttributeValue(string attrs, string attributeName)
-    {
-        if (string.IsNullOrWhiteSpace(attrs) || string.IsNullOrWhiteSpace(attributeName))
-            return string.Empty;
-
-        var match = Regex.Match(
-            attrs,
-            $"\\b{Regex.Escape(attributeName)}\\s*=\\s*(?:\"(?<value>[^\"]*)\"|'(?<value>[^']*)')",
-            RegexOptions.IgnoreCase);
-        return match.Success ? match.Groups["value"].Value.Trim() : string.Empty;
-    }
+    
 
     private static int? ParseNullableInt(string value) =>
         int.TryParse(value, out var parsed) ? parsed : null;

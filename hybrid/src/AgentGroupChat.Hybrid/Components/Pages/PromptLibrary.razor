@@ -3,132 +3,134 @@
 @inject RoomState RoomState
 @inject ISnackbar Snackbar
 @implements IDisposable
+<MudGrid Justify="Justify.Center">
+    <MudItem xs="8" >
+        <MudText Typo="Typo.h4" GutterBottom="true">Prompt Library</MudText>
 
-<MudText Typo="Typo.h4" GutterBottom="true">Prompt Library</MudText>
-
-<MudPaper Class="pa-4 mb-4" Elevation="1">
-    <MudText Typo="Typo.body1">Browse built-in starter prompts, save your own reusable variants, and copy a prompt into an agent without creating a live link.</MudText>
-</MudPaper>
-
-<MudGrid>
-    <MudItem xs="12" md="4">
         <MudPaper Class="pa-4 mb-4" Elevation="1">
-            <MudText Typo="Typo.h6">Browse</MudText>
-            <MudTextField @bind-Value="_searchText" Label="Search" Immediate="true" Class="mb-2" />
-            <MudSelect T="string" Value="@_categoryFilter" ValueChanged="OnCategoryChanged" Label="Category" ShrinkLabel="true" Class="mb-3">
-                <MudSelectItem T="string" Value="@string.Empty">All categories</MudSelectItem>
-                @foreach (var category in Categories)
-                {
-                    <MudSelectItem T="string" Value="@category">@category</MudSelectItem>
-                }
-            </MudSelect>
-
-            <MudStack Row="true" Spacing="2" Class="mb-3">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNewDraft">New Sample</MudButton>
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="DuplicateSelected" Disabled="SelectedSample is null">Duplicate</MudButton>
-            </MudStack>
-
-            <MudDivider Class="mb-3" />
-
-            <MudText Typo="Typo.subtitle1" Class="mb-2">Starter Samples (@StarterSamples.Count)</MudText>
-            @if (StarterSamples.Count == 0)
-            {
-                <MudText Typo="Typo.caption" Class="mb-3">No starter prompts matched the current filter.</MudText>
-            }
-            else
-            {
-                @foreach (var sample in StarterSamples)
-                {
-                    <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true" Style="cursor:pointer;"
-                              @onclick="() => SelectSample(sample.Id)">
-                        <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
-                            <div style="flex:1; min-width:0;">
-                                <MudText Typo="Typo.subtitle2">@sample.Name</MudText>
-                                <MudText Typo="Typo.caption">@sample.Category</MudText>
-                                <MudText Typo="Typo.body2">@sample.Description</MudText>
-                            </div>
-                            @if (_selectedSampleId == sample.Id)
-                            {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Primary">Selected</MudChip>
-                            }
-                        </MudStack>
-                    </MudPaper>
-                }
-            }
-
-            <MudDivider Class="my-3" />
-
-            <MudText Typo="Typo.subtitle1" Class="mb-2">Saved Prompts (@SavedSamples.Count)</MudText>
-            @if (SavedSamples.Count == 0)
-            {
-                <MudText Typo="Typo.caption">No saved prompts yet.</MudText>
-            }
-            else
-            {
-                @foreach (var sample in SavedSamples)
-                {
-                    <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true" Style="cursor:pointer;"
-                              @onclick="() => SelectSample(sample.Id)">
-                        <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
-                            <div style="flex:1; min-width:0;">
-                                <MudText Typo="Typo.subtitle2">@sample.Name</MudText>
-                                <MudText Typo="Typo.caption">@sample.Category</MudText>
-                                @if (!string.IsNullOrWhiteSpace(sample.SourceLabel))
-                                {
-                                    <MudText Typo="Typo.caption">@sample.SourceLabel</MudText>
-                                }
-                            </div>
-                            @if (_selectedSampleId == sample.Id)
-                            {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Primary">Selected</MudChip>
-                            }
-                        </MudStack>
-                    </MudPaper>
-                }
-            }
-        </MudPaper>
-    </MudItem>
-
-    <MudItem xs="12" md="8">
-        <MudPaper Class="pa-4 mb-4" Elevation="1">
-            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
-                <MudText Typo="Typo.h6">Editor</MudText>
-                <MudSpacer />
-                <MudChip T="string" Size="Size.Small" Color="@(_draft.IsBuiltIn ? Color.Secondary : Color.Primary)">
-                    @(_draft.IsBuiltIn ? "Built-in" : "User")
-                </MudChip>
-            </MudStack>
-
-            <MudGrid>
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_draft.Name" Label="Name" Class="mb-2" />
-                </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_draft.Category" Label="Category" Class="mb-2" />
-                </MudItem>
-                <MudItem xs="12">
-                    <MudTextField @bind-Value="_draft.Description" Label="Description" Lines="3" Class="mb-2" />
-                </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_draft.Tags" Label="Tags" Class="mb-2" />
-                </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_draft.SourceLabel" Label="Source Label" Class="mb-2" />
-                </MudItem>
-                <MudItem xs="12">
-                    <MudTextField @bind-Value="_draft.PromptText" Label="Prompt Text" Lines="24" Class="mb-2" />
-                </MudItem>
-            </MudGrid>
-
-            <MudStack Row="true" Spacing="2">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveDraftAsync">Save</MudButton>
-                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DeleteSelectedAsync" Disabled="@(_selectedSampleId <= 0)">Delete</MudButton>
-            </MudStack>
+            <MudText Typo="Typo.body1">Browse built-in starter prompts, save your own reusable variants, and copy a prompt into an agent without creating a live link.</MudText>
         </MudPaper>
 
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4 mb-4" Elevation="1">
+                    <MudText Typo="Typo.h6">Browse</MudText>
+                    <MudTextField @bind-Value="_searchText" Label="Search" Immediate="true" Class="mb-2" />
+                    <MudSelect T="string" Value="@_categoryFilter" ValueChanged="OnCategoryChanged" Label="Category" ShrinkLabel="true" Class="mb-3">
+                        <MudSelectItem T="string" Value="@string.Empty">All categories</MudSelectItem>
+                        @foreach (var category in Categories)
+                        {
+                            <MudSelectItem T="string" Value="@category">@category</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudStack Row="true" Spacing="2" Class="mb-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateNewDraft">New Sample</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="DuplicateSelected" Disabled="SelectedSample is null">Duplicate</MudButton>
+                    </MudStack>
+
+                    <MudDivider Class="mb-3" />
+
+                    <MudText Typo="Typo.subtitle1" Class="mb-2">Starter Samples (@StarterSamples.Count)</MudText>
+                    @if (StarterSamples.Count == 0)
+                    {
+                        <MudText Typo="Typo.caption" Class="mb-3">No starter prompts matched the current filter.</MudText>
+                    }
+                    else
+                    {
+                        @foreach (var sample in StarterSamples)
+                        {
+                            <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true" Style="cursor:pointer;"
+                                      @onclick="() => SelectSample(sample.Id)">
+                                <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
+                                    <div style="flex:1; min-width:0;">
+                                        <MudText Typo="Typo.subtitle2">@sample.Name</MudText>
+                                        <MudText Typo="Typo.caption">@sample.Category</MudText>
+                                        <MudText Typo="Typo.body2">@sample.Description</MudText>
+                                    </div>
+                                    @if (_selectedSampleId == sample.Id)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary">Selected</MudChip>
+                                    }
+                                </MudStack>
+                            </MudPaper>
+                        }
+                    }
+
+                    <MudDivider Class="my-3" />
+
+                    <MudText Typo="Typo.subtitle1" Class="mb-2">Saved Prompts (@SavedSamples.Count)</MudText>
+                    @if (SavedSamples.Count == 0)
+                    {
+                        <MudText Typo="Typo.caption">No saved prompts yet.</MudText>
+                    }
+                    else
+                    {
+                        @foreach (var sample in SavedSamples)
+                        {
+                            <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true" Style="cursor:pointer;"
+                                      @onclick="() => SelectSample(sample.Id)">
+                                <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
+                                    <div style="flex:1; min-width:0;">
+                                        <MudText Typo="Typo.subtitle2">@sample.Name</MudText>
+                                        <MudText Typo="Typo.caption">@sample.Category</MudText>
+                                        @if (!string.IsNullOrWhiteSpace(sample.SourceLabel))
+                                        {
+                                            <MudText Typo="Typo.caption">@sample.SourceLabel</MudText>
+                                        }
+                                    </div>
+                                    @if (_selectedSampleId == sample.Id)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary">Selected</MudChip>
+                                    }
+                                </MudStack>
+                            </MudPaper>
+                        }
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="8">
+                <MudPaper Class="pa-4 mb-4" Elevation="1">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+                        <MudText Typo="Typo.h6">Editor</MudText>
+                        <MudSpacer />
+                        <MudChip T="string" Size="Size.Small" Color="@(_draft.IsBuiltIn ? Color.Secondary : Color.Primary)">
+                            @(_draft.IsBuiltIn ? "Built-in" : "User")
+                        </MudChip>
+                    </MudStack>
+
+                    <MudGrid>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_draft.Name" Label="Name" Class="mb-2" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_draft.Category" Label="Category" Class="mb-2" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_draft.Description" Label="Description" Lines="3" Class="mb-2" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_draft.Tags" Label="Tags" Class="mb-2" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_draft.SourceLabel" Label="Source Label" Class="mb-2" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_draft.PromptText" Label="Prompt Text" Lines="24" Class="mb-2" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudStack Row="true" Spacing="2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveDraftAsync">Save</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DeleteSelectedAsync" Disabled="@(_selectedSampleId <= 0)">Delete</MudButton>
+                    </MudStack>
+                </MudPaper>
+
+            </MudItem>
+        </MudGrid>
     </MudItem>
 </MudGrid>
-
 @code {
     private string _searchText = string.Empty;
     private string _categoryFilter = string.Empty;

@@ -15,63 +15,66 @@
 @using static AgentGroupChat.Core.ChatPlaceholders
 @using AgentGroupChat.Core.Models.Llm
 @implements IDisposable
-
-<MudText Typo="Typo.h4" GutterBottom="true">Chat</MudText>
-
-<MudPaper Class="pa-4 mb-4" Elevation="1">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-        <MudSelect @bind-Value="_selectedRoomId" Label="Room" Class="flex-grow-1" T="string">
-            @foreach (var room in RoomState.Rooms)
-            {
-                <MudSelectItem T="string" Value="@room.Id">@room.Name</MudSelectItem>
-            }
-        </MudSelect>
-        <MudButton OnClick="LoadRoom" Variant="Variant.Outlined">Load</MudButton>
-        <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearRoom" Disabled="ConvoState.IsRunning">Clear Room</MudButton>
-    </MudStack>
-</MudPaper>
-
+<MudGrid Justify="Justify.Center">
+    <MudItem xs="10" sm="12">
+        <MudText Typo="Typo.h4" GutterBottom="true">Chat</MudText>
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudSelect @bind-Value="_selectedRoomId" Label="Room" Class="flex-grow-1" T="string">
+                        @foreach (var room in RoomState.Rooms)
+                        {
+                            <MudSelectItem T="string" Value="@room.Id">@room.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton OnClick="LoadRoom" Variant="Variant.Outlined">Load</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="ClearRoom" Disabled="ConvoState.IsRunning">Clear Room</MudButton>
+                </MudStack>
+            </MudPaper>
+    </MudItem>
 @if (RoomState.SelectedRoom is null)
 {
-    <MudAlert Severity="Severity.Info">Select a room above and click Load to start chatting.</MudAlert>
+    <MudItem xs="10" sm="12">
+        <MudAlert Severity="Severity.Info">Select a room above and click Load to start chatting.</MudAlert>
+    </MudItem>
 }
 else
 {
-    <div @ref="_chatDiv" style="overflow-y:auto;">
-    <MudPaper Class="pa-4 mb-4" Elevation="1" Style="height: 600px">
-        <MudText Typo="Typo.h5">Chat</MudText>
-        @{ var isDark = AppState.Settings.UiTheme == "Dark"; }
-        @{ var visibleMessages = ConvoState.Messages.Where(m => !m.IsSystem).ToList(); }
-        @for (int i = 0; i < visibleMessages.Count; i++)
-        {
-            var msg = visibleMessages[i];
-            var idx = ConvoState.Messages.IndexOf(msg);
-            var preset = msg.IsUser ? null : AgentColorPresets.FindByAccent(msg.AccentHex, isDark);
-            var borderColor = msg.IsUser ? (isDark ? "#6EACDF" : "#1976d2") : (preset?.AccentHex ?? msg.AccentHex);
-            var bgColor = msg.IsUser ? (isDark ? "#142838" : "#e3f2fd") : (preset?.BackgroundHex ?? msg.BackgroundHex);
-            <MudPaper Class="pa-2 mb-2" Elevation="0" Outlined="true"
-                      Style="@($"border-left: 4px solid {borderColor}; background: {bgColor}")">
-                <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
-                    <div style="flex:1; min-width:0;">
-                        <MudText Typo="Typo.subtitle2" Style="@($"color:{borderColor}")">@msg.Speaker</MudText>
-                        @if (msg.Speaker == "Image")
+    <MudItem xs="8" sm="9">
+        <div>
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h5">Chat</MudText>
+                    <div @ref="_chatDiv" style="overflow-y:auto; height: 600px">
+                        @{ var isDark = AppState.Settings.UiTheme == "Dark"; }
+                        @{ var visibleMessages = ConvoState.Messages.Where(m => !m.IsSystem).ToList(); }
+                        @for (int i = 0; i < visibleMessages.Count; i++)
                         {
-                            <img src="@msg.Content" alt="Generated test preview" style="max-width:100%;max-height:420px;border-radius:8px;display:block;" />
+                            var msg = visibleMessages[i];
+                            var idx = ConvoState.Messages.IndexOf(msg);
+                            var preset = msg.IsUser ? null : AgentColorPresets.FindByAccent(msg.AccentHex, isDark);
+                            var borderColor = msg.IsUser ? (isDark ? "#6EACDF" : "#1976d2") : (preset?.AccentHex ?? msg.AccentHex);
+                            var bgColor = msg.IsUser ? (isDark ? "#142838" : "#e3f2fd") : (preset?.BackgroundHex ?? msg.BackgroundHex);
+                            <MudPaper Class="pa-2 mb-2" Elevation="0" Outlined="true"
+                                      Style="@($"border-left: 4px solid {borderColor}; background: {bgColor}")">
+                                <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="1">
+                                    <div style="flex:1; min-width:0;">
+                                        <MudText Typo="Typo.subtitle2" Style="@($"color:{borderColor}")">@msg.Speaker</MudText>
+                                        @if (msg.Speaker == "Image")
+                                        {
+                                            <img src="@msg.Content" alt="Generated test preview" style="max-width:100%;max-height:420px;border-radius:8px;display:block;" />
+                                        }
+                                        else {
+                                        <MudText Typo="Typo.body2" Style="white-space: pre-wrap">@msg.Content</MudText>
+                                        }
+                                    </div>
+                                    <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small"
+                                                   OnClick="@(() => PlayFromMessage(idx))" Disabled="_isPlayingFrom"
+                                                   Title="Play from here" />
+                                </MudStack>
+                            </MudPaper>
                         }
-                        else {
-                        <MudText Typo="Typo.body2" Style="white-space: pre-wrap">@msg.Content</MudText>
-                        }
-                    </div>
-                    <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small"
-                                   OnClick="@(() => PlayFromMessage(idx))" Disabled="_isPlayingFrom"
-                                   Title="Play from here" />
-                </MudStack>
+                </div>
             </MudPaper>
-        
-        }
-        </MudPaper>
-    </div>
-    
+        </div>
 
     <MudPaper Class="pa-4 mb-4" Elevation="1">
         @if (!_generatingImage)
@@ -126,7 +129,54 @@ else
             Speech enablement, provider choice, room fallback voice, and your voice now live under Rooms > Room Settings.
         </MudText>
     </MudPaper>
+    </MudItem>
+    <MudItem xs="2" sm="3">
+        @if (RoomState.SelectedRoom is not null && RoomState.SelectedRoom.DataTrackers.Where(x => x.Enabled).Count() > 0)
+        {
+                <MudPaper Class="pa-4 mb-4" Elevation="1">
+                    <div>
+                        <MudGrid Justify="Justify.Center">
+                            <MudItem xs="10">
+                                <MudText Typo="Typo.h5">Trackers</MudText>
+                            </MudItem>
+                            @foreach (var tracker in RoomState.SelectedRoom.DataTrackers)
+                            {
+                                <MudItem xs="10">
+                                    <MudText Typo="Typo.h6">@tracker.DataKey</MudText>
+                                </MudItem>
+                                <MudItem xs="10">
+                                    @if (tracker.ValueType == "int" || tracker.ValueType == "decimal")
+                                    {
+                                        <div style="width:100%">
+                                            <MudProgressLinear Color="Color.Primary"
+                                                               Style="height: 20px"
+                                                               Value="@double.Parse(tracker.Value)"
+                                                               Min="@tracker.MinValue.Value"
+                                                               Max="@tracker.MaxValue.Value" />
+
+                                            <MudText Typo="Typo.caption">
+                                                Current: @tracker.Value / @tracker.MaxValue
+                                            </MudText>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <MudText>@tracker.Value</MudText>
+                                    }
+                                </MudItem>
+                                <MudItem xs="10">
+                                    <MudText Typo="Typo.body2">@tracker.PromptText</MudText>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    </div>
+                    <br />
+            </MudPaper>
+        }
+    </MudItem>
 }
+    
+</MudGrid>
 
 @code {
     private string _selectedRoomId = string.Empty;
@@ -167,9 +217,6 @@ else
         Runner.OnStatusChanged += OnRunnerStatusChanged;
         Runner.OnLog += OnRunnerLog;
         Speech.OnPlaybackStateChanged += OnSpeechStateChanged;
-
-        // Wire TTS speech gate into conversation runner
-        Runner.OnSpeechGate = OnSpeechGateAsync;
 
         if (RoomState.Rooms.Count == 0)
             await RoomState.LoadAsync();
@@ -422,17 +469,6 @@ else
     private SpeechService.SpeechSettings BuildSpeechSettings(RoomConfig? room = null) =>
         RoomSpeechResolver.BuildSettings(room ?? RoomState.SelectedRoom, AppState.Settings);
 
-    private async Task OnSpeechGateAsync(AgentConfig agent, string content, CancellationToken ct)
-    {
-        var room = RoomState.SelectedRoom;
-        var settings = BuildSpeechSettings(room);
-        if (!settings.Enabled) return;
-        var voice = string.IsNullOrWhiteSpace(agent.TtsVoice)
-            ? RoomSpeechResolver.GetFallbackVoice(room, AppState.Settings)
-            : agent.TtsVoice;
-        await Speech.SpeakAsync(settings, content, voice, ct);
-    }
-
     private async Task OnTtsRateChanged(int rate)
     {
         AppState.Settings.TtsRate = rate;
@@ -647,7 +683,6 @@ else
         Runner.OnStatusChanged -= OnRunnerStatusChanged;
         Runner.OnLog -= OnRunnerLog;
         Speech.OnPlaybackStateChanged -= OnSpeechStateChanged;
-        Runner.OnSpeechGate = null;
         _cts?.Dispose();
         _playbackCts?.Dispose();
     }

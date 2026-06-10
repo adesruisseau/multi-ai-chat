@@ -56,7 +56,8 @@
     </MudDrawer>
 
     <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="my-4 px-6">
+        
+        <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="my-4 px-6">
             @Body
         </MudContainer>
     </MudMainContent>
@@ -65,7 +66,7 @@
 @code {
     [Inject] RoomState _roomState { get; set; } = default!;
     [Inject] AppState _appState { get; set; } = default!;
-
+    
     private MudThemeProvider _themeProvider = default!;
     private MudTheme _theme = AppTheme.Build();
     private bool _isDark;

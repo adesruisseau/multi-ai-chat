@@ -1,6 +1,8 @@
 ﻿@page "/"
 @inject AppState AppState
 @inject RoomState RoomState
+<MudGrid Justify="Justify.Center">
+    <MudItem xs="8" >
 
 <MudText Typo="Typo.h4" GutterBottom="true">First-Time Setup</MudText>
 <MudText Typo="Typo.body1" Class="mb-4">Follow these steps to get started. Complete them in any order.</MudText>
@@ -52,6 +54,8 @@
     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HideGuide">Hide Setup Guide</MudButton>
 }
 
+    </MudItem>
+</MudGrid>
 @code {
     private int CompletedSteps =>
         (AppState.Settings.SetupModelsCompleted ? 1 : 0) +

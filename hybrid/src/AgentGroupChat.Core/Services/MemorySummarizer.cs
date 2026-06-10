@@ -57,12 +57,24 @@ public sealed class MemorySummarizer
                 140, profile.MaxCompletionTokens),
         };
 
+        if (room.StoreDurableMemory)
+        {
+            await StoreDurableMemory(room, baseSummarizerSettings, roundTurns, sessionTurns, onLog, existingDurableMemory, ct);
+        }
+        if (room.StoreSharedRoomMemory)
+        {
+            await StoreSharedRoomMemory(room, roundTurns, sessionTurns, onLog, existingRoomMemory, existingDurableMemory, profile, roomSettings, ct);
+        }
+
+    }
+
+    private async Task StoreSharedRoomMemory(RoomConfig room, IReadOnlyList<TranscriptTurn> roundTurns, IReadOnlyList<TranscriptTurn> sessionTurns, Action<string>? onLog, string existingRoomMemory, string existingDurableMemory, SceneSummarizerProfile profile, LlmRequestSettings roomSettings, CancellationToken ct)
+    {
         try
         {
-            if (room.StoreSharedRoomMemory)
-            {
-                var sharedRoomMemoryPrompt = await _promptSampleRepository.GetAsync(room.SharedRoomMemoryPromptSampleId);
-                var roomMessages = new List<LlmChatMessage>
+
+            var sharedRoomMemoryPrompt = await _promptSampleRepository.GetAsync(room.SharedRoomMemoryPromptSampleId);
+            var roomMessages = new List<LlmChatMessage>
                 {
 
 
@@ -70,26 +82,25 @@ public sealed class MemorySummarizer
                     new("user", _promptComposer.BuildSharedRoomMemoryUserPrompt(
                         room, profile, existingRoomMemory, existingDurableMemory, roundTurns, sessionTurns)),
                 };
-                var roomResult = await _llmClient.CompleteAsync(roomSettings, roomMessages, ct);
-                var roomMemory = TryExtractTrustedMemoryBlock(
-                    roomResult, profile.MaxLines, profile.MaxCharacters,
-                    out var roomRejectReason, "shared_room_memory", "scene_summary");
+            var roomResult = await _llmClient.CompleteAsync(roomSettings, roomMessages, ct);
+            var roomMemory = TryExtractTrustedMemoryBlock(
+                roomResult, profile.MaxLines, profile.MaxCharacters,
+                out var roomRejectReason, "shared_room_memory", "scene_summary");
 
-                if (!string.IsNullOrWhiteSpace(roomMemory))
-                {
-                    await _memoryRepo.SaveAsync(room.Id, null, MemoryKind.SharedRoom, roomMemory);
-                    onLog?.Invoke($"Updated shared room memory ({roomMemory.Length} chars).");
-                }
-                else if (string.IsNullOrWhiteSpace(existingRoomMemory))
-                {
-                    var fallback = BuildFallback(room, sessionTurns, profile);
-                    await _memoryRepo.SaveAsync(room.Id, null, MemoryKind.SharedRoom, fallback);
-                    onLog?.Invoke($"Room memory fallback used: {roomRejectReason}");
-                }
-                else
-                {
-                    onLog?.Invoke($"Shared room memory preserved: {roomRejectReason}");
-                }
+            if (!string.IsNullOrWhiteSpace(roomMemory))
+            {
+                await _memoryRepo.SaveAsync(room.Id, null, MemoryKind.SharedRoom, roomMemory);
+                onLog?.Invoke($"Updated shared room memory ({roomMemory.Length} chars).");
+            }
+            else if (string.IsNullOrWhiteSpace(existingRoomMemory))
+            {
+                var fallback = BuildFallback(room, sessionTurns, profile);
+                await _memoryRepo.SaveAsync(room.Id, null, MemoryKind.SharedRoom, fallback);
+                onLog?.Invoke($"Room memory fallback used: {roomRejectReason}");
+            }
+            else
+            {
+                onLog?.Invoke($"Shared room memory preserved: {roomRejectReason}");
             }
         }
         catch (OperationCanceledException) { throw; }
@@ -106,9 +117,10 @@ public sealed class MemorySummarizer
                 onLog?.Invoke($"Shared room memory preserved after failure: {ex.Message}");
             }
         }
+    }
 
-        if (!shouldPromoteDurable) return;
-        if (!room.StoreDurableMemory) return;
+    private async Task StoreDurableMemory(RoomConfig room, LlmRequestSettings baseSummarizerSettings, IReadOnlyList<TranscriptTurn> roundTurns, IReadOnlyList<TranscriptTurn> sessionTurns, Action<string>? onLog, string existingDurableMemory, CancellationToken ct)
+    {
         try
         {
             var durableSettings = baseSummarizerSettings with
@@ -121,11 +133,11 @@ public sealed class MemorySummarizer
             var durableMemoryPrompt = await _promptSampleRepository.GetAsync(room.DurableMemoryPromptSampleId);
 
             var durableMessages = new List<LlmChatMessage>
-            {
-                new("system", durableMemoryPrompt.PromptText),
-                new("user", _promptComposer.BuildDurableMemoryUserPrompt(
-                    room, existingDurableMemory, sharedRoomMemory, roundTurns, sessionTurns, room.RecentTurnsWindow)),
-            };
+                {
+                    new("system", durableMemoryPrompt.PromptText),
+                    new("user", _promptComposer.BuildDurableMemoryUserPrompt(
+                        room, existingDurableMemory, sharedRoomMemory, roundTurns, sessionTurns, room.RecentTurnsWindow)),
+                };
             var durableResult = await _llmClient.CompleteAsync(durableSettings, durableMessages, ct);
             var durableMemory = TryExtractTrustedMemoryBlock(
                 durableResult, 32, 8200, out var durableRejectReason, "durable_memory");

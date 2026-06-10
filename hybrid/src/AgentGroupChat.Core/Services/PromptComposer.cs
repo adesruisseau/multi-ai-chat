@@ -68,7 +68,8 @@ public sealed class PromptComposer
             ? string.Empty
             : "- If you request a privileged action, place it only inside a nested <privileged_actions> block within <future_note>. Never place privileged-action tags in <reply>.";
         var dataTrackers = room.DataTrackers.Where(x => x.AgentId == agent.Id || x.AgentId == null).ToList();
-        var dataTrackerPrompt = "Data Tracking Values:";
+        var trackerManagementSection = BuildTrackerManagementSection(room, agent, dataTrackers);
+        var dataTrackerPrompt = $"Data Tracking Values:{Environment.NewLine}";
         
         dataTrackers.ForEach(x =>
         {
@@ -80,12 +81,13 @@ public sealed class PromptComposer
             }
             else
             {
-                xmlTag = $"<{x.DataKey} ValueType=\"{x.ValueType}\">";
+                xmlTag = $"{x.DataKey} ValueType=\"{x.ValueType}\"";
             }
             dataTrackerPrompt += $"""
             {agentPromptInstructions}
-            
             <{xmlTag}>{x.Value}</{x.DataKey}>
+            {Environment.NewLine}
+            {(room.PrivilegedAgentId == agent.Id ? "Place tracker updates in the <privileged_actions> block within <future_note>. Never place privileged-action tags in <reply>" : "")}
             """;
         });
 
@@ -103,6 +105,7 @@ var prompt =
 {privilegedActionInstruction}
 {inactiveParticipantsInstruction}
 {offSceneInstruction}
+{trackerManagementSection}
 {dataTrackerPrompt}
 "
 .Replace("###roomTopic###", room.Topic)
@@ -182,6 +185,9 @@ Rewrite only the shared room memory so it reflects the latest state accurately.
             .TakeLast(Math.Max(recentTurnsWindow + (room.Agents.Count * 4), 12))
             .Select(t => $"{t.Speaker}: {t.Content}");
 
+        //Temporarily removing shared memory for a rework of durable first > then shared
+        //Current shared room memory:
+        //{ (string.IsNullOrWhiteSpace(sharedRoomMemory) ? "(none)" : sharedRoomMemory)}
         return $"""
 Theme topic: {room.Topic}
 Participants: {string.Join(", ", participantNames)}
@@ -189,8 +195,7 @@ Participants: {string.Join(", ", participantNames)}
 Existing durable memory:
 {(string.IsNullOrWhiteSpace(existingDurableMemory) ? "(none)" : existingDurableMemory)}
 
-Current shared room memory:
-{(string.IsNullOrWhiteSpace(sharedRoomMemory) ? "(none)" : sharedRoomMemory)}
+
 
 Latest completed round:
 {string.Join("\n", latestRound)}
@@ -402,10 +407,43 @@ Update the durable memory conservatively.
             .ToList();
         var activeNpcsText = activeNpcs.Count == 0 ? "(none)" : string.Join(", ", activeNpcs);
         var npcInstructions = room.EnableNpcSpawning
-            ? $"- Use `<spawn_npc name=\"Name\" gender=\"male|female\">description</spawn_npc>` to add a new long-running NPC.\n- Use `<dismiss_npc name=\"Name\">reason</dismiss_npc>` to remove an active NPC.\n- Active NPCs: {activeNpcsText}.\n- Active NPC slots: {activeNpcs.Count}/{Math.Max(1, room.MaxConcurrentNpcs)}.\n- Only spawn NPCs who should remain in play for multiple rounds. Despawn NPCs immediately when no longer necessary."
+            ? $"- Use `<spawn_npc name=\"Name\" gender=\"male|female\">description</spawn_npc>` to add a new long-running NPC.\n" +
+            $"- Use `<dismiss_npc name=\"Name\">reason</dismiss_npc>` to remove an active NPC.\n" +
+            $"- Active NPCs: {activeNpcsText}.\n-" +
+            $" Active NPC slots: {activeNpcs.Count}/{Math.Max(1, room.MaxConcurrentNpcs)}.\n" +
+            $"- Only spawn NPCs who should remain in play for multiple rounds. Despawn NPCs immediately when no longer necessary."
             : "- NPC spawning is disabled for this room.";
 
-        return $"\n<npc_management>\nYou may request privileged lifecycle changes by placing them inside a nested `<privileged_actions>` block within `<future_note>`.\n{npcInstructions}\n- Use `<suspend_agent name=\"Name\" rounds=\"N\">reason</suspend_agent>` to remove a permanent character from the active roster for N upcoming rounds.\n- Use `<resume_agent name=\"Name\">reason</resume_agent>` to return a suspended permanent character to play next round.\n- Only suspend permanent characters who are genuinely off-scene, asleep, separated, or otherwise unavailable.\n- Do not suspend yourself.\n- Use at most two privileged lifecycle actions in one turn.\n- Do not place privileged-action tags in `<reply>`.\n</npc_management>\n";
+        return $"\n" +
+            $"<npc_management>\n" +
+            $"You may request privileged lifecycle changes by placing them inside a nested `<privileged_actions>` block within `<future_note>`.\n" +
+            $"{npcInstructions}\n" +
+            $"- Use `<suspend_agent name=\"Name\" rounds=\"N\">reason</suspend_agent>` to remove a permanent character from the active roster for N upcoming rounds.\n" +
+            $"- Use `<resume_agent name=\"Name\">reason</resume_agent>` to return a suspended permanent character to play next round.\n- Only suspend permanent characters who are genuinely off-scene, asleep, separated, or otherwise unavailable.\n" +
+            $"- Do not suspend yourself.\n" +
+            $"- Use at most two privileged lifecycle actions in one turn.\n" +
+            $"- Do not place privileged-action tags in `<reply>`.\n" +
+            $"</npc_management>\n";
+    }
+
+    private static string BuildTrackerManagementSection(RoomConfig room, AgentConfig agent, IReadOnlyList<DataTrackerConfig> visibleTrackers)
+    {
+        if (!room.EnablePrivilegedActions || agent.IsNpc || !string.Equals(agent.Id, room.PrivilegedAgentId, StringComparison.Ordinal))
+            return string.Empty;
+
+        var trackerSummary = visibleTrackers.Count == 0
+            ? "(none)"
+            : string.Join(", ", visibleTrackers.Select(t => $"{t.DataKey}:{t.ValueType}"));
+
+        return $"\n<tracker_management>\n"+
+                "You may manage room trackers inside the nested `<privileged_actions>` block within `<future_note>`.\n" +
+                "- Visible trackers: {trackerSummary}.\n" +
+                "- Use `<add_tracker key=\"TrackerKey\" type=\"string|int|decimal|bool\" value=\"...\" min=\"0\" max=\"10\"><agent_prompt>...</agent_prompt><privileged_prompt>...</privileged_prompt></add_tracker>` to add a new tracker\n"+
+                "- Tracker keys must be unique, start with a letter, and use only letters, numbers, underscores, or hyphens.\n-"+
+                "`int` and `decimal` trackers must include `min` and `max`, and the starting value must be inside that range. `string` and `bool` trackers must omit `min` and `max`.\n"+
+                "- Keep both prompt tags short, concrete, and focused on what should be tracked and when it changes.\n" +
+                "- Use `<remove_tracker key=\"TrackerKey\" />` only when a tracker is obsolete and should disappear from the room.\n" +
+                "</tracker_management>\n";
     }
 
     private static string BuildDataTrackerPointSection(RoomConfig room, DataTrackerConfig config)
@@ -413,8 +451,13 @@ Update the durable memory conservatively.
         if (!room.EnablePrivilegedActions || room.PrivilegedAgentId == null)
             return string.Empty;
 
-        var outputPrompt = config.PrivilegedAgentPrompt
-            + $"Use <update_tracker key=\"{config.DataKey}\" value=\"\" /> to update a value tracked in the room.";
+        var instructions = new List<string>();
+        if (!string.IsNullOrWhiteSpace(config.PrivilegedAgentPrompt))
+            instructions.Add(config.PrivilegedAgentPrompt.Trim());
+        instructions.Add($"Use <update_tracker key=\"{config.DataKey}\" value=\"\" /> to send an updated value tracked in the room.");
+        instructions.Add($"Use <remove_tracker key=\"{config.DataKey}\" /> only if this tracker is no longer useful for the room.");
+
+        var outputPrompt = string.Join(" ", instructions);
 
         return outputPrompt;
 

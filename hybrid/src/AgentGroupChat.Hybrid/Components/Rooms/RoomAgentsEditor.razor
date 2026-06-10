@@ -3,7 +3,7 @@
 @inject ISnackbar Snackbar
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-4 mb-3 flex-wrap">
-    <MudText Typo="Typo.h5">Agents</MudText>
+    <MudText Typo="Typo.h4">Agents</MudText>
     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@($"{Room.Agents.Count} agents total")</MudChip>
     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@($"{Room.HumanParticipants.Count} humans total")</MudChip>
     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@($"{GetNpcCount(Room)} NPC")</MudChip>

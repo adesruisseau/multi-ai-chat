@@ -4,20 +4,17 @@
 @inject AgentGroupChat.Core.Services.SpeechService Speech
 @using AgentGroupChat.Core.Services
 @implements IDisposable
-
-<MudText Typo="Typo.h4" GutterBottom="true">Rooms</MudText>
-
-<MudGrid>
-    <MudItem xs="12" md="12">
+<MudGrid Justify="Justify.Center">    
+    <MudItem xs="2" sm="3">
         <MudPaper Class="pa-4" Elevation="1">
             <MudGrid>
-                <MudItem xs="8">
+                <MudItem xs="12">
                     <MudText Typo="Typo.h5">Room List</MudText>
                 </MudItem>
-                <MudItem xs="4" Style="margin-left: auto;">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="my-2" FullWidth="true" OnClick="AddRoom">Add Room</MudButton>
+                <MudItem xs="12">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="my-2" OnClick="AddRoom">Add Room</MudButton>
                 </MudItem>
-                <MudItem>
+                <MudItem xs="12">
                     <MudText Typo="Typo.caption">
                         Rooms are self-contained environments where agents interact with other agents, or with the user. 
                         Set up different rooms for different purposes, such as work, personal, or testing.
@@ -37,7 +34,8 @@
             </MudGrid>
         </MudPaper>
     </MudItem>
-    <MudItem xs="12" md="12">
+
+    <MudItem xs="8" sm="9">
         @if (RoomState.SelectedRoom is not null)
         {
             var room = RoomState.SelectedRoom;
@@ -52,62 +50,73 @@
 
                     <MudTabPanel Text="Agents">
                         <RoomAgentsEditor Room="room"
-                                          Models="AppState.Models"
-                                          KokoroVoices="_kokoroVoices"
-                                          IsDark="_isDark"
-                                          IsPreviewingVoice="_previewingVoice"
-                                          PreviewAgentId="_previewAgent"
-                                          OnTestAgentVoice="TestAgentVoice" />
+                                            Models="AppState.Models"
+                                            KokoroVoices="_kokoroVoices"
+                                            IsDark="_isDark"
+                                            IsPreviewingVoice="_previewingVoice"
+                                            PreviewAgentId="_previewAgent"
+                                            OnTestAgentVoice="TestAgentVoice" />
                     </MudTabPanel>
 
                     <MudTabPanel Text="Data Trackers">
-                        <MudText Typo="Typo.h4">Track Room & Participant Data</MudText>
-                        <MudButton Variant="Variant.Filled" OnClick="AddDataTrackingPoint">Add New Tracker</MudButton>
-
-                        <MudGrid Class="mb-4">
-                        @foreach (var point in RoomState.SelectedRoom.DataTrackers)
+                        <MudText Typo="Typo.h4" Class="mt-4 mb-2">Track Room & Participant Data</MudText>
+                        
+                        @if (String.IsNullOrWhiteSpace(RoomState.SelectedRoom.PrivilegedAgentId))
                         {
-                            <MudItem xs="2">
-                                <MudTextField @bind-Value="point.DataKey" Label="Name" />
-                            </MudItem>
-                            <MudItem xs="2">
-                                <MudSelect @bind-Value="point.ValueType" Label="Type">
-                                    <MudSelectItem Value="@("string")">String</MudSelectItem>
-                                    <MudSelectItem Value="@("int")">Integer</MudSelectItem>
-                                    <MudSelectItem Value="@("decimal")">Decimal</MudSelectItem>
-                                    <MudSelectItem Value="@("bool")">T/F</MudSelectItem>
-                                </MudSelect>
-                            </MudItem>
-                            <MudItem xs="2">
-                                    <MudTextField @bind-Value="point.Value" Label="Value" Validation="@((Func<string, string>)(v => ValidateCustomValue(v, point)))" />
-                            </MudItem>
-                            @if (point.ValueType == "int" || point.ValueType == "decimal")
-                            {
-                                <MudItem xs="2">
-                                    <MudNumericField @bind-Value="point.MinValue" Label="MinValue" HideSpinButtons="true" />
-                                </MudItem>
-                                <MudItem xs="2">
-                                    <MudNumericField @bind-Value="point.MaxValue" Label="MinValue" />
-                                </MudItem>
-                            }
-                            <MudItem xs="12">
-                                <MudTextField @bind-Value="point.PromptText" Label="Agent Prompt Text" />
-                            </MudItem>
-                            <MudItem xs="12">
-                                <MudTextField @bind-Value="point.PrivilegedAgentPrompt" Label="Privileged Agent Prompt Text" />
-                            </MudItem>
-
-                            <MudItem xs="2">
-                                <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="() => DeleteDataPoint(point)">Delete</MudButton>
-                            </MudItem>
+                            <MudText Class="ml-4">A privileged agent must be defined to enable data tracking on the room.</MudText>
                         }
-                        </MudGrid>
+                        else
+                        {
+                            <MudButton Class="ml-4 mb-4" Variant="Variant.Filled" OnClick="AddDataTrackingPoint">Add New Tracker</MudButton>
+
+                            <MudGrid Class="mx-4">
+                                @foreach (var point in RoomState.SelectedRoom.DataTrackers)
+                                {
+                                    <MudItem xs="2">
+                                        <MudTextField @bind-Value="point.DataKey" Label="Name" />
+                                    </MudItem>
+                                    <MudItem xs="2">
+                                        <MudSelect @bind-Value="point.ValueType" Label="Type">
+                                            <MudSelectItem Value="@("string")">String</MudSelectItem>
+                                            <MudSelectItem Value="@("int")">Integer</MudSelectItem>
+                                            <MudSelectItem Value="@("decimal")">Decimal</MudSelectItem>
+                                            <MudSelectItem Value="@("bool")">T/F</MudSelectItem>
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="2">
+                                        <MudTextField @bind-Value="point.Value" Label="Value" Validation="@((Func<string, string>)(v => ValidateCustomValue(v, point)))" />
+                                    </MudItem>
+                                    @if (point.ValueType == "int" || point.ValueType == "decimal")
+                                    {
+                                        <MudItem xs="2">
+                                            <MudNumericField @bind-Value="point.MinValue" Label="MinValue" HideSpinButtons="true" />
+                                        </MudItem>
+                                        <MudItem xs="2">
+                                            <MudNumericField @bind-Value="point.MaxValue" Label="MinValue" />
+                                        </MudItem>
+                                    }
+                                    <MudItem xs="11">
+                                        <MudTextField @bind-Value="point.PromptText" Label="Agent Prompt Text" Lines="3"/>
+                                    </MudItem>
+                                    <MudItem xs="11">
+                                        <MudTextField @bind-Value="point.PrivilegedAgentPrompt" Label="Privileged Agent Prompt Text" Lines="3" />
+                                    </MudItem>
+
+                                    <MudItem xs="3">
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="() => DeleteDataPoint(point)">Delete</MudButton>
+                                    </MudItem>
+                                    <MudItem xs="9">
+                                        <MudText>&nbsp;</MudText>
+                                    </MudItem>
+                                }
+                            </MudGrid>
+                        }
                     </MudTabPanel>
 
                     @* <MudTabPanel Text="Human Participants">
                         <RoomHumanParticipantsEditor Room="room"
-                                                     KokoroVoices="_kokoroVoices"
-                                                     IsDark="_isDark" />
+                                                        KokoroVoices="_kokoroVoices"
+                                                        IsDark="_isDark" />
                     </MudTabPanel> *@
                 </MudTabs>
 
@@ -127,6 +136,8 @@
         }
     </MudItem>
 </MudGrid>
+    
+
 
 @code {
     private string _selectedRoomId = string.Empty;
