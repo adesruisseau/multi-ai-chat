@@ -129,7 +129,7 @@ public sealed partial class ConversationRunner
             }
 
             var pendingActions = new List<RequestedPrivilegedAction>();
-            Task<(string Response, string FutureNote, LlmCompletionResult RawResult)>? prefetchTask = null;
+            Task<(string Response, string ShortTermMemory, string LongTermMemory, string PrivilegedActions, LlmCompletionResult RawResult)>? prefetchTask = null;
             Task? endOfRoundWork = null;
             for (var agentIndex = agentStart; agentIndex < enabledAgents.Count; agentIndex++)
             {
@@ -137,7 +137,9 @@ public sealed partial class ConversationRunner
 
                 var agent = enabledAgents[agentIndex];
                 string response;
-                string futureNote;
+                string shortTermMemory;
+                string longTermMemory;
+                string privilegedActions;
                 LlmCompletionResult rawResult;
 
                 if (prefetchTask is not null)
@@ -145,14 +147,14 @@ public sealed partial class ConversationRunner
                     // Use the prefetched result — "Thinking..." was already shown
                     try
                     {
-                        (response, futureNote, rawResult) = await prefetchTask;
+                        (response, shortTermMemory, longTermMemory, privilegedActions, rawResult) = await prefetchTask;
                     }
                     catch
                     {
                         // Prefetch failed (e.g. rate limit) — retry normally
                         prefetchTask = null;
                         OnStatusChanged?.Invoke($"{agent.Name} thinking");
-                        (response, futureNote, rawResult) = await ExecuteAgentTurnInternalAsync(
+                        (response, shortTermMemory, longTermMemory, privilegedActions, rawResult) = await ExecuteAgentTurnInternalAsync(
                             room, agent, settingsResolver, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
                     }
                     prefetchTask = null;
@@ -163,16 +165,12 @@ public sealed partial class ConversationRunner
                     OnStatusChanged?.Invoke($"{agent.Name} thinking");
                     OnAgentMessageStarted?.Invoke(agent, Thinking);
 
-                    (response, futureNote, rawResult) = await ExecuteAgentTurnInternalAsync(
+                    (response, shortTermMemory, longTermMemory, privilegedActions, rawResult) = await ExecuteAgentTurnInternalAsync(
                         room, agent, settingsResolver, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
                 }
 
-                if (IsPrivilegedAgent(room, agent))
-                {
-                    var parseResult = ParsePrivilegedActions(room, agent, futureNote);
-                    futureNote = parseResult.CleanedFutureNote;
-                    pendingActions.AddRange(parseResult.Actions);
-                }
+                if (!string.IsNullOrWhiteSpace(privilegedActions))
+                    pendingActions.AddRange(ParsePrivilegedActions(room, agent, privilegedActions));
 
                 // Persist transcript
                 var turn = new TranscriptTurn
@@ -186,7 +184,8 @@ public sealed partial class ConversationRunner
                 };
                 await _transcriptRepo.AppendAsync(turn);
                 sessionTurns.Add(turn);
-                await UpdateAgentShortMemoryAsync(room, agent, futureNote);
+                await UpdateAgentShortMemoryAsync(room, agent, shortTermMemory);
+                await UpdateAgentLongMemoryAsync(room, agent, longTermMemory);
 
                 OnAgentMessageCompleted?.Invoke(agent, response);
                 OnLog?.Invoke($"{agent.Name}: {rawResult.UsageSummary ?? "no usage info"}");
@@ -346,7 +345,7 @@ public sealed partial class ConversationRunner
         return true;
     }
 
-    private async Task<(string Response, string FutureNote, LlmCompletionResult RawResult)> ExecuteAgentTurnInternalAsync(
+    private async Task<(string Response, string ShortTermMemory, string LongTermMemory, string PrivilegedActions, LlmCompletionResult RawResult)> ExecuteAgentTurnInternalAsync(
         RoomConfig room,
         AgentConfig agent,
         Func<AgentConfig, LlmRequestSettings> settingsResolver,
@@ -363,23 +362,26 @@ public sealed partial class ConversationRunner
         var durableMemory = includeDurableMemory
             ? await _memoryRepo.GetAsync(room.Id, null, MemoryKind.Durable)
             : string.Empty;
-        var agentLongMemory = await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentLong);
+        var agentLongMemory = agent.UseLongTermMemoryStorage
+            ? await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentLong)
+            : string.Empty;
         var agentShortMemory = await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentShort);
         var recentTurns = SelectRecentTurns(sessionTurns, agentIndex, enabledAgents.Count, room.RecentTurnsWindow);
 
         var promptTemplate = await _promptSampleRepository.GetAsync(agent.PromptSampleId);
+        var promptText = promptTemplate?.PromptText ?? string.Empty;
 
         var agentRecalledScenes = roundRecalledScenes is { Count: > 0 }
             ? (includeDurableMemory ? roundRecalledScenes.Take(2).ToList() : roundRecalledScenes.Take(1).ToList())
             : null;
 
         var prompt = _promptComposer.BuildAgentPrompt(
-            room, agent, promptTemplate.PromptText, iteration, maxIterations,
+            room, agent, promptText, iteration, maxIterations,
             sharedRoomMemory, durableMemory, agentLongMemory, agentShortMemory,
             recentTurns, includeDurableMemory, agentRecalledScenes);
         var agentSettings = settingsResolver(agent);
 
-        return await _turnExecutor.ExecuteAgentTurnAsync(agent, agentSettings, prompt, ct);
+        return await _turnExecutor.ExecuteAgentTurnAsync(agent, agentSettings, prompt, IsPrivilegedAgent(room, agent), ct);
     }
 
     private static List<TranscriptTurn> SelectRecentTurns(
@@ -405,11 +407,27 @@ public sealed partial class ConversationRunner
     private async Task UpdateAgentShortMemoryAsync(
         RoomConfig room,
         AgentConfig agent,
-        string futureNote)
+        string shortTermMemory)
     {
         var existingShortMemory = await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentShort);
         var (existingOffSceneNotice, cleanedExistingShortMemory) = PromptComposer.ExtractStructuredSection(existingShortMemory, "[Off-Scene Notice]");
-        if (string.IsNullOrWhiteSpace(futureNote))
+
+        if (!agent.UseShortTermMemoryStorage)
+        {
+            if (!string.IsNullOrWhiteSpace(existingOffSceneNotice))
+            {
+                await _memoryRepo.SaveAsync(room.Id, agent.Id, MemoryKind.AgentShort, cleanedExistingShortMemory);
+                OnLog?.Invoke($"Cleared {agent.Name} off-scene notice after their return turn.");
+            }
+            else if (!string.IsNullOrWhiteSpace(shortTermMemory))
+            {
+                OnLog?.Invoke($"Skipped {agent.Name} short memory update: storage disabled.");
+            }
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(shortTermMemory))
         {
             if (!string.IsNullOrWhiteSpace(existingOffSceneNotice))
             {
@@ -424,11 +442,11 @@ public sealed partial class ConversationRunner
         }
 
         var maxLength = Math.Clamp(agent.CompactionBudget > 0 ? agent.CompactionBudget : 420, 180, 900);
-        var shortMemory = PromptComposer.SanitizeStructuredMemoryBlock(futureNote, 10, maxLength);
+        var shortMemory = PromptComposer.SanitizeStructuredMemoryBlock(shortTermMemory, 10, maxLength);
         if (string.IsNullOrWhiteSpace(shortMemory))
         {
             if (!string.IsNullOrWhiteSpace(existingShortMemory))
-                OnLog?.Invoke($"Preserved {agent.Name} short memory: future note was empty after sanitization.");
+                OnLog?.Invoke($"Preserved {agent.Name} short memory: short-term memory was empty after sanitization.");
             return;
         }
 
@@ -440,6 +458,42 @@ public sealed partial class ConversationRunner
 
         await _memoryRepo.SaveAsync(room.Id, agent.Id, MemoryKind.AgentShort, shortMemory);
         OnLog?.Invoke($"Updated {agent.Name} short memory ({shortMemory.Length} chars).");
+    }
+
+    private async Task UpdateAgentLongMemoryAsync(
+        RoomConfig room,
+        AgentConfig agent,
+        string longTermMemory)
+    {
+        if (!agent.UseLongTermMemoryStorage)
+        {
+            if (!string.IsNullOrWhiteSpace(longTermMemory))
+                OnLog?.Invoke($"Skipped {agent.Name} long memory update: storage disabled.");
+            return;
+        }
+
+        var existingLongMemory = await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentLong);
+        if (string.IsNullOrWhiteSpace(longTermMemory))
+        {
+            if (!string.IsNullOrWhiteSpace(existingLongMemory))
+                OnLog?.Invoke($"Preserved {agent.Name} long memory: missing long-term memory block.");
+            return;
+        }
+
+        var maxLength = Math.Clamp((agent.CompactionBudget > 0 ? agent.CompactionBudget : 420) * 4, 480, 12000);
+        var sanitizedLongMemory = PromptComposer.SanitizeStructuredMemoryBlock(longTermMemory, 18, maxLength);
+        if (string.IsNullOrWhiteSpace(sanitizedLongMemory))
+        {
+            if (!string.IsNullOrWhiteSpace(existingLongMemory))
+                OnLog?.Invoke($"Preserved {agent.Name} long memory: long-term memory was empty after sanitization.");
+            return;
+        }
+
+        if (string.Equals(existingLongMemory, sanitizedLongMemory, StringComparison.Ordinal))
+            return;
+
+        await _memoryRepo.SaveAsync(room.Id, agent.Id, MemoryKind.AgentLong, sanitizedLongMemory);
+        OnLog?.Invoke($"Updated {agent.Name} long memory ({sanitizedLongMemory.Length} chars).");
     }
 
     private static List<AgentConfig> GetActiveAgents(RoomConfig room) =>
@@ -593,7 +647,7 @@ public sealed partial class ConversationRunner
         if (matchingVoices.Count == 0)
             return RoomSpeechResolver.GetFallbackVoice(room, appSettings);
 
-        return matchingVoices[GetDeterministicVoiceIndex(action.Name, matchingVoices.Count)];
+        return matchingVoices[GetDeterministicVoiceIndex(action.Name ?? string.Empty, matchingVoices.Count)];
     }
 
     private static bool IsKokoroVoiceForGender(string voice, string? gender)

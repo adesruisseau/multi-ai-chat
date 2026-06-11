@@ -1,7 +1,10 @@
+using AgentGroupChat.Core;
 using AgentGroupChat.Core.Models.Domain;
 using AgentGroupChat.Core.Services.Interfaces;
 using AgentGroupChat.Infrastructure.Entities;
 using Microsoft.EntityFrameworkCore;
+using NAudio.MediaFoundation;
+using System.Net;
 
 namespace AgentGroupChat.Infrastructure.Data;
 
@@ -163,5 +166,108 @@ public sealed class SettingsRepository : ISettingsRepository
             _db.ImageModels.Remove(entity);
             await _db.SaveChangesAsync();
         }
+    }
+
+    public async Task SeedAiConnectionsIfEmptyAsync()
+    {
+        if (await _db.AiConnections.AnyAsync())
+        {
+            return;
+        }
+
+        var seedConnections = CreateConnectionSeeds().Select(EntityMapper.ToEntity).ToList();
+        _db.AiConnections.AddRange(seedConnections);
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task SeedAiModelsIfEmptyAsync()
+    {
+        await SeedAiConnectionsIfEmptyAsync();
+        if (await _db.AiModels.AnyAsync())
+        {
+            return;
+        }
+        var seedModels = await CreateModelSeeds();
+        var seedModelEntities = seedModels.Select(EntityMapper.ToEntity).ToList();
+        _db.AiModels.AddRange(seedModelEntities);
+        await _db.SaveChangesAsync();
+    }
+
+    private static IReadOnlyList<AiConnection> CreateConnectionSeeds()
+    {
+        var now = DateTimeOffset.UtcNow;
+        return
+           [
+                new AiConnection
+                {
+                    Name = "Groq",
+                    Transport = LlmTransports.Groq,
+                    Endpoint = "https://api.groq.com/openai/v1/chat/completions",
+                    ApiKey = "YOUR_KEY_HERE",
+                    SortOrder = 1
+                },
+                new AiConnection
+                {
+                    Name = "Gemini",
+                    Transport = LlmTransports.Gemini,
+                    Endpoint = "https://generativelanguage.googleapis.com/v1beta",
+                    ApiKey = "YOUR_KEY_HERE",
+                    SortOrder = 2
+                }
+            ];
+    }
+
+    private async Task<IReadOnlyList<AiModel>> CreateModelSeeds()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var connections = await _db.AiConnections.Where(x => x.Transport == LlmTransports.Groq || x.Transport == LlmTransports.Gemini).ToListAsync();
+        if (connections.Count() == 0)
+        {
+            return null;
+        }
+        
+        return [
+            new AiModel
+            {
+                Name = "Groq 8b Instant",
+                MaxTokens = 512,
+                Temperature = 0.7m,
+                ModelId = "llama-3.1-8b-instant",
+                Notes = "",
+                SortOrder = 0,
+                ConnectionId = connections.Where(x => x.Transport == LlmTransports.Groq).FirstOrDefault()!.Id,
+            },
+            new AiModel
+            {
+                Name = "Groq 70b Versatile",
+                MaxTokens = 512,
+                Temperature = 0.7m,
+                ModelId = "llama-3.3-70b-versatile",
+                Notes = "",
+                SortOrder = 0,
+                ConnectionId = connections.Where(x => x.Transport == LlmTransports.Groq).FirstOrDefault()!.Id,
+            },
+            new AiModel
+            {
+                Name = "Gemini 3.1",
+                MaxTokens = 512,
+                Temperature = 0.7m,
+                ModelId = "gemini-3.1-flash-lite",
+                Notes = "",
+                SortOrder = 0,
+                ConnectionId = connections.Where(x => x.Transport == LlmTransports.Gemini).FirstOrDefault()!.Id,
+            },
+            new AiModel
+            {
+                Name = "Gemma 4 31b",
+                MaxTokens = 512,
+                Temperature = 0.7m,
+                ModelId = "gemma-4-31b-it",
+                Notes = "",
+                SortOrder = 0,
+                ConnectionId = connections.Where(x => x.Transport == LlmTransports.Gemini).FirstOrDefault()!.Id,
+            },
+            ];
+        
     }
 }

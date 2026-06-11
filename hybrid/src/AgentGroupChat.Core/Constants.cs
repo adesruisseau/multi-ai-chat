@@ -8,7 +8,8 @@ public static class XmlTags
     public const string SuspendAgent = "suspend_agent";
     public const string ResumeAgent = "resume_agent";
     public const string Reply = "reply";
-    public const string FutureNote = "future_note";
+    public const string ShortTermMemory = "short_term_memory";
+    public const string LongTermMemory = "long_term_memory";
     public const string DurableMemory = "durable_memory";
 }
 

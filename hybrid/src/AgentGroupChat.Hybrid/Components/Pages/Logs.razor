@@ -77,7 +77,7 @@
                 }
             </MudStack>
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-                Short-term scratchpads come from each agent's last message as a <future_note></future_note> xml tag.
+                Agent-private memory is populated from each model response using <short_term_memory></short_term_memory> and <long_term_memory></long_term_memory> XML tags when those storage modes are enabled.
             </MudText>
 
             @if (RoomState.SelectedRoom is null)
@@ -94,27 +94,41 @@
                 {
                     var shortBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentShort);
                     var longBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentLong);
+                    var showShortMemory = !agent.IsHumanParticipant && agent.UseShortTermMemoryStorage;
+                    var showLongMemory = !agent.IsHumanParticipant && agent.UseLongTermMemoryStorage;
 
                     <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
                         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
                             <MudText Typo="Typo.subtitle1">@agent.Name</MudText>
                             <MudSpacer />
-                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@BuildAgentMemorySummary(shortBlock, null)</MudChip>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@BuildAgentMemorySummary(showShortMemory ? shortBlock : null, showLongMemory ? longBlock : null)</MudChip>
                         </MudStack>
 
-                        <MudGrid>
-                            <MudItem xs="12">
-                                <MudText Typo="Typo.caption" Class="mb-1">Short-Term Scratchpad</MudText>
-                                <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(shortBlock)</MudText>
-                                <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(shortBlock, "(No short-term scratchpad yet.)")</pre>
-                            </MudItem>
-                            @*Currently abandoning agent-specific long-term memory storage.*@
-                             <MudItem xs="12" md="6"> 
-                                <MudText Typo="Typo.caption" Class="mb-1">Long-Term Agent Memory</MudText>
-                                <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(longBlock)</MudText>
-                                <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(longBlock, "(No long-term agent memory yet.)")</pre>
-                            </MudItem> 
-                        </MudGrid>
+                        @if (!showShortMemory && !showLongMemory)
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Private memory storage is disabled for this agent.</MudText>
+                        }
+                        else
+                        {
+                            <MudGrid>
+                                @if (showShortMemory)
+                                {
+                                    <MudItem xs="12" md="@(showLongMemory ? 6 : 12)">
+                                        <MudText Typo="Typo.caption" Class="mb-1">Short-Term Scratchpad</MudText>
+                                        <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(shortBlock)</MudText>
+                                        <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(shortBlock, "(No short-term scratchpad yet.)")</pre>
+                                    </MudItem>
+                                }
+                                @if (showLongMemory)
+                                {
+                                    <MudItem xs="12" md="@(showShortMemory ? 6 : 12)">
+                                        <MudText Typo="Typo.caption" Class="mb-1">Long-Term Agent Memory</MudText>
+                                        <MudText Typo="Typo.caption" Class="mb-2" Color="Color.Secondary">@BuildMemoryMeta(longBlock)</MudText>
+                                        <pre style="white-space:pre-wrap; max-height:220px; overflow-y:auto; margin:0">@RenderMemory(longBlock, "(No long-term agent memory yet.)")</pre>
+                                    </MudItem>
+                                }
+                            </MudGrid>
+                        }
                     </MudPaper>
                 }
             }

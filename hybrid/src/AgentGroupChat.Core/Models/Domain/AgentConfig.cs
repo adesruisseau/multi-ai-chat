@@ -14,6 +14,8 @@ public sealed class AgentConfig
     public string BackgroundHex { get; set; } = "#F9E5DE";
     public string TtsVoice { get; set; } = string.Empty;
     public string AppearanceSummary { get; set; } = string.Empty;
+    public bool UseShortTermMemoryStorage { get; set; } = true;
+    public bool UseLongTermMemoryStorage { get; set; } = true;
     public bool IsNpc { get; set; }
     public string SpawnedByAgentId { get; set; } = string.Empty;
     public bool IsTemporarilySuspended { get; set; }

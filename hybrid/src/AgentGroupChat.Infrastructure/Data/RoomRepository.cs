@@ -85,4 +85,127 @@ public sealed class RoomRepository : IRoomRepository
             await _db.SaveChangesAsync();
         }
     }
+
+    public async Task SeedRoom()
+    {
+        if (await _db.Rooms.AnyAsync())
+        {
+            return;
+        }
+        var seedRooms = await CreateRoomSeeds();
+        var seedRoomEntities = seedRooms.Select(EntityMapper.ToEntity).ToList();
+        _db.Rooms.AddRange(seedRoomEntities);
+        await _db.SaveChangesAsync();
+    }
+
+    private async Task<IReadOnlyList<RoomConfig>> CreateRoomSeeds()
+    {
+        var aiModel = await _db.AiModels.Where(x => x.Name == "Groq 8b Instant").FirstOrDefaultAsync();
+        if (aiModel is null || String.IsNullOrWhiteSpace(aiModel.Id))
+            return null;
+        var prompts = await _db.PromptSamples.Where(x => x.Name == "Optimist" || x.Name == "Soft-Spoken Companion" || x.Name == "Summarizer Agent").ToListAsync();
+        if (prompts.Count != 3)
+        {
+            return null;
+        }
+
+        return [
+            new RoomConfig
+            {
+                Name = "Sample Room",
+                MaxTokens = 512,
+                Topic = "Talk about anything interesting.",
+                RecentTurnsWindow = 3,
+                WaitForUserReply = true,
+                PauseAfterEveryReply = false,
+                AgentDelaySeconds = 10,
+                UserCompactionBudget = 2000,
+                SummarizerModelId = aiModel.Id,
+                UseSummarizer = true,
+                StoreSharedRoomMemory = true,
+                StoreDurableMemory = false,
+                StoreLongTermArchives = false,
+                SummarizationLevel = "Moderate",
+                SummarizerMaxTokens = 500,
+                SummarizerMaxLines = 25,
+                SummarizerMaxCharacters = 5600,
+                SummarizerBroaderTurns = 6,
+                SummarizerPromptOverride = "",
+                TtsEnabledOverride = false,
+                TtsProviderOverride = "",
+                TtsFallbackVoice = "",
+                TtsUserVoice = "",
+                EnableSceneImageGeneration = false,
+                UseCreativeImageGeneration = false,
+                SceneImageModelId = "",
+                SceneImageStyleNotes = "",
+                SceneImageNegativePrompt = "",
+                MemoryModelId = aiModel.Id,
+                MaxArchivedScenes = 50,
+                EnableSceneArchive = true,
+                EnablePrivilegedActions = false,
+                EnableNpcSpawning = false,
+                PrivilegedAgentId = "",
+                NpcModelId = aiModel.Id,
+                NpcDefaultMaleVoice = "",
+                NpcDefaultFemaleVoice = "",
+                NpcMaxTokens = 512,
+                NpcCompactionBudget = 1400,
+                NpcBaseInstructions = "",
+                MaxConcurrentNpcs = 2,
+                SortOrder = 0,
+                Agents = new() {
+                    new AgentConfig() {
+                        Name = "The Optimist",
+                        ModelId = aiModel.Id,
+                        SystemPrompt = "",
+                        IsEnabled = true,
+                        MaxTokensOverride = 512,
+                        CompactionBudget = 300,
+                        AccentHex = "#6E5AA6",
+                        BackgroundHex = "#ECE6FA",
+                        TtsVoice = "",
+                        AppearanceSummary = "",
+                        UseShortTermMemoryStorage = false,
+                        UseLongTermMemoryStorage = false,
+                        IsNpc = false,
+                        SpawnedByAgentId = "",
+                        IsTemporarilySuspended = false,
+                        SuspendedByAgentId = "",
+                        SuspendedUntilRound = 0,
+                        SuspensionReason = "",
+                        SortOrder = 0,
+                        IsHumanParticipant = false,
+                        PromptSampleId = prompts.Where(x => x.Name == "Optimist").First().Id,
+                    },
+                    new AgentConfig() {
+                        Name = "The Companion",
+                        ModelId = aiModel.Id,
+                        SystemPrompt = "",
+                        IsEnabled = true,
+                        MaxTokensOverride = 512,
+                        CompactionBudget = 300,
+                        AccentHex = "#C56A54",
+                        BackgroundHex = "#F9E5DE",
+                        TtsVoice = "",
+                        AppearanceSummary = "",
+                        UseShortTermMemoryStorage = false,
+                        UseLongTermMemoryStorage = false,
+                        IsNpc = false,
+                        SpawnedByAgentId = "",
+                        IsTemporarilySuspended = false,
+                        SuspendedByAgentId = "",
+                        SuspendedUntilRound = 0,
+                        SuspensionReason = "",
+                        SortOrder = 0,
+                        IsHumanParticipant = false,
+                        PromptSampleId = prompts.Where(x => x.Name == "Soft-Spoken Companion").First().Id,
+                    },
+                },
+                SharedRoomMemoryPromptSampleId = prompts.Where(x => x.Name == "Summarizer Agent").FirstOrDefault()!.Id,
+                DurableMemoryPromptSampleId = prompts.Where(x => x.Name == "Summarizer Agent").FirstOrDefault()!.Id,
+                NpcPromptSampleId = prompts.Where(x => x.Name == "Optimist").FirstOrDefault()!.Id
+            }
+            ];
+    }
 }

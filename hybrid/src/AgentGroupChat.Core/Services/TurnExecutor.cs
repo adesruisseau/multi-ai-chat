@@ -5,26 +5,6 @@ namespace AgentGroupChat.Core.Services;
 
 public sealed class TurnExecutor
 {
-    private const string AgentOutputTransportPrompt = @"
-    ========================
-    TRANSPORT FORMAT (STRICT)
-    ========================
-
-    Return a response with exactly two XML blocks:
-    - <reply> block will contain your generated output
-    - <future_note> block will contain any generated notes to carry forward privately 
-
-
-    <reply>
-    (current turn in-character narration only)
-    </reply>
-
-    <future_note>
-    (private memory for future self)
-    </future_note>
-
-    ";
-
     private readonly LlmClient _llmClient;
     private readonly LogService _logService;
 
@@ -34,23 +14,30 @@ public sealed class TurnExecutor
         _logService = logService;
     }
 
-    public async Task<(string Response, string FutureNote, LlmCompletionResult RawResult)> ExecuteAgentTurnAsync(
+    public async Task<(string Response, string ShortTermMemory, string LongTermMemory, string PrivilegedActions, LlmCompletionResult RawResult)> ExecuteAgentTurnAsync(
         AgentConfig agent,
         LlmRequestSettings settings,
         string prompt,
+        bool includePrivilegedActions,
         CancellationToken ct)
     {
+        var fullPrompt = string.Concat(
+            prompt.TrimEnd(),
+            Environment.NewLine,
+            Environment.NewLine,
+            BuildAgentOutputTransportPrompt(agent, includePrivilegedActions));
+
         var messages = new List<LlmChatMessage>
         {
-            new(LlmRoles.System, prompt),
-            new(LlmRoles.System, AgentOutputTransportPrompt),
+            new(LlmRoles.System, fullPrompt)
+            
         };
 
         await _logService.LogAsync(
             LogCategory.Request,
             agent.Name,
             $"→ {settings.ConnectionName} / {settings.Model}",
-            $"[System Prompt]\n{prompt}\n\n[Transport Prompt]\n{AgentOutputTransportPrompt}");
+            $"[System Prompt]\n{fullPrompt}\n");
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         LlmCompletionResult result;
@@ -82,7 +69,7 @@ public sealed class TurnExecutor
         }
         sw.Stop();
 
-        var (response, futureNote) = ParseAgentOutput(result.Content);
+        var (response, shortTermMemory, longTermMemory, privilegedActions) = ParseAgentOutput(result.Content);
 
         await _logService.LogAsync(
             LogCategory.Response,
@@ -91,32 +78,80 @@ public sealed class TurnExecutor
             result.Content,
             sw.ElapsedMilliseconds);
 
-        return (response, futureNote, result);
+        return (response, shortTermMemory, longTermMemory, privilegedActions, result);
     }
 
-    private static (string Response, string FutureNote) ParseAgentOutput(string response)
+    private static (string Response, string ShortTermMemory, string LongTermMemory, string PrivilegedActions) ParseAgentOutput(string response)
     {
         if (string.IsNullOrWhiteSpace(response))
-            return ("(empty response)", string.Empty);
+            return ("(empty response)", string.Empty, string.Empty, string.Empty);
 
-        var futureNote = TryExtractTaggedContentWithSalvage(response, "future_note", allowTextBeforeClosingTag: false) ?? string.Empty;
-        var replySource = RemoveTaggedSection(response, "future_note");
-        var taggedReply = TryExtractTaggedContentWithSalvage(replySource, "reply", allowTextBeforeClosingTag: true);
+        var shortTermNote = TryExtractTaggedContentWithSalvage(response, XmlTags.ShortTermMemory, allowTextBeforeClosingTag: true) ?? string.Empty;
+        var longTermNote = TryExtractTaggedContentWithSalvage(response, XmlTags.LongTermMemory, allowTextBeforeClosingTag: true) ?? string.Empty;
+        var privilegedActions = TryExtractTaggedContentWithSalvage(response, XmlTags.PrivilegedActions, allowTextBeforeClosingTag: true) ?? string.Empty;
+        var taggedReply = TryExtractTaggedContentWithSalvage(response, XmlTags.Reply, allowTextBeforeClosingTag: true);
+        var replySource = string.IsNullOrWhiteSpace(taggedReply)
+            ? RemoveTransportSections(response)
+            : taggedReply;
         var visibleResponse = string.IsNullOrWhiteSpace(taggedReply)
             ? StripTransportTagMarkers(replySource)
             : StripTransportTagMarkers(taggedReply);
 
         if (string.IsNullOrWhiteSpace(visibleResponse))
         {
-            visibleResponse = StripTransportTagMarkers(response);
-            if (!string.IsNullOrWhiteSpace(futureNote)
-                && visibleResponse.EndsWith(futureNote, StringComparison.Ordinal))
-            {
-                visibleResponse = visibleResponse[..^futureNote.Length].TrimEnd();
-            }
+            visibleResponse = StripTransportTagMarkers(RemoveTransportSections(response));
         }
 
-        return (SanitizeAgentResponse(visibleResponse), futureNote.Trim());
+        return (
+            SanitizeAgentResponse(visibleResponse),
+            shortTermNote.Trim(),
+            longTermNote.Trim(),
+            privilegedActions.Trim());
+    }
+
+    private static string BuildAgentOutputTransportPrompt(AgentConfig agent, bool includePrivilegedActions)
+    {
+        var sectionNames = new List<string> { XmlTags.Reply };
+        var rules = new List<string>
+        {
+            $"- Put the user-visible reply only inside <{XmlTags.Reply}>.",
+        };
+
+        if (agent.UseShortTermMemoryStorage)
+        {
+            sectionNames.Add(XmlTags.ShortTermMemory);
+            rules.Add($"- Put private scratchpad notes for the next turn inside <{XmlTags.ShortTermMemory}>.");
+        }
+
+        if (agent.UseLongTermMemoryStorage)
+        {
+            sectionNames.Add(XmlTags.LongTermMemory);
+            rules.Add($"- Put durable agent-private memory worth keeping across many rounds inside <{XmlTags.LongTermMemory}>.");
+        }
+
+        if (includePrivilegedActions)
+        {
+            sectionNames.Add(XmlTags.PrivilegedActions);
+            rules.Add($"- Put privileged action tags only inside <{XmlTags.PrivilegedActions}>. Leave it empty when you have no privileged requests.");
+        }
+
+        var formatLines = sectionNames
+            .Select(tagName => $"<{tagName}>...</{tagName}>")
+            .ToList();
+
+        var promptLines = new List<string>
+        {
+            "Return only XML using these sections in this exact order:",
+        };
+
+        promptLines.AddRange(formatLines);
+        promptLines.Add("Rules:");
+        promptLines.AddRange(rules);
+        promptLines.Add("- Include every listed section exactly once.");
+        promptLines.Add("- If a listed section has nothing to store, leave it empty instead of omitting it.");
+        promptLines.Add("- Do not add markdown fences, commentary, or extra top-level tags.");
+
+        return string.Join(Environment.NewLine, promptLines);
     }
 
     private static string SanitizeAgentResponse(string response)
@@ -170,6 +205,15 @@ public sealed class TurnExecutor
         return null;
     }
 
+    private static string RemoveTransportSections(string value)
+    {
+        var stripped = RemoveTaggedSection(value, XmlTags.Reply);
+        stripped = RemoveTaggedSection(stripped, XmlTags.ShortTermMemory);
+        stripped = RemoveTaggedSection(stripped, XmlTags.LongTermMemory);
+        stripped = RemoveTaggedSection(stripped, XmlTags.PrivilegedActions);
+        return stripped.Trim();
+    }
+
     private static string RemoveTaggedSection(string value, string tagName)
     {
         var openTag = $"<{tagName}>";
@@ -185,9 +229,13 @@ public sealed class TurnExecutor
     }
 
     private static string StripTransportTagMarkers(string value) =>
-        value.Replace("<reply>", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("</reply>", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("<future_note>", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("</future_note>", string.Empty, StringComparison.OrdinalIgnoreCase)
+        value.Replace($"<{XmlTags.Reply}>", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace($"</{XmlTags.Reply}>", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace($"<{XmlTags.ShortTermMemory}>", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace($"</{XmlTags.ShortTermMemory}>", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace($"<{XmlTags.LongTermMemory}>", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace($"</{XmlTags.LongTermMemory}>", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace($"<{XmlTags.PrivilegedActions}>", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace($"</{XmlTags.PrivilegedActions}>", string.Empty, StringComparison.OrdinalIgnoreCase)
             .Trim();
 }

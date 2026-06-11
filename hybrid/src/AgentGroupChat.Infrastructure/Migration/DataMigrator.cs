@@ -18,6 +18,7 @@ public sealed class DataMigrator
     {
         _db = db;
         _legacy = legacy;
+
     }
 
     public async Task<bool> MigrateIfNeededAsync()
@@ -25,6 +26,8 @@ public sealed class DataMigrator
         await _db.Database.EnsureCreatedAsync();
         await EvolveSchemaAsync();
         await EnsurePromptSamplesSeededAsync();
+        await EnsureAiModelsSeededAsync();
+        await EnsureRoomSeededAsync();
 
         if (!_legacy.HasLegacyData()) return false;
         if (await _db.Rooms.AnyAsync()) return false; // already migrated
@@ -67,7 +70,17 @@ public sealed class DataMigrator
 
         return true;
     }
+    private async Task EnsureRoomSeededAsync()
+    {
+        var roomRepo = new RoomRepository(_db);
+        await roomRepo.SeedRoom();
+    }
 
+    private async Task EnsureAiModelsSeededAsync()
+    {
+        var settingsRepo = new SettingsRepository(_db);
+        await settingsRepo.SeedAiModelsIfEmptyAsync();
+    }
     private async Task EnsurePromptSamplesSeededAsync()
     {
         var promptSamples = new PromptSampleRepository(_db);
@@ -117,6 +130,8 @@ public sealed class DataMigrator
             await AddColumnIfMissingAsync(conn, "Agents", "SuspendedUntilRound", "INTEGER");
             await AddColumnIfMissingAsync(conn, "Agents", "SuspensionReason", "TEXT NOT NULL DEFAULT ''");
             await AddColumnIfMissingAsync(conn, "Agents", "IsHumanParticipant", "BOOLEAN DEFAULT FALSE");
+            await AddColumnIfMissingAsync(conn, "Agents", "UseShortTermMemoryStorage", "BOOLEAN DEFAULT TRUE");
+            await AddColumnIfMissingAsync(conn, "Agents", "UseLongTermMemoryStorage", "BOOLEAN DEFAULT TRUE");
             await AddColumnIfMissingAsync(conn, "AiModels", "Temperature", "DECIMAL NOT NULL DEFAULT 0.7");
             await AddColumnIfMissingAsync(conn, "AiModels", "MaxTokens", "INTEGER NOT NULL DEFAULT 512");
             await AddColumnIfMissingAsync(conn, "Agents", "PromptSampleId", "INTEGER NOT NULL DEFAULT 1");

@@ -66,7 +66,7 @@ public sealed class PromptComposer
             : "- You were off-scene for prior rounds. Do not act as if you directly witnessed events that occurred while you were absent unless they were explicitly conveyed to you.";
         var privilegedActionInstruction = string.IsNullOrWhiteSpace(privilegedActionsSection)
             ? string.Empty
-            : "- If you request a privileged action, place it only inside a nested <privileged_actions> block within <future_note>. Never place privileged-action tags in <reply>.";
+            : $"- If you request a privileged action, place it only inside <{XmlTags.PrivilegedActions}>. Never place privileged-action tags in <{XmlTags.Reply}> or memory sections.";
         var dataTrackers = room.DataTrackers.Where(x => x.AgentId == agent.Id || x.AgentId == null).ToList();
         var trackerManagementSection = BuildTrackerManagementSection(room, agent, dataTrackers);
         var dataTrackerPrompt = $"Data Tracking Values:{Environment.NewLine}";
@@ -74,6 +74,9 @@ public sealed class PromptComposer
         dataTrackers.ForEach(x =>
         {
             var agentPromptInstructions = room.PrivilegedAgentId == agent.Id ? BuildDataTrackerPointSection(room, x) : x.PromptText;
+            var trackerUpdateInstruction = room.PrivilegedAgentId == agent.Id
+                ? $"Place tracker updates in the top-level <{XmlTags.PrivilegedActions}> section. Never place privileged-action tags in <{XmlTags.Reply}>."
+                : string.Empty;
             var xmlTag = "";
             if (x.ValueType == "int" || x.ValueType == "decimal")
             {
@@ -87,7 +90,7 @@ public sealed class PromptComposer
             {agentPromptInstructions}
             <{xmlTag}>{x.Value}</{x.DataKey}>
             {Environment.NewLine}
-            {(room.PrivilegedAgentId == agent.Id ? "Place tracker updates in the <privileged_actions> block within <future_note>. Never place privileged-action tags in <reply>" : "")}
+            {trackerUpdateInstruction}
             """;
         });
 
@@ -97,7 +100,7 @@ var prompt =
 <privateMemory>{privateMemory}</privateMemory>
 <transcript>{transcript}</transcript>
 <recallMemory>{recalledSection}</recallMemory>
-<sharedRoomMemory>{sharedRoomMemory}</sharedRoomMemory>
+<sharedRoomMemory>{shared}</sharedRoomMemory>
 <durableMemory>{durable}</durableMemory>
 {privilegedActionsSection}
 {inactiveParticipantsSection}
@@ -350,8 +353,8 @@ Update the durable memory conservatively.
         var privateBudget = Math.Clamp(
             agent.CompactionBudget > 0 ? agent.CompactionBudget : 420,
             120, 900);
-        var hasShortMemory = !string.IsNullOrWhiteSpace(agentShortMemory);
-        var hasLongMemory = !string.IsNullOrWhiteSpace(agentLongMemory);
+        var hasShortMemory = agent.UseShortTermMemoryStorage && !string.IsNullOrWhiteSpace(agentShortMemory);
+        var hasLongMemory = agent.UseLongTermMemoryStorage && !string.IsNullOrWhiteSpace(agentLongMemory);
         var longBudget = hasShortMemory && hasLongMemory
             ? Math.Clamp(privateBudget / 3, 80, 320)
             : privateBudget;
@@ -416,13 +419,13 @@ Update the durable memory conservatively.
 
         return $"\n" +
             $"<npc_management>\n" +
-            $"You may request privileged lifecycle changes by placing them inside a nested `<privileged_actions>` block within `<future_note>`.\n" +
+            $"You may request privileged lifecycle changes by placing them inside the top-level `<{XmlTags.PrivilegedActions}>` section.\n" +
             $"{npcInstructions}\n" +
             $"- Use `<suspend_agent name=\"Name\" rounds=\"N\">reason</suspend_agent>` to remove a permanent character from the active roster for N upcoming rounds.\n" +
             $"- Use `<resume_agent name=\"Name\">reason</resume_agent>` to return a suspended permanent character to play next round.\n- Only suspend permanent characters who are genuinely off-scene, asleep, separated, or otherwise unavailable.\n" +
             $"- Do not suspend yourself.\n" +
             $"- Use at most two privileged lifecycle actions in one turn.\n" +
-            $"- Do not place privileged-action tags in `<reply>`.\n" +
+            $"- Do not place privileged-action tags in `<{XmlTags.Reply}>`, `<{XmlTags.ShortTermMemory}>`, or `<{XmlTags.LongTermMemory}>`.\n" +
             $"</npc_management>\n";
     }
 
@@ -435,15 +438,15 @@ Update the durable memory conservatively.
             ? "(none)"
             : string.Join(", ", visibleTrackers.Select(t => $"{t.DataKey}:{t.ValueType}"));
 
-        return $"\n<tracker_management>\n"+
-                "You may manage room trackers inside the nested `<privileged_actions>` block within `<future_note>`.\n" +
-                "- Visible trackers: {trackerSummary}.\n" +
-                "- Use `<add_tracker key=\"TrackerKey\" type=\"string|int|decimal|bool\" value=\"...\" min=\"0\" max=\"10\"><agent_prompt>...</agent_prompt><privileged_prompt>...</privileged_prompt></add_tracker>` to add a new tracker\n"+
-                "- Tracker keys must be unique, start with a letter, and use only letters, numbers, underscores, or hyphens.\n-"+
-                "`int` and `decimal` trackers must include `min` and `max`, and the starting value must be inside that range. `string` and `bool` trackers must omit `min` and `max`.\n"+
-                "- Keep both prompt tags short, concrete, and focused on what should be tracked and when it changes.\n" +
-                "- Use `<remove_tracker key=\"TrackerKey\" />` only when a tracker is obsolete and should disappear from the room.\n" +
-                "</tracker_management>\n";
+        return $"\n<tracker_management>\n" +
+            $"You may manage room trackers inside the top-level `<{XmlTags.PrivilegedActions}>` section.\n" +
+            $"- Visible trackers: {trackerSummary}.\n" +
+            "- Use `<add_tracker key=\"TrackerKey\" type=\"string|int|decimal|bool\" value=\"...\" min=\"0\" max=\"10\"><agent_prompt>...</agent_prompt><privileged_prompt>...</privileged_prompt></add_tracker>` to add a new tracker.\n" +
+            "- Tracker keys must be unique, start with a letter, and use only letters, numbers, underscores, or hyphens.\n" +
+            "- `int` and `decimal` trackers must include `min` and `max`, and the starting value must be inside that range. `string` and `bool` trackers must omit `min` and `max`.\n" +
+            "- Keep both prompt tags short, concrete, and focused on what should be tracked and when it changes.\n" +
+            "- Use `<remove_tracker key=\"TrackerKey\" />` only when a tracker is obsolete and should disappear from the room.\n" +
+            "</tracker_management>\n";
     }
 
     private static string BuildDataTrackerPointSection(RoomConfig room, DataTrackerConfig config)

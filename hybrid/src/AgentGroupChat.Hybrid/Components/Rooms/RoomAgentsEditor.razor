@@ -137,8 +137,11 @@
                 <MudItem xs="12" md="3">
                     <MudNumericField @bind-Value="agent.CompactionBudget" Label="Compaction budget" Min="80" />
                 </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudText></MudText>
+                <MudItem xs="12" md="3">
+                    <MudSwitch @bind-Value="agent.UseShortTermMemoryStorage" Label="Use short-term memory" Color="Color.Primary" />
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudSwitch @bind-Value="agent.UseLongTermMemoryStorage" Label="Use long-term memory" Color="Color.Primary" />
                 </MudItem>
             }
             
@@ -242,6 +245,8 @@
             Name = isHumanParticipant ? $"Player {Room.Agents.Where(x => x.IsHumanParticipant).Count() + 1}" : $"Agent {Room.Agents.Where(x => !x.IsHumanParticipant).Count() + 1}",
             SortOrder = Room.Agents.Count,
             IsHumanParticipant = isHumanParticipant,
+            UseShortTermMemoryStorage = !isHumanParticipant,
+            UseLongTermMemoryStorage = !isHumanParticipant,
             AccentHex = randomColor.AccentHex,
             BackgroundHex = randomColor.BackgroundHex
         });

@@ -99,25 +99,23 @@ namespace AgentGroupChat.Core.Services
         && string.Equals(agent.Id, room.PrivilegedAgentId, StringComparison.Ordinal);
 
 
-        private (string CleanedFutureNote, IReadOnlyList<RequestedPrivilegedAction> Actions) ParsePrivilegedActions(
+        private IReadOnlyList<RequestedPrivilegedAction> ParsePrivilegedActions(
         RoomConfig room,
         AgentConfig agent,
-        string futureNote)
+        string privilegedActionsBlock)
         {
-            if (string.IsNullOrWhiteSpace(futureNote))
-                return (futureNote, []);
+            if (string.IsNullOrWhiteSpace(privilegedActionsBlock))
+                return [];
 
-            var blockMatch = PrivilegedActionsBlockRegex.Match(futureNote);
-            if (!blockMatch.Success)
-                return (futureNote, []);
-
-            var cleanedFutureNote = PrivilegedActionsBlockRegex.Replace(futureNote, string.Empty).Trim();
-            var actionBlock = blockMatch.Groups["body"].Value;
+            var blockMatch = PrivilegedActionsBlockRegex.Match(privilegedActionsBlock);
+            var actionBlock = blockMatch.Success
+                ? blockMatch.Groups["body"].Value
+                : privilegedActionsBlock;
 
             if (!IsPrivilegedAgent(room, agent))
             {
                 OnLog?.Invoke($"PrivilegedActions.Rejected: {agent.Name} is not allowed to manage privileged actions.");
-                return (cleanedFutureNote, []);
+                return [];
             }
 
             var requestedActions = ParseRequestedPrivilegedActions(actionBlock)
@@ -126,12 +124,11 @@ namespace AgentGroupChat.Core.Services
             if (requestedActions.Count == 0)
             {
                 OnLog?.Invoke($"PrivilegedActions.Rejected: {agent.Name} emitted an empty privileged action block.");
-                return (cleanedFutureNote, []);
+                return [];
             }
 
             OnLog?.Invoke($"PrivilegedActions.Requested: {agent.Name} requested {string.Join(", ", requestedActions.Select(DescribePrivilegedAction))}.");
-            var validatedActions = ValidateRequestedPrivilegedActions(room, agent, requestedActions);
-            return (cleanedFutureNote, validatedActions);
+            return ValidateRequestedPrivilegedActions(room, agent, requestedActions);
         }
 
         private List<RequestedPrivilegedAction> ValidateRequestedPrivilegedActions(

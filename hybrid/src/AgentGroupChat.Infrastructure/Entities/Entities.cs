@@ -201,7 +201,10 @@ public class AgentEntity
     public int SortOrder { get; set; }
     public bool IsHumanParticipant { get; set; }
     public int PromptSampleId { get; set; } = 1;
+    public bool UseShortTermMemoryStorage { get; set; } = true;
+    public bool UseLongTermMemoryStorage { get; set; } = true;
     public RoomEntity? Room { get; set; }
+    
 }
 
 [Table("TranscriptTurns")]

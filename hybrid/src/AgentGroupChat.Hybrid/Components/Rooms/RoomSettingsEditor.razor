@@ -721,15 +721,7 @@
                 _speechTestResult = $"start-cpu.ps1 not found at {kokoroDir}";
                 return;
             }
-            //did you get a gross error here?
-            //tbh this is brute forced to hell- ideally, we will move this to an integrated service.
-            //powershell.. 
-            //  > irm https://astral.sh/uv/install.ps1 | iex
-            //  close/reopen for uv in path
-            //  uv --version
-            // update file to address 127.0.0.1 and port 8000 (or whatever is defined in Appsettings.cs)
-            // try .\start-cpu.ps1 in powershell. may start to download dependencies first.
-            // you may need to close/reopen VS
+
             var psi = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = "powershell",
