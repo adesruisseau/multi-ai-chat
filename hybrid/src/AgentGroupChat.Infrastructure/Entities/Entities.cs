@@ -6,6 +6,7 @@ namespace AgentGroupChat.Infrastructure.Entities;
 [Table("AppSettings")]
 public class AppSettingsEntity
 {
+    //NEEDS KEY TO USER
     [Key]
     public int Id { get; set; } = 1;
     public string UiTheme { get; set; } = "System";
@@ -31,6 +32,7 @@ public class AppSettingsEntity
 [Table("AiConnections")]
 public class AiConnectionEntity
 {
+    //NEEDS KEY TO USER
     [Key]
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -43,6 +45,7 @@ public class AiConnectionEntity
 [Table("AiModels")]
 public class AiModelEntity
 {
+    //NEEDS KEY TO USER
     [Key]
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -57,6 +60,7 @@ public class AiModelEntity
 [Table("ImageConnections")]
 public class ImageConnectionEntity
 {
+    //NEEDS KEY TO USER
     [Key]
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -69,6 +73,7 @@ public class ImageConnectionEntity
 [Table("ImageModels")]
 public class ImageModelEntity
 {
+    //NEEDS KEY TO USER
     [Key]
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -87,6 +92,7 @@ public class ImageModelEntity
 [Table("PromptSamples")]
 public class PromptSampleEntity
 {
+    //NEEDS KEY TO USER
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int Id { get; set; }
@@ -106,6 +112,8 @@ public class PromptSampleEntity
 [Table("Rooms")]
 public class RoomEntity
 {
+
+    //NEEDS KEY TO USER
     [Key]
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -154,26 +162,7 @@ public class RoomEntity
     public int MaxConcurrentNpcs { get; set; } = 2;
     public int SortOrder { get; set; }
     public List<AgentEntity> Agents { get; set; } = new();
-    public List<HumanParticipantEntity> HumanParticipants { get; set; } = new();
     public List<DataTrackerEntity> DataTrackers { get; set; } = new();
-}
-
-[Table("HumanParticipants")]
-public class HumanParticipantEntity
-{
-    [Key]
-    public string Id { get; set; } = string.Empty;
-    public string RoomId { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public bool IsPlayerCharacter { get; set; }
-    public string AppearanceSummary { get; set; } = string.Empty;
-    public string TtsVoice { get; set; } = string.Empty;
-    public string AccentHex { get; set; } = "#4A90D9";
-    public string BackgroundHex { get; set; } = "#DDE8F0";
-    public string ParticipationMode { get; set; } = "TurnParticipant";
-    public int SortOrder { get; set; }
-    public bool IsEnabled { get; set; } = true;
-    public RoomEntity? Room { get; set; }
 }
 
 [Table("Agents")]
@@ -240,6 +229,8 @@ public class LogEntryEntity
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+
+    //NEEDS KEY TO ROOM OR USER
     public long Id { get; set; }
     public string Category { get; set; } = string.Empty;
     public string Source { get; set; } = string.Empty;
