@@ -1,0 +1,83 @@
+@page "/login"
+@model AgentGroupChat.BlazorServer.Pages.LoginPageModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    ViewData["Title"] = "Sign in";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center g-4">
+        <div class="col-12 col-lg-10">
+            @if (!ViewContext.ModelState.IsValid)
+            {
+                <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+            }
+        </div>
+
+        <div class="col-12 col-md-5">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h2 class="h4 mb-3">Login</h2>
+                    <p class="text-muted">Enter your username and password.</p>
+
+                    <form method="post" asp-page-handler="Login">
+                        <input asp-for="ReturnUrl" type="hidden" />
+
+                        <div class="mb-3">
+                            <label asp-for="LoginInput.UserName" class="form-label"></label>
+                            <input asp-for="LoginInput.UserName" class="form-control" autocomplete="username" />
+                            <span asp-validation-for="LoginInput.UserName" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="LoginInput.Password" class="form-label"></label>
+                            <input asp-for="LoginInput.Password" class="form-control" autocomplete="current-password" />
+                            <span asp-validation-for="LoginInput.Password" class="text-danger"></span>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">Login</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-5">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h2 class="h4 mb-3">Register</h2>
+                    <p class="text-muted">Create an account.</p>
+
+                    <form method="post" asp-page-handler="Register">
+                        <input asp-for="ReturnUrl" type="hidden" />
+
+                        <div class="mb-3">
+                            <label asp-for="RegisterInput.Email" class="form-label"></label>
+                            <input asp-for="RegisterInput.Email" class="form-control" autocomplete="email" />
+                            <span asp-validation-for="RegisterInput.Email" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="RegisterInput.UserName" class="form-label"></label>
+                            <input asp-for="RegisterInput.UserName" class="form-control" autocomplete="username" />
+                            <span asp-validation-for="RegisterInput.UserName" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="RegisterInput.Password" class="form-label"></label>
+                            <input asp-for="RegisterInput.Password" class="form-control" autocomplete="new-password" />
+                            <span asp-validation-for="RegisterInput.Password" class="text-danger"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="RegisterInput.ConfirmPassword" class="form-label"></label>
+                            <input asp-for="RegisterInput.ConfirmPassword" class="form-control" autocomplete="new-password" />
+                            <span asp-validation-for="RegisterInput.ConfirmPassword" class="text-danger"></span>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">Register</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
