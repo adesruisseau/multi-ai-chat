@@ -1,0 +1,24 @@
+﻿@using System.Reflection
+@using AgentGroupChat.UI.Shared.Shared
+@using AgentGroupChat.UI.Shared.Pages
+
+<Router AppAssembly="@typeof(App).Assembly" AdditionalAssemblies="@additionalAssemblies">
+
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>Not found</PageTitle>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <p role="alert">Sorry, there's nothing at this address.</p>
+        </LayoutView>
+    </NotFound>
+</Router>
+
+@code {
+    private readonly Assembly[] additionalAssemblies =
+            {
+            typeof(AgentGroupChat.UI.Shared.Pages.Index).Assembly
+        };
+}

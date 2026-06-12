@@ -1,6 +1,19 @@
-﻿<Router AppAssembly="typeof(MauiProgram).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+﻿@using System.Reflection
+@using AgentGroupChat.UI.Shared.Shared
+
+<Router AppAssembly="@typeof(App).Assembly"
+        AdditionalAssemblies="@additionalAssemblies">
+
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        <RouteView RouteData="@routeData"
+                   DefaultLayout="@typeof(MainLayout)" />
     </Found>
+
 </Router>
+
+@code {
+    private readonly Assembly[] additionalAssemblies =
+    {
+        typeof(MainLayout).Assembly
+    };
+}

@@ -1,8 +1,8 @@
 ﻿using AgentGroupChat.Core.Services;
 using AgentGroupChat.Core.Services.Interfaces;
-using AgentGroupChat.Hybrid.State;
+using AgentGroupChat.UI.Shared.State;
 using AgentGroupChat.Infrastructure.Data;
-using AgentGroupChat.Infrastructure.Migration;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
@@ -44,8 +44,8 @@ public static class MauiProgram
 		builder.Services.AddScoped<ILogRepository, LogRepository>();
 
 		// Legacy migration
-		builder.Services.AddScoped<ILegacyDataSource, LegacyJsonDataSource>();
-		builder.Services.AddScoped<DataMigrator>();
+		//builder.Services.AddScoped<ILegacyDataSource, LegacyJsonDataSource>();
+		//builder.Services.AddScoped<DataMigrator>();
 
 		// Core services
 		builder.Services.AddSingleton<HttpClient>();
@@ -76,10 +76,10 @@ public static class MauiProgram
 		using (var scope = app.Services.CreateScope())
 		{
 			var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-			db.Database.EnsureCreated();
+			db.Database.Migrate();
 
-			var migrator = scope.ServiceProvider.GetRequiredService<DataMigrator>();
-			migrator.MigrateIfNeededAsync().GetAwaiter().GetResult();
+			//var migrator = scope.ServiceProvider.GetRequiredService<DataMigrator>();
+			//migrator.MigrateIfNeededAsync().GetAwaiter().GetResult();
 		}
 
 		return app;

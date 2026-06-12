@@ -339,6 +339,28 @@ Minimum online safeguards:
 The exact infrastructure vendor is not the decision. The decision is that these behaviors must exist.
 
 ## MVP Delivery Order
+### Phase 0: Creating the Blazor Server App
+0.1 Create Blazor Server Project
+0.2 Source Control it
+0.3 Database Connections
+1 - Identity
+1.1 ApplicationUser
+1.2 Verify Current User
+2 Add User Ownership to Rooms
+2.1 My Rooms page
+2.2 Seed User Data
+3 Port Read Only Page
+Port Crud Page
+Port Conversation Runner
+Memory
+Scene Retrieval
+Prove product
+Multiplayer
+Presence
+Invites
+Room membership
+Run Locks
+
 
 ### Phase 1: Shared Text Rooms Without Agents
 

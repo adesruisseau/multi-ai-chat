@@ -1,0 +1,98 @@
+﻿@page "/"
+@using MudBlazor
+
+<MudGrid Justify="Justify.Center">
+    <MudItem xs="8" >
+
+        <MudText Typo="Typo.h4" GutterBottom="true">First-Time Setup</MudText>
+        <MudText Typo="Typo.body1" Class="mb-4">Follow these steps to get started. Complete them in any order.</MudText>
+
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudText Typo="Typo.h6" Color="Color.Primary">What This App Does</MudText>
+            <MudText Typo="Typo.body2" Class="mt-2">
+                Agent Group Chat lets you configure AI services and models, build themed rooms of agents,
+                and run shared conversations where each agent responds in sequence. The Chat tab is where the room
+                talks together, while the optional speech features can narrate the conversation out loud.
+            </MudText>
+        </MudPaper>
+
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudText Typo="Typo.h6" Color="Color.Primary">Setup Details</MudText>
+            @* <MudText Typo="Typo.body2" Class="mt-2">@ProgressText</MudText>
+            <MudProgressLinear Value="@CompletedSteps" Max="3" Class="my-3" Color="Color.Primary" /> *@
+
+                    @* @(AppState.Settings.SetupModelsCompleted ? "✓" : "○") *@
+            <MudText Typo="Typo.h6" Class="mt-2" Color="Color.Tertiary">AI Models</MudText>
+            <MudText Typo="Typo.body2" Class="ml-4">- Gemini and Groq Models are pre-loaded for quick configuration. To immediately jump in, you need to create an account and get an API key for groq and/or gemini.</MudText>
+            <MudText Typo="Typo.body2" Class="ml-4">- Otherwise, you can add other models. Save AI settings, add a model, or pass a model connection test to complete this step.</MudText>
+
+                    @* @(AppState.Settings.SetupRoomsCompleted ? "✓" : "○") *@
+            <MudText Typo="Typo.h6" Class="mt-2" Color="Color.Tertiary">Rooms</MudText>
+            <MudText Typo="Typo.body2" Class="ml-4">A sample room has been pre-loaded for jump in. After adding your API token to the AI Connection, you should be able to jump directly into the Chat.</MudText>
+            <MudText Typo="Typo.body2" Class="ml-4">After running the sample room, you can create a new room, add agents, or fine-tune room behavior.</MudText>
+
+                    @* @(AppState.Settings.SetupTtsStatus != "Pending" ? "✓" : "○") *@
+            <MudText Typo="Typo.h6" Class="mt-2" Color="Color.Tertiary">Text-to-Speech</MudText>
+            <MudText Typo="Typo.body2" Class="ml-4">TTS is optional. Configure speech settings on Chat or skip it here.</MudText>
+            <MudText Typo="Typo.body2" Class="ml-4">TTS is a fantastic immersive tool that requires a little bit of setup. I highly recommend it for fully automated story-driven rooms.</MudText>
+            <MudText Typo="Typo.body2" Class="ml-8">
+                <strong>Kokoro AI quick setup</strong><br />
+                -Open Powershell<br />
+                -Run command <code>irm https://astral.sh/uv/install.ps1 | iex</code><br />
+                -close/reopen to get uv command in path<br />
+                -Run command <code>uv --version</code><br />
+                -Using File Explorer, find start-cpu.ps1 (It should be in the source root folder, <code>AgentGroupChat\Kokoro-FastAPI\start-cpu.ps1</code>.<br />
+                -Open in text editor.<br />
+                -Update the  address 127.0.0.1 and port 8000 (or whatever is defined in Appsettings.cs)<br />
+                -Navigate to the project folder in powershell; Run command  <code>.\start-cpu.ps1</code><br />
+                -This may take a while to download dependencies.<br />
+                -You may also need to close/reopen visual studio before starting & testing Kokoro AI.
+            </MudText>
+                    <MudText Typo="Typo.body2" Class="ml-4">Once completed, turn on Speech in the Room settings, and assign character voices to your agents and even yourself (or the room default)!</MudText>
+
+            @* @if (AppState.Settings.SetupTtsStatus == "Pending")
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Class="mt-2" OnClick="SkipTts">Skip TTS For Now</MudButton>
+            } *@
+        </MudPaper>
+
+        @* <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudText Typo="Typo.h6">Recommended Order</MudText>
+            <MudList T="string" Dense="true">
+                <MudListItem T="string">1. Decide on speech first — go to Chat tab or skip TTS above.</MudListItem>
+                <MudListItem T="string">2. Go to AI Models — add connections and catalog entries.</MudListItem>
+                <MudListItem T="string">3. Go to Rooms — create a room and add agents.</MudListItem>
+                <MudListItem T="string">4. Go to Chat — select a room and start a conversation.</MudListItem>
+            </MudList>
+        </MudPaper>
+
+        @if (CompletedSteps >= 3)
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-4">
+                Setup complete! You can hide this guide from settings.
+            </MudAlert>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="HideGuide">Hide Setup Guide</MudButton>
+        } *@
+
+    </MudItem>
+</MudGrid>
+@code {
+    // private int CompletedSteps =>
+    //     (AppState.Settings.SetupModelsCompleted ? 1 : 0) +
+    //     (AppState.Settings.SetupRoomsCompleted ? 1 : 0) +
+    //     (AppState.Settings.SetupTtsStatus != "Pending" ? 1 : 0);
+
+    // private string ProgressText => $"{CompletedSteps} of 3 steps completed.";
+
+    // private async Task SkipTts()
+    // {
+    //     AppState.Settings.SetupTtsStatus = "Skipped";
+    //     await AppState.SaveSettingsAsync();
+    // }
+
+    // private async Task HideGuide()
+    // {
+    //     AppState.Settings.HideSetupGuide = true;
+    //     await AppState.SaveSettingsAsync();
+    // }
+}

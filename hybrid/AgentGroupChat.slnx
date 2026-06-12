@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="AgentGroupChat.BlazorServer/AgentGroupChat.BlazorServer.csproj" Id="d3b5463f-6283-4fef-93b4-29d2312e104b" />
+    <Project Path="AgentGroupChat.UI.Shared/AgentGroupChat.UI.Shared.csproj" Id="48c7ce19-2dd8-4dc9-83f4-2c76ae6915b3" />
     <Project Path="src/AgentGroupChat.Core/AgentGroupChat.Core.csproj" />
     <Project Path="src/AgentGroupChat.Hybrid/AgentGroupChat.Hybrid.csproj" />
     <Project Path="src/AgentGroupChat.Infrastructure/AgentGroupChat.Infrastructure.csproj" />

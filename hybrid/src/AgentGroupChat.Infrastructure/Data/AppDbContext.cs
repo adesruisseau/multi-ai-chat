@@ -1,9 +1,10 @@
 using AgentGroupChat.Infrastructure.Entities;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentGroupChat.Infrastructure.Data;
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<ApplicationUser>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -91,5 +92,7 @@ public class AppDbContext : DbContext
             .HasIndex(d => new { d.RoomId, d.DataKey })
             .IsUnique()
             .HasFilter("\"AgentId\" IS NULL");
+
+        base.OnModelCreating(modelBuilder);
     }
 }

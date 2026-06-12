@@ -20,4 +20,6 @@ public interface ISettingsRepository
     Task<ImageConnection> GetImageConnectionAsync(string connectionId);
     Task SaveImageModelAsync(ImageModel model);
     Task DeleteImageModelAsync(string id);
+
+    Task SeedAiModelsIfEmptyAsync();
 }

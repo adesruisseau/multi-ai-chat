@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="MudBlazor" Version="9.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentGroupChat.UI.Shared\AgentGroupChat.UI.Shared.csproj" />
+    <ProjectReference Include="..\src\AgentGroupChat.Core\AgentGroupChat.Core.csproj" />
+    <ProjectReference Include="..\src\AgentGroupChat.Infrastructure\AgentGroupChat.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

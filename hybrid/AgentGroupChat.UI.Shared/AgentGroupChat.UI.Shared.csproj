@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\AgentGroupChat.Core\AgentGroupChat.Core.csproj" />
+    <ProjectReference Include="..\src\AgentGroupChat.Infrastructure\AgentGroupChat.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Resources\AppIcon\appicon.svg">
+      <Color>#512BD4</Color>
+      <ForegroundFile>Resources\AppIcon\appiconfg.svg</ForegroundFile>
+    </None>
+    <None Update="Resources\Images\dotnet_bot.svg">
+      <BaseSize>168,208</BaseSize>
+    </None>
+    <None Update="Resources\Raw\AboutAssets.txt">
+      <LogicalName>%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+    </None>
+    <None Update="Resources\Splash\splash.svg">
+      <Color>#512BD4</Color>
+      <BaseSize>128,128</BaseSize>
+    </None>
+  </ItemGroup>
+
+</Project>

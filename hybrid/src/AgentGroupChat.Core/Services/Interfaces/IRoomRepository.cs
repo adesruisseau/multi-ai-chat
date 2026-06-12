@@ -8,4 +8,5 @@ public interface IRoomRepository
     Task<RoomConfig?> GetAsync(string id);
     Task SaveAsync(RoomConfig room);
     Task DeleteAsync(string id);
+    Task SeedRoom();
 }
