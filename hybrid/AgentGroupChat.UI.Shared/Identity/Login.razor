@@ -1,5 +1,6 @@
 ﻿@page "/login"
 @using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
 
 <MudGrid Justify="Justify.Center" Spacing="4">
     <MudItem xs="12" sm="10" md="8">
@@ -16,6 +17,7 @@
             </MudCardHeader>
             <MudCardContent>
                 <form method="post" action="/auth/login">
+                    <AntiforgeryToken />
                     <input type="hidden" name="returnUrl" value="@ReturnUrlValue" />
 
                     <MudStack Spacing="2">
@@ -43,6 +45,7 @@
             </MudCardHeader>
             <MudCardContent>
                 <form method="post" action="/auth/register">
+                    <AntiforgeryToken />
                     <input type="hidden" name="returnUrl" value="@ReturnUrlValue" />
 
                     <MudStack Spacing="2">
