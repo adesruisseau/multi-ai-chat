@@ -6,21 +6,24 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace AgentGroupChat.BlazorServer.Pages;
 
-public class LoginPageModel : PageModel
+public class RegisterModel : PageModel
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly UserManager<ApplicationUser> _userManager;
 
-    public LoginPageModel(
-        SignInManager<ApplicationUser> signInManager)
+    public RegisterModel(
+        SignInManager<ApplicationUser> signInManager,
+        UserManager<ApplicationUser> userManager)
     {
         _signInManager = signInManager;
+        _userManager = userManager;
     }
 
     [BindProperty(SupportsGet = true)]
     public string ReturnUrl { get; set; } = "/";
 
     [BindProperty]
-    public LoginInputModel LoginInput { get; set; } = new();
+    public RegisterInputModel RegisterInput { get; set; } = new();
 
     public IActionResult OnGet()
     {
@@ -32,8 +35,7 @@ public class LoginPageModel : PageModel
         ReturnUrl = NormalizeReturnUrl(ReturnUrl);
         return Page();
     }
-
-    public async Task<IActionResult> OnPostLoginAsync()
+    public async Task<IActionResult> OnPostRegisterAsync()
     {
         ReturnUrl = NormalizeReturnUrl(ReturnUrl);
 
@@ -42,20 +44,33 @@ public class LoginPageModel : PageModel
             return Page();
         }
 
-        var result = await _signInManager.PasswordSignInAsync(
-            LoginInput.UserName,
-            LoginInput.Password,
-            isPersistent: false,
-            lockoutOnFailure: false);
-
-        if (result.Succeeded)
+        if (!string.Equals(RegisterInput.Password, RegisterInput.ConfirmPassword, StringComparison.Ordinal))
         {
-            return LocalRedirect(ReturnUrl);
+            ModelState.AddModelError(nameof(RegisterInput.ConfirmPassword), "Passwords do not match.");
+            return Page();
         }
 
-        ModelState.AddModelError(string.Empty, "Invalid username or password.");
-        return Page();
+        var user = new ApplicationUser
+        {
+            UserName = RegisterInput.UserName,
+            Email = RegisterInput.Email
+        };
+
+        var result = await _userManager.CreateAsync(user, RegisterInput.Password);
+        if (!result.Succeeded)
+        {
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(string.Empty, error.Description);
+            }
+
+            return Page();
+        }
+
+        await _signInManager.SignInAsync(user, isPersistent: false);
+        return LocalRedirect(ReturnUrl);
     }
+
     private static string NormalizeReturnUrl(string? returnUrl)
     {
         if (string.IsNullOrWhiteSpace(returnUrl))
@@ -77,8 +92,13 @@ public class LoginPageModel : PageModel
         return returnUrl;
     }
 
-    public sealed class LoginInputModel
+    public sealed class RegisterInputModel
     {
+        [Required]
+        [EmailAddress]
+        [Display(Name = "Email")]
+        public string Email { get; set; } = string.Empty;
+
         [Required]
         [Display(Name = "Username")]
         public string UserName { get; set; } = string.Empty;
@@ -86,6 +106,12 @@ public class LoginPageModel : PageModel
         [Required]
         [DataType(DataType.Password)]
         [Display(Name = "Password")]
+        [StringLength(100, MinimumLength = 8, ErrorMessage = "Password must be at least 8 characters long.")]
         public string Password { get; set; } = string.Empty;
+
+        [Required]
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm Password")]
+        public string ConfirmPassword { get; set; } = string.Empty;
     }
 }
