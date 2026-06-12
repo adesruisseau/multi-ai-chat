@@ -17,7 +17,7 @@ public sealed class SettingsRepository : ISettingsRepository
     public async Task<AppSettings> GetAsync(string userId)
     {
         var entity = await _db.AppSettings.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == userId);
-        return entity is null ? new AppSettings() : EntityMapper.ToDomain(entity);
+        return entity is null ? new AppSettings { UserId = userId } : EntityMapper.ToDomain(entity);
     }
 
     public async Task SaveAsync(AppSettings settings)

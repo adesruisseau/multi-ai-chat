@@ -93,9 +93,6 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
-
-    var seeder = scope.ServiceProvider.GetRequiredService<IDataSeeder>();
-    await seeder.SeedAsync();
 }
 
 
@@ -129,7 +126,8 @@ public static class AuthEndpoints
         app.MapPost("/auth/login", async (
             HttpContext httpContext,
             [FromForm] LoginModel req,
-            SignInManager<ApplicationUser> signInManager) =>
+            SignInManager<ApplicationUser> signInManager,
+            IDataSeeder seeder) =>
         {
             var returnUrl = await GetReturnUrlAsync(httpContext);
             var result = await signInManager.PasswordSignInAsync(
@@ -138,16 +136,26 @@ public static class AuthEndpoints
                 false,
                 false);
 
-            return result.Succeeded
-                ? Results.Redirect(returnUrl)
-                : Results.Redirect(BuildLoginUrl("Login failed.", returnUrl));
+            if (!result.Succeeded)
+            {
+                return Results.Redirect(BuildLoginUrl("Login failed.", returnUrl));
+            }
+
+            var user = await signInManager.UserManager.FindByNameAsync(req.UserName);
+            if (user is not null)
+            {
+                await seeder.SeedAsync(user.Id);
+            }
+
+            return Results.Redirect(returnUrl);
         });
 
         app.MapPost("/auth/register", async (
             HttpContext httpContext,
             [FromForm] RegisterModel req,
             UserManager<ApplicationUser> userManager,
-            SignInManager<ApplicationUser> signInManager) =>
+            SignInManager<ApplicationUser> signInManager,
+            IDataSeeder seeder) =>
         {
             var returnUrl = await GetReturnUrlAsync(httpContext);
 
@@ -169,6 +177,7 @@ public static class AuthEndpoints
                 return Results.Redirect(BuildLoginUrl(message, returnUrl));
             }
 
+            await seeder.SeedAsync(user.Id);
             await signInManager.SignInAsync(user, isPersistent: false);
             return Results.Redirect(returnUrl);
         });

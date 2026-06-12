@@ -10,9 +10,10 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
 
     public PromptSampleRepository(AppDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<PromptSample>> GetAllAsync()
+    public async Task<IReadOnlyList<PromptSample>> GetAllAsync(string userId)
     {
         var entities = await _db.PromptSamples
+            .Where(p => p.UserId == userId)
             .AsNoTracking()
             .OrderByDescending(p => p.IsBuiltIn)
             .ThenBy(p => p.SortOrder)

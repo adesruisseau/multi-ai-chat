@@ -15,6 +15,7 @@ public sealed class TurnExecutor
     }
 
     public async Task<(string Response, string ShortTermMemory, string LongTermMemory, string PrivilegedActions, LlmCompletionResult RawResult)> ExecuteAgentTurnAsync(
+        string roomId,
         AgentConfig agent,
         LlmRequestSettings settings,
         string prompt,
@@ -34,6 +35,7 @@ public sealed class TurnExecutor
         };
 
         await _logService.LogAsync(
+            roomId,
             LogCategory.Request,
             agent.Name,
             $"→ {settings.ConnectionName} / {settings.Model}",
@@ -49,6 +51,7 @@ public sealed class TurnExecutor
         {
             sw.Stop();
             await _logService.LogAsync(
+                roomId,
                 LogCategory.Response,
                 agent.Name,
                 "← Cancelled",
@@ -60,6 +63,7 @@ public sealed class TurnExecutor
         {
             sw.Stop();
             await _logService.LogAsync(
+                roomId,
                 LogCategory.Response,
                 agent.Name,
                 $"← ERROR: {ex.GetType().Name}",
@@ -72,6 +76,7 @@ public sealed class TurnExecutor
         var (response, shortTermMemory, longTermMemory, privilegedActions) = ParseAgentOutput(result.Content);
 
         await _logService.LogAsync(
+            roomId,
             LogCategory.Response,
             agent.Name,
             $"← {result.UsageSummary ?? "no usage info"}",

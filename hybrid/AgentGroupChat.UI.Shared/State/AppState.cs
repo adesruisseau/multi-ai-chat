@@ -1,11 +1,13 @@
 using AgentGroupChat.Core.Models.Domain;
 using AgentGroupChat.Core.Services.Interfaces;
+using AgentGroupChat.Infrastructure.Identity;
 
 namespace AgentGroupChat.UI.Shared.State;
 
 public sealed class AppState
 {
     private readonly ISettingsRepository _settingsRepo;
+    private readonly IUserContext _userContext;
     public AppSettings Settings { get; private set; } = new();
     public List<AiConnection> Connections { get; private set; } = new();
     public List<AiModel> Models { get; private set; } = new();
@@ -15,78 +17,98 @@ public sealed class AppState
 
     public event Action? OnChange;
 
-    public AppState(ISettingsRepository settingsRepo) => _settingsRepo = settingsRepo;
+    public AppState(ISettingsRepository settingsRepo, IUserContext userContext)
+    {
+        _settingsRepo = settingsRepo;
+        _userContext = userContext;
+    }
 
     public async Task LoadAsync()
     {
-        Settings = await _settingsRepo.GetAsync();
-        Connections = await _settingsRepo.GetConnectionsAsync();
-        Models = await _settingsRepo.GetModelsAsync();
-        ImageConnections = await _settingsRepo.GetImageConnectionsAsync();
-        ImageModels = await _settingsRepo.GetImageModelsAsync();
+        var userId = await _userContext.GetRequiredUserIdAsync();
+
+        Settings = await _settingsRepo.GetAsync(userId);
+        Settings.UserId = userId;
+        Connections = await _settingsRepo.GetConnectionsAsync(userId);
+        Models = await _settingsRepo.GetModelsAsync(userId);
+        ImageConnections = await _settingsRepo.GetImageConnectionsAsync(userId);
+        ImageModels = await _settingsRepo.GetImageModelsAsync(userId);
         IsLoaded = true;
         NotifyChanged();
     }
 
     public async Task SaveSettingsAsync()
     {
+        Settings.UserId = await _userContext.GetRequiredUserIdAsync();
         await _settingsRepo.SaveAsync(Settings);
         NotifyChanged();
     }
 
     public async Task SaveConnectionAsync(AiConnection connection)
     {
+        var userId = await _userContext.GetRequiredUserIdAsync();
+        connection.UserId = userId;
         await _settingsRepo.SaveConnectionAsync(connection);
-        Connections = await _settingsRepo.GetConnectionsAsync();
+        Connections = await _settingsRepo.GetConnectionsAsync(userId);
         NotifyChanged();
     }
 
     public async Task DeleteConnectionAsync(string id)
     {
-        await _settingsRepo.DeleteConnectionAsync(id);
-        Connections = await _settingsRepo.GetConnectionsAsync();
+        var userId = await _userContext.GetRequiredUserIdAsync();
+        await _settingsRepo.DeleteConnectionAsync(id, userId);
+        Connections = await _settingsRepo.GetConnectionsAsync(userId);
         NotifyChanged();
     }
 
     public async Task SaveModelAsync(AiModel model)
     {
+        var userId = await _userContext.GetRequiredUserIdAsync();
+        model.UserId = userId;
         await _settingsRepo.SaveModelAsync(model);
-        Models = await _settingsRepo.GetModelsAsync();
+        Models = await _settingsRepo.GetModelsAsync(userId);
         NotifyChanged();
     }
 
     public async Task DeleteModelAsync(string id)
     {
-        await _settingsRepo.DeleteModelAsync(id);
-        Models = await _settingsRepo.GetModelsAsync();
+        var userId = await _userContext.GetRequiredUserIdAsync();
+        await _settingsRepo.DeleteModelAsync(id, userId);
+        Models = await _settingsRepo.GetModelsAsync(userId);
         NotifyChanged();
     }
 
     public async Task SaveImageConnectionAsync(ImageConnection connection)
     {
+        var userId = await _userContext.GetRequiredUserIdAsync();
+        connection.UserId = userId;
         await _settingsRepo.SaveImageConnectionAsync(connection);
-        ImageConnections = await _settingsRepo.GetImageConnectionsAsync();
+        ImageConnections = await _settingsRepo.GetImageConnectionsAsync(userId);
         NotifyChanged();
     }
 
     public async Task DeleteImageConnectionAsync(string id)
     {
-        await _settingsRepo.DeleteImageConnectionAsync(id);
-        ImageConnections = await _settingsRepo.GetImageConnectionsAsync();
+        var userId = await _userContext.GetRequiredUserIdAsync();
+        await _settingsRepo.DeleteImageConnectionAsync(id, userId);
+        ImageConnections = await _settingsRepo.GetImageConnectionsAsync(userId);
         NotifyChanged();
     }
 
     public async Task SaveImageModelAsync(ImageModel model)
     {
+        var userId = await _userContext.GetRequiredUserIdAsync();
+        model.UserId = userId;
         await _settingsRepo.SaveImageModelAsync(model);
-        ImageModels = await _settingsRepo.GetImageModelsAsync();
+        ImageModels = await _settingsRepo.GetImageModelsAsync(userId);
         NotifyChanged();
     }
 
     public async Task DeleteImageModelAsync(string id)
     {
-        await _settingsRepo.DeleteImageModelAsync(id);
-        ImageModels = await _settingsRepo.GetImageModelsAsync();
+        var userId = await _userContext.GetRequiredUserIdAsync();
+        await _settingsRepo.DeleteImageModelAsync(id, userId);
+        ImageModels = await _settingsRepo.GetImageModelsAsync(userId);
         NotifyChanged();
     }
 

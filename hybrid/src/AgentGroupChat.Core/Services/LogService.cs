@@ -11,10 +11,11 @@ public sealed class LogService
 
     public event Action<LogEntry>? OnEntryAdded;
 
-    public async Task LogAsync(LogCategory category, string source, string message, string detail = "", long? durationMs = null)
+    public async Task LogAsync(string roomId, LogCategory category, string source, string message, string detail = "", long? durationMs = null)
     {
         var entry = new LogEntry
         {
+            RoomId = roomId,
             Category = category,
             Source = source,
             Message = message,
@@ -25,12 +26,12 @@ public sealed class LogService
         OnEntryAdded?.Invoke(entry);
     }
 
-    public Task<List<LogEntry>> QueryAsync(string? category = null, string? source = null, int limit = 200)
-        => _logRepo.QueryAsync(category, source, limit);
+    public Task<List<LogEntry>> QueryAsync(string roomId, string? category = null, string? source = null, int limit = 200)
+        => _logRepo.QueryAsync(category, source, limit, roomId);
 
-    public Task<List<string>> GetSourcesAsync()
-        => _logRepo.GetSourcesAsync();
+    public Task<List<string>> GetSourcesAsync(string roomId)
+        => _logRepo.GetSourcesAsync(roomId);
 
-    public Task ClearAsync()
-        => _logRepo.ClearAsync();
+    public Task ClearAsync(string roomId)
+        => _logRepo.ClearAsync(roomId);
 }

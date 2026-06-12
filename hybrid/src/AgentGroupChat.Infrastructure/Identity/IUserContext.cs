@@ -6,7 +6,10 @@ namespace AgentGroupChat.Infrastructure.Identity
 {
     public interface IUserContext
     {
+        string? UserId { get; }
         string? UserName { get; }
         bool IsAuthenticated { get; }
+        Task InitializeAsync();
+        Task<string> GetRequiredUserIdAsync();
     }
 }

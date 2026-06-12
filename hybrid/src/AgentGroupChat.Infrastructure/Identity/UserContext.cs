@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components.Authorization;
+using System.Security.Claims;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -14,6 +15,7 @@ namespace AgentGroupChat.Infrastructure.Identity
             _auth = auth;
         }
 
+        public string? UserId { get; private set; }
         public string? UserName { get; private set; }
         public bool IsAuthenticated { get; private set; }
 
@@ -24,7 +26,20 @@ namespace AgentGroupChat.Infrastructure.Identity
             var user = state.User;
 
             IsAuthenticated = user.Identity?.IsAuthenticated == true;
+            UserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             UserName = user.Identity?.Name;
+        }
+
+        public async Task<string> GetRequiredUserIdAsync()
+        {
+            await InitializeAsync();
+
+            if (!IsAuthenticated || string.IsNullOrWhiteSpace(UserId))
+            {
+                throw new InvalidOperationException("Authenticated user id is required.");
+            }
+
+            return UserId;
         }
     }
 }

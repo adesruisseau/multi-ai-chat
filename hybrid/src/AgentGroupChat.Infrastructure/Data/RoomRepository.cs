@@ -100,10 +100,10 @@ public sealed class RoomRepository : IRoomRepository
 
     private async Task<IReadOnlyList<RoomConfig>> CreateRoomSeeds(string userId)
     {
-        var aiModel = await _db.AiModels.Where(x => x.Name == "Groq 8b Instant").FirstOrDefaultAsync();
+        var aiModel = await _db.AiModels.Where(x => x.UserId == userId && x.Name == "Groq 8b Instant").FirstOrDefaultAsync();
         if (aiModel is null || String.IsNullOrWhiteSpace(aiModel.Id))
             return null;
-        var prompts = await _db.PromptSamples.Where(x => x.Name == "Optimist" || x.Name == "Soft-Spoken Companion" || x.Name == "Summarizer Agent").ToListAsync();
+        var prompts = await _db.PromptSamples.Where(x => x.UserId == userId && (x.Name == "Optimist" || x.Name == "Soft-Spoken Companion" || x.Name == "Summarizer Agent")).ToListAsync();
         if (prompts.Count != 3)
         {
             return null;
@@ -112,6 +112,7 @@ public sealed class RoomRepository : IRoomRepository
         return [
             new RoomConfig
             {
+                UserId = userId,
                 Name = "Sample Room",
                 MaxTokens = 512,
                 Topic = "Talk about anything interesting.",

@@ -307,12 +307,21 @@
 
     private async Task Refresh()
     {
-        _sources = await LogService.GetSourcesAsync();
+        if (RoomState.SelectedRoom is null)
+        {
+            _sources = new();
+            _entries = new();
+            return;
+        }
+
+        var roomId = RoomState.SelectedRoom.Id;
+        _sources = await LogService.GetSourcesAsync(roomId);
 
         if (_activeCategories.Count == _allCategories.Length)
         {
             // All active = no category filter
             _entries = await LogService.QueryAsync(
+                roomId,
                 null,
                 string.IsNullOrWhiteSpace(_sourceFilter) ? null : _sourceFilter,
                 MaxLogEntries);
@@ -328,6 +337,7 @@
             foreach (var cat in _activeCategories)
             {
                 merged.AddRange(await LogService.QueryAsync(
+                    roomId,
                     cat,
                     string.IsNullOrWhiteSpace(_sourceFilter) ? null : _sourceFilter,
                     MaxLogEntries));
@@ -457,6 +467,9 @@
 
     private void OnEntryAdded(LogEntry entry)
     {
+        if (RoomState.SelectedRoom is null || entry.RoomId != RoomState.SelectedRoom.Id)
+            return;
+
         InvokeAsync(async () =>
         {
             await Refresh();
@@ -470,7 +483,7 @@
     {
         InvokeAsync(async () =>
         {
-            await RefreshMemory();
+            await RefreshAll();
             StateHasChanged();
         });
     }

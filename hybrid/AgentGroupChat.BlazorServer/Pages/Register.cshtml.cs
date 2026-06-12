@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AgentGroupChat.Infrastructure.Identity;
+using AgentGroupChat.Infrastructure.Seeding;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -10,13 +11,16 @@ public class RegisterModel : PageModel
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IDataSeeder _dataSeeder;
 
     public RegisterModel(
         SignInManager<ApplicationUser> signInManager,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        IDataSeeder dataSeeder)
     {
         _signInManager = signInManager;
         _userManager = userManager;
+        _dataSeeder = dataSeeder;
     }
 
     [BindProperty(SupportsGet = true)]
@@ -67,6 +71,7 @@ public class RegisterModel : PageModel
             return Page();
         }
 
+        await _dataSeeder.SeedAsync(user.Id);
         await _signInManager.SignInAsync(user, isPersistent: false);
         return LocalRedirect(ReturnUrl);
     }

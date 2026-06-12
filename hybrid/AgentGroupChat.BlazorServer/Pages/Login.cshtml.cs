@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AgentGroupChat.Infrastructure.Identity;
+using AgentGroupChat.Infrastructure.Seeding;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -9,11 +10,14 @@ namespace AgentGroupChat.BlazorServer.Pages;
 public class LoginPageModel : PageModel
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly IDataSeeder _dataSeeder;
 
     public LoginPageModel(
-        SignInManager<ApplicationUser> signInManager)
+        SignInManager<ApplicationUser> signInManager,
+        IDataSeeder dataSeeder)
     {
         _signInManager = signInManager;
+        _dataSeeder = dataSeeder;
     }
 
     [BindProperty(SupportsGet = true)]
@@ -50,6 +54,12 @@ public class LoginPageModel : PageModel
 
         if (result.Succeeded)
         {
+            var user = await _signInManager.UserManager.FindByNameAsync(LoginInput.UserName);
+            if (user is not null)
+            {
+                await _dataSeeder.SeedAsync(user.Id);
+            }
+
             return LocalRedirect(ReturnUrl);
         }
 

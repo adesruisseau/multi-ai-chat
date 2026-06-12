@@ -38,6 +38,7 @@ public sealed class MemorySummarizer
         if (roundTurns.Count == 0) return;
         if (!room.UseSummarizer) return;
         if (!@room.StoreDurableMemory && !room.StoreSharedRoomMemory) return;
+        var userId = GetRequiredUserId(room);
 
         var existingRoomMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
         var existingDurableMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.Durable);
@@ -59,26 +60,26 @@ public sealed class MemorySummarizer
 
         if (room.StoreDurableMemory)
         {
-            await StoreDurableMemory(room, baseSummarizerSettings, roundTurns, sessionTurns, onLog, existingDurableMemory, ct);
+            await StoreDurableMemory(room, userId, baseSummarizerSettings, roundTurns, sessionTurns, onLog, existingDurableMemory, ct);
         }
         if (room.StoreSharedRoomMemory)
         {
-            await StoreSharedRoomMemory(room, roundTurns, sessionTurns, onLog, existingRoomMemory, existingDurableMemory, profile, roomSettings, ct);
+            await StoreSharedRoomMemory(room, userId, roundTurns, sessionTurns, onLog, existingRoomMemory, existingDurableMemory, profile, roomSettings, ct);
         }
 
     }
 
-    private async Task StoreSharedRoomMemory(RoomConfig room, IReadOnlyList<TranscriptTurn> roundTurns, IReadOnlyList<TranscriptTurn> sessionTurns, Action<string>? onLog, string existingRoomMemory, string existingDurableMemory, SceneSummarizerProfile profile, LlmRequestSettings roomSettings, CancellationToken ct)
+    private async Task StoreSharedRoomMemory(RoomConfig room, string userId, IReadOnlyList<TranscriptTurn> roundTurns, IReadOnlyList<TranscriptTurn> sessionTurns, Action<string>? onLog, string existingRoomMemory, string existingDurableMemory, SceneSummarizerProfile profile, LlmRequestSettings roomSettings, CancellationToken ct)
     {
         try
         {
 
-            var sharedRoomMemoryPrompt = await _promptSampleRepository.GetAsync(room.SharedRoomMemoryPromptSampleId);
+            var sharedRoomMemoryPrompt = await _promptSampleRepository.GetAsync(room.SharedRoomMemoryPromptSampleId, userId);
             var roomMessages = new List<LlmChatMessage>
                 {
 
 
-                    new("system", _promptComposer.BuildSharedRoomMemorySystemPrompt(room, profile, sharedRoomMemoryPrompt.PromptText)),
+                    new("system", _promptComposer.BuildSharedRoomMemorySystemPrompt(room, profile, sharedRoomMemoryPrompt?.PromptText ?? string.Empty)),
                     new("user", _promptComposer.BuildSharedRoomMemoryUserPrompt(
                         room, profile, existingRoomMemory, existingDurableMemory, roundTurns, sessionTurns)),
                 };
@@ -119,7 +120,7 @@ public sealed class MemorySummarizer
         }
     }
 
-    private async Task StoreDurableMemory(RoomConfig room, LlmRequestSettings baseSummarizerSettings, IReadOnlyList<TranscriptTurn> roundTurns, IReadOnlyList<TranscriptTurn> sessionTurns, Action<string>? onLog, string existingDurableMemory, CancellationToken ct)
+    private async Task StoreDurableMemory(RoomConfig room, string userId, LlmRequestSettings baseSummarizerSettings, IReadOnlyList<TranscriptTurn> roundTurns, IReadOnlyList<TranscriptTurn> sessionTurns, Action<string>? onLog, string existingDurableMemory, CancellationToken ct)
     {
         try
         {
@@ -130,11 +131,11 @@ public sealed class MemorySummarizer
             };
             var sharedRoomMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
 
-            var durableMemoryPrompt = await _promptSampleRepository.GetAsync(room.DurableMemoryPromptSampleId);
+            var durableMemoryPrompt = await _promptSampleRepository.GetAsync(room.DurableMemoryPromptSampleId, userId);
 
             var durableMessages = new List<LlmChatMessage>
                 {
-                    new("system", durableMemoryPrompt.PromptText),
+                    new("system", durableMemoryPrompt?.PromptText ?? string.Empty),
                     new("user", _promptComposer.BuildDurableMemoryUserPrompt(
                         room, existingDurableMemory, sharedRoomMemory, roundTurns, sessionTurns, room.RecentTurnsWindow)),
                 };
@@ -156,6 +157,14 @@ public sealed class MemorySummarizer
         {
             onLog?.Invoke($"Durable memory update failed: {ex.Message}");
         }
+    }
+
+    private static string GetRequiredUserId(RoomConfig room)
+    {
+        if (string.IsNullOrWhiteSpace(room.UserId))
+            throw new InvalidOperationException("Room is missing its owning user id.");
+
+        return room.UserId;
     }
 
     private static string? TryExtractTrustedMemoryBlock(

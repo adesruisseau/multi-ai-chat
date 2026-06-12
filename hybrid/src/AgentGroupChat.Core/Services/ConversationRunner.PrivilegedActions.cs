@@ -354,7 +354,7 @@ namespace AgentGroupChat.Core.Services
 
             if (actions.Any(a => a.Kind == PrivilegedActionKind.SpawnNpc))
             {
-                appSettings = await _settingsRepo.GetAsync();
+                appSettings = await _settingsRepo.GetAsync(GetRequiredUserId(room));
                 if (RoomSpeechResolver.UsesKokoro(room, appSettings))
                     kokoroVoices = await _speechService.FetchKokoroVoicesAsync(appSettings.KokoroBaseUrl);
             }

@@ -82,7 +82,7 @@ public sealed partial class ConversationRunner
         int startFromAgentIndex = 0)
     {
         await AutoResumeExpiredSuspensionsAsync(room, completedRounds + 1);
-        var appSettings = await _settingsRepo.GetAsync();
+        var appSettings = await _settingsRepo.GetAsync(GetRequiredUserId(room));
 
         var enabledAgents = GetActiveAgents(room);
         if (enabledAgents.Count == 0)
@@ -276,6 +276,14 @@ public sealed partial class ConversationRunner
         OnStatusChanged?.Invoke("Complete");
     }
 
+    private static string GetRequiredUserId(RoomConfig room)
+    {
+        if (string.IsNullOrWhiteSpace(room.UserId))
+            throw new InvalidOperationException("Room is missing its owning user id.");
+
+        return room.UserId;
+    }
+
     private Task SpeakWithRoomSettingsAsync(
         RoomConfig room,
         AgentConfig agent,
@@ -369,7 +377,7 @@ public sealed partial class ConversationRunner
         var agentShortMemory = await _memoryRepo.GetAsync(room.Id, agent.Id, MemoryKind.AgentShort);
         var recentTurns = SelectRecentTurns(sessionTurns, agentIndex, enabledAgents.Count, room.RecentTurnsWindow);
 
-        var promptTemplate = await _promptSampleRepository.GetAsync(agent.PromptSampleId);
+        var promptTemplate = await _promptSampleRepository.GetAsync(agent.PromptSampleId, GetRequiredUserId(room));
         var promptText = promptTemplate?.PromptText ?? string.Empty;
 
         var agentRecalledScenes = roundRecalledScenes is { Count: > 0 }
@@ -382,7 +390,7 @@ public sealed partial class ConversationRunner
             recentTurns, includeDurableMemory, agentRecalledScenes);
         var agentSettings = settingsResolver(agent);
 
-        return await _turnExecutor.ExecuteAgentTurnAsync(agent, agentSettings, prompt, IsPrivilegedAgent(room, agent), ct);
+        return await _turnExecutor.ExecuteAgentTurnAsync(room.Id, agent, agentSettings, prompt, IsPrivilegedAgent(room, agent), ct);
     }
 
     private static List<TranscriptTurn> SelectRecentTurns(
