@@ -10,13 +10,6 @@
 @code {
     protected override void OnAfterRender(bool firstRender)
     {
-        if (!firstRender)
-        {
-            return;
-        }
-
-        var loginUri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
-        var relativeUrl = loginUri.PathAndQuery + loginUri.Fragment;
-        NavigationManager.NavigateTo(relativeUrl, forceLoad: true);
+        NavigationManager.NavigateTo("/login", forceLoad: true);
     }
 }

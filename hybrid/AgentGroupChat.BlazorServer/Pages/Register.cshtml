@@ -5,7 +5,10 @@
     ViewData["Title"] = "Register";
     ViewData["BodyClass"] = "auth-page";
 }
-
+<head>
+    <link href="css/site.css" rel="stylesheet" />
+</head>
+<body>
 <div class="auth-shell">
     <div class="auth-panel auth-panel--compact">
         <section class="auth-hero auth-hero--cool">
@@ -27,38 +30,41 @@
                 <p>Register once, then route back into the app.</p>
             </div>
 
-            @if (!ViewContext.ModelState.IsValid)
-            {
-                <div asp-validation-summary="All" class="auth-summary" role="alert"></div>
-            }
-
             <form method="post" asp-page-handler="Register" class="auth-form">
                 <input asp-for="ReturnUrl" type="hidden" />
 
-                <div class="mb-3">
+                    <div class="mb-3" style="display: flex; justify-content: space-between; align-items: center;">
                     <label asp-for="RegisterInput.Email" class="form-label auth-label"></label>
+                    <div>
                     <input asp-for="RegisterInput.Email" class="form-control auth-input" autocomplete="email" />
                     <span asp-validation-for="RegisterInput.Email" class="text-danger"></span>
+                        </div>
                 </div>
-
-                <div class="mb-3">
+                <br />
+                    <div class="mb-3" style="display: flex; justify-content: space-between; align-items: center;">
                     <label asp-for="RegisterInput.UserName" class="form-label auth-label"></label>
+                    <div>
                     <input asp-for="RegisterInput.UserName" class="form-control auth-input" autocomplete="username" />
                     <span asp-validation-for="RegisterInput.UserName" class="text-danger"></span>
+                        </div>
                 </div>
-
-                <div class="mb-3">
+                    <br />
+                    <div class="mb-3" style="display: flex; justify-content: space-between; align-items: center;">
                     <label asp-for="RegisterInput.Password" class="form-label auth-label"></label>
+                    <div>
                     <input asp-for="RegisterInput.Password" class="form-control auth-input" autocomplete="new-password" />
                     <span asp-validation-for="RegisterInput.Password" class="text-danger"></span>
+                        </div>
                 </div>
-
-                <div class="mb-3">
+                    <br />
+                    <div class="mb-3" style="display: flex; justify-content: space-between; align-items: center;">
                     <label asp-for="RegisterInput.ConfirmPassword" class="form-label auth-label"></label>
+                    <div>
                     <input asp-for="RegisterInput.ConfirmPassword" class="form-control auth-input" autocomplete="new-password" />
                     <span asp-validation-for="RegisterInput.ConfirmPassword" class="text-danger"></span>
+                        </div>
                 </div>
-
+                    <br />
                 <button type="submit" class="btn auth-submit-button">Register</button>
             </form>
 
@@ -69,3 +75,4 @@
         </section>
     </div>
 </div>
+</body>

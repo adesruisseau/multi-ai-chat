@@ -1,8 +1,11 @@
 @page "/prompts"
+
 @inject PromptLibraryState PromptLibraryState
 @inject RoomState RoomState
 @inject ISnackbar Snackbar
 @implements IDisposable
+
+@attribute [Authorize]
 <MudGrid Justify="Justify.Center">
     <MudItem xs="8" >
         <MudText Typo="Typo.h4" GutterBottom="true">Prompt Library</MudText>

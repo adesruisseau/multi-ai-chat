@@ -3,7 +3,10 @@
 @inject AppState AppState
 @inject AgentGroupChat.Core.Services.SpeechService Speech
 @using AgentGroupChat.Core.Services
+
 @implements IDisposable
+@attribute [Authorize]
+
 <MudGrid Justify="Justify.Center">    
     <MudItem xs="2" sm="3">
         <MudPaper Class="pa-4" Elevation="1">

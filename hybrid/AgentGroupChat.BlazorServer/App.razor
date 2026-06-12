@@ -1,11 +1,16 @@
 ﻿@using System.Reflection
+@using AgentGroupChat.UI.Shared.Identity
 @using AgentGroupChat.UI.Shared.Shared
 @using AgentGroupChat.UI.Shared.Pages
 
 <Router AppAssembly="@typeof(App).Assembly" AdditionalAssemblies="@additionalAssemblies">
 
     <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+            <NotAuthorized>
+                <Login />
+            </NotAuthorized>
+            </AuthorizeRouteView>
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
     </Found>
     <NotFound>

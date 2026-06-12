@@ -4,6 +4,9 @@
 @inject AgentGroupChat.Core.Services.Interfaces.IMemoryRepository MemoryRepo
 @inject AgentGroupChat.Core.Services.Interfaces.ISceneArchiveRepository SceneArchiveRepo
 @implements IDisposable
+
+@attribute [Authorize]
+
 <MudGrid Justify="Justify.Center">
     <MudItem xs="8" >
 <MudText Typo="Typo.h4" GutterBottom="true">Memory & Logs</MudText>

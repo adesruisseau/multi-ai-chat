@@ -17,6 +17,8 @@
 @using AgentGroupChat.Core.Models.Llm
 
 @implements IDisposable
+@attribute [Authorize]
+
 <MudGrid Justify="Justify.Center">
     <MudItem xs="10" sm="12">
         <MudText Typo="Typo.h4" GutterBottom="true">Chat</MudText>

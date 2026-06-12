@@ -5,7 +5,10 @@
     ViewData["Title"] = "Sign in";
     ViewData["BodyClass"] = "auth-page";
 }
-
+<head>
+    <link href="css/site.css" rel="stylesheet" />
+</head>
+<body>
 <div class="auth-shell">
     <div class="auth-panel auth-panel--compact">
         <section class="auth-hero">
@@ -27,26 +30,26 @@
                 <p>Use your username and password to continue.</p>
             </div>
 
-            @if (!ViewContext.ModelState.IsValid)
-            {
-                <div asp-validation-summary="All" class="auth-summary" role="alert"></div>
-            }
-
             <form method="post" asp-page-handler="Login" class="auth-form">
                 <input asp-for="ReturnUrl" type="hidden" />
 
-                <div class="mb-3">
+                <div class="mb-3" style="display: flex; justify-content: space-between; align-items: center;">
                     <label asp-for="LoginInput.UserName" class="form-label auth-label"></label>
+                    <div>
                     <input asp-for="LoginInput.UserName" class="form-control auth-input" autocomplete="username" />
                     <span asp-validation-for="LoginInput.UserName" class="text-danger"></span>
+                        </div>
                 </div>
+                <br />
 
-                <div class="mb-3">
+                <div class="mb-3" style="display: flex; justify-content: space-between; align-items: center;">
                     <label asp-for="LoginInput.Password" class="form-label auth-label"></label>
+                    <div>
                     <input asp-for="LoginInput.Password" class="form-control auth-input" autocomplete="current-password" />
                     <span asp-validation-for="LoginInput.Password" class="text-danger"></span>
+                        </div>
                 </div>
-
+                    <br />
                 <button type="submit" class="btn auth-submit-button">Login</button>
             </form>
 
@@ -57,3 +60,4 @@
         </section>
     </div>
 </div>
+</body>
