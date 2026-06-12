@@ -1,120 +1,85 @@
 ﻿@page "/login"
-@using System.Net.Http.Json
-@using AgentGroupChat.Infrastructure.Identity
-@inject System.Net.Http.HttpClient HttpClient
-@inject IAuthService AuthService
-@inject NavigationManager NavigationManager
-<MudGrid Justify="Justify.Center">
+@using Microsoft.AspNetCore.Components
 
-    <MudItem xs="8">
-        <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pa-6">
-            <MudTabPanel Text="Login">
-                <MudCard>
-                    <MudCardHeader>
-                        <MudText>Enter your username and password.</MudText>
-                    </MudCardHeader>
-                    <MudCardContent>
-                        <MudTextField Label="Username" T="string" @bind-Value="user.UserName" />
-                        <MudTextField Label="Password" T="string" @bind-Value="user.Password" InputType="InputType.Password" />
-                    </MudCardContent>
-                    <MudCardActions>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoginAsync">Login</MudButton>
-                    </MudCardActions>
-                </MudCard>
-            </MudTabPanel>
-            <MudTabPanel Text="Register">
-                <MudCard>
-                    <MudCardHeader>
-                        <MudText>Register for an account.</MudText>
-                    </MudCardHeader>
-                    <MudCardContent>
-                        <MudTextField Label="Email" T="string" @bind-Value="register.Email" />
-
-                        <MudTextField Label="Username" T="string" @bind-Value="register.UserName" />
-                        
-                        <MudTextField Label="Password" T="string" @bind-Value="register.Password" InputType="InputType.Password" Validation="ValidatePasswordRequirements" />
-                        <MudTextField Label="Confirm Password" T="string" @bind-Value="register.ConfirmPassword" InputType="InputType.Password" Validation="ValidateConfirmPassword" />
-                    </MudCardContent>
-                    <MudCardActions>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RegisterAsync">Register</MudButton>
-                    </MudCardActions>
-                </MudCard>
-            </MudTabPanel>
-        </MudTabs>
-        
+<MudGrid Justify="Justify.Center" Spacing="4">
+    <MudItem xs="12" sm="10" md="8">
+        @if (!string.IsNullOrWhiteSpace(Error))
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-4">@Error</MudAlert>
+        }
     </MudItem>
 
+    <MudItem xs="12" md="4">
+        <MudCard>
+            <MudCardHeader>
+                <MudText>Enter your username and password.</MudText>
+            </MudCardHeader>
+            <MudCardContent>
+                <form method="post" action="/auth/login">
+                    <input type="hidden" name="returnUrl" value="@ReturnUrlValue" />
+
+                    <MudStack Spacing="2">
+                        <div>
+                            <MudText Typo="Typo.caption">Username</MudText>
+                            <input name="UserName" type="text" autocomplete="username" required style="width:100%;padding:0.85rem;border:1px solid rgba(0,0,0,0.23);border-radius:4px;background:transparent;" />
+                        </div>
+
+                        <div>
+                            <MudText Typo="Typo.caption">Password</MudText>
+                            <input name="Password" type="password" autocomplete="current-password" required style="width:100%;padding:0.85rem;border:1px solid rgba(0,0,0,0.23);border-radius:4px;background:transparent;" />
+                        </div>
+
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Login</MudButton>
+                    </MudStack>
+                </form>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudCard>
+            <MudCardHeader>
+                <MudText>Register for an account.</MudText>
+            </MudCardHeader>
+            <MudCardContent>
+                <form method="post" action="/auth/register">
+                    <input type="hidden" name="returnUrl" value="@ReturnUrlValue" />
+
+                    <MudStack Spacing="2">
+                        <div>
+                            <MudText Typo="Typo.caption">Email</MudText>
+                            <input name="Email" type="email" autocomplete="email" required style="width:100%;padding:0.85rem;border:1px solid rgba(0,0,0,0.23);border-radius:4px;background:transparent;" />
+                        </div>
+
+                        <div>
+                            <MudText Typo="Typo.caption">Username</MudText>
+                            <input name="UserName" type="text" autocomplete="username" required style="width:100%;padding:0.85rem;border:1px solid rgba(0,0,0,0.23);border-radius:4px;background:transparent;" />
+                        </div>
+
+                        <div>
+                            <MudText Typo="Typo.caption">Password</MudText>
+                            <input name="Password" type="password" autocomplete="new-password" required style="width:100%;padding:0.85rem;border:1px solid rgba(0,0,0,0.23);border-radius:4px;background:transparent;" />
+                        </div>
+
+                        <div>
+                            <MudText Typo="Typo.caption">Confirm Password</MudText>
+                            <input name="ConfirmPassword" type="password" autocomplete="new-password" required style="width:100%;padding:0.85rem;border:1px solid rgba(0,0,0,0.23);border-radius:4px;background:transparent;" />
+                        </div>
+
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Register</MudButton>
+                    </MudStack>
+                </form>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
 </MudGrid>
 
 @code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
 
-    LoginModel user = new();
-    RegisterModel register = new();
-    private string doesNotMatch = "Passwords do not match.";
-    string? error;
-    private async Task LoginAsync()
-    {
-        var response = await HttpClient.PostAsJsonAsync("https://localhost:7188/auth/login", user);
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
 
-            if (response.IsSuccessStatusCode)
-            {
-                NavigationManager.NavigateTo("/", forceLoad: true);
-            }
-            else
-            {
-                error = "Login failed";
-            }
-
-    }
-
-    private async Task RegisterAsync()
-    {
-        
-        if (!string.IsNullOrWhiteSpace(register.UserName) && !string.IsNullOrWhiteSpace(register.Password))
-        {
-            var result = await AuthService.RegisterAsync(register.UserName, register.Email, register.Password);
-            if (result.Succeeded)
-            {
-                NavigationManager.NavigateTo("/", forceLoad: true);
-            }
-            else
-            {
-                error = "Registration failed";
-            }
-        }
-    }
-
-    private string ValidateConfirmPassword(string value)
-    {
-        if (register.Password != register.ConfirmPassword)
-            return "Passwords do not match.";
-
-        return null;
-    }
-
-    public string ValidatePasswordRequirements()
-    {
-        var password = register.Password;
-        if (string.IsNullOrWhiteSpace(password) || password.Length < 8)
-        {
-            return "Password must be at least 8 characters long.";
-        }
-        if (!password.Any(char.IsUpper))
-        {
-            return "Password must contain at least one uppercase letter.";
-        }
-        if (!password.Any(char.IsLower))
-        {
-            return "Password must contain at least one lowercase letter.";
-        }
-        if (!password.Any(char.IsDigit))
-        {
-            return "Password must contain at least one number.";
-        }
-        if (!password.Any(ch => !char.IsLetterOrDigit(ch)))
-        {
-            return "Password must contain at least one special character.";
-        }
-        return "";
-    }
+    private string ReturnUrlValue => string.IsNullOrWhiteSpace(ReturnUrl) ? "/" : ReturnUrl!;
 }

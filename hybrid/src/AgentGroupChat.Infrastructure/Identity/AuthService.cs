@@ -19,23 +19,18 @@ namespace AgentGroupChat.Infrastructure.Identity
             _signInManager = signInManager;
         }
 
-        bool loginBusy = false;
         public async Task<SignInResult> LoginAsync(string username, string password)
         {
-            if (loginBusy)
+            var user = await _userManager.FindByNameAsync(username);
+            if (user is null)
             {
-                return null;
+                return SignInResult.Failed;
             }
-            loginBusy = true;
-            var res = await _signInManager.PasswordSignInAsync(
-                username,
-                password,
-                isPersistent: false,
-                lockoutOnFailure: false);
 
-            loginBusy = false;
-            return res;
-            
+            return await _signInManager.CheckPasswordSignInAsync(
+                user,
+                password,
+                lockoutOnFailure: false);
         }
 
         public async Task<IdentityResult> RegisterAsync(string username, string email, string password)
@@ -50,9 +45,6 @@ namespace AgentGroupChat.Infrastructure.Identity
 
             if (!result.Succeeded)
                 return result;
-
-            // IMPORTANT: avoid SignInAsync here in Blazor lifecycle edge cases
-            await _signInManager.PasswordSignInAsync(username, password, false, false);
 
             return result;
         }
