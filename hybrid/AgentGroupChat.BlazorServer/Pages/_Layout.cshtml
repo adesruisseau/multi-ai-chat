@@ -16,7 +16,7 @@
 
     <component type="typeof(HeadOutlet)" render-mode="Server" />
 </head>
-<body>
+<body class="@(ViewData["BodyClass"] as string)">
     @RenderBody()
 
     <div id="blazor-error-ui">

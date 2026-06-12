@@ -3,54 +3,69 @@
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @{
     ViewData["Title"] = "Register";
+    ViewData["BodyClass"] = "auth-page";
 }
 
-<div class="container py-5">
-    <div class="row justify-content-center g-4">
-        <div class="col-12 col-lg-10">
+<div class="auth-shell">
+    <div class="auth-panel auth-panel--compact">
+        <section class="auth-hero auth-hero--cool">
+            <p class="auth-eyebrow">Agent Group Chat</p>
+            <h1 class="auth-display">Create an operator account for your next session.</h1>
+            <p class="auth-lead">
+                Set up a local identity so rooms, settings, and shared memory have a consistent user behind them.
+            </p>
+            <div class="auth-tags" aria-hidden="true">
+                <span class="auth-tag">Identity</span>
+                <span class="auth-tag">Settings</span>
+                <span class="auth-tag">Shared Rooms</span>
+            </div>
+        </section>
+
+        <section class="auth-card">
+            <div class="auth-card-header">
+                <h2>Create account</h2>
+                <p>Register once, then route back into the app.</p>
+            </div>
+
             @if (!ViewContext.ModelState.IsValid)
             {
-                <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+                <div asp-validation-summary="All" class="auth-summary" role="alert"></div>
             }
-        </div>
 
-        <div class="col-12 col-md-5">
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    <h2 class="h4 mb-3">Register</h2>
-                    <p class="text-muted">Create an account.</p>
+            <form method="post" asp-page-handler="Register" class="auth-form">
+                <input asp-for="ReturnUrl" type="hidden" />
 
-                    <form method="post" asp-page-handler="Register">
-                        <input asp-for="ReturnUrl" type="hidden" />
-
-                        <div class="mb-3">
-                            <label asp-for="RegisterInput.Email" class="form-label"></label>
-                            <input asp-for="RegisterInput.Email" class="form-control" autocomplete="email" />
-                            <span asp-validation-for="RegisterInput.Email" class="text-danger"></span>
-                        </div>
-
-                        <div class="mb-3">
-                            <label asp-for="RegisterInput.UserName" class="form-label"></label>
-                            <input asp-for="RegisterInput.UserName" class="form-control" autocomplete="username" />
-                            <span asp-validation-for="RegisterInput.UserName" class="text-danger"></span>
-                        </div>
-
-                        <div class="mb-3">
-                            <label asp-for="RegisterInput.Password" class="form-label"></label>
-                            <input asp-for="RegisterInput.Password" class="form-control" autocomplete="new-password" />
-                            <span asp-validation-for="RegisterInput.Password" class="text-danger"></span>
-                        </div>
-
-                        <div class="mb-3">
-                            <label asp-for="RegisterInput.ConfirmPassword" class="form-label"></label>
-                            <input asp-for="RegisterInput.ConfirmPassword" class="form-control" autocomplete="new-password" />
-                            <span asp-validation-for="RegisterInput.ConfirmPassword" class="text-danger"></span>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary w-100">Register</button>
-                    </form>
+                <div class="mb-3">
+                    <label asp-for="RegisterInput.Email" class="form-label auth-label"></label>
+                    <input asp-for="RegisterInput.Email" class="form-control auth-input" autocomplete="email" />
+                    <span asp-validation-for="RegisterInput.Email" class="text-danger"></span>
                 </div>
-            </div>
-        </div>
+
+                <div class="mb-3">
+                    <label asp-for="RegisterInput.UserName" class="form-label auth-label"></label>
+                    <input asp-for="RegisterInput.UserName" class="form-control auth-input" autocomplete="username" />
+                    <span asp-validation-for="RegisterInput.UserName" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="RegisterInput.Password" class="form-label auth-label"></label>
+                    <input asp-for="RegisterInput.Password" class="form-control auth-input" autocomplete="new-password" />
+                    <span asp-validation-for="RegisterInput.Password" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="RegisterInput.ConfirmPassword" class="form-label auth-label"></label>
+                    <input asp-for="RegisterInput.ConfirmPassword" class="form-control auth-input" autocomplete="new-password" />
+                    <span asp-validation-for="RegisterInput.ConfirmPassword" class="text-danger"></span>
+                </div>
+
+                <button type="submit" class="btn auth-submit-button">Register</button>
+            </form>
+
+            <p class="auth-alt-action">
+                Already have an account?
+                <a asp-page="/Login" asp-route-returnUrl="@Model.ReturnUrl">Sign in</a>
+            </p>
+        </section>
     </div>
 </div>

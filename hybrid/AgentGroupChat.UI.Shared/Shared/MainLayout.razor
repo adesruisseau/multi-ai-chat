@@ -4,6 +4,7 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
 
 <MudThemeProvider @ref="_themeProvider" Theme="_theme" IsDarkMode="_isDark" />
 <MudPopoverProvider />
@@ -16,7 +17,30 @@
                        OnClick="() => _drawerOpen = !_drawerOpen" />
         <MudText Typo="Typo.h5" Class="ml-2">Agent Group Chat</MudText>
         <MudSpacer />
-        <MudText Typo="Typo.h5">Hello, @username</MudText>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mr-2">
+            @if (_isAuthenticated)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" Size="Size.Medium" />
+                <MudText Typo="Typo.subtitle1">Hello, @username</MudText>
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Inherit"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Logout"
+                           OnClick="NavigateToLogout">
+                    Logout
+                </MudButton>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Inherit"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Login"
+                           OnClick="NavigateToLogin">
+                    Sign In
+                </MudButton>
+            }
+        </MudStack>
         <MudSpacer />
         @if (_roomState.SelectedRoom is not null)
         {
@@ -88,10 +112,12 @@
     ];
 
     private string? username;
+    private bool _isAuthenticated;
 
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAuthenticated = state.User.Identity?.IsAuthenticated == true;
         username = state.User.Identity?.Name;
 
 
@@ -144,6 +170,10 @@
         _appState.Settings.UiTheme = toggled ? "Dark" : "Light";
         await _appState.SaveSettingsAsync();
     }
+
+    private void NavigateToLogin() => NavigationManager.NavigateTo("/login", forceLoad: true);
+
+    private void NavigateToLogout() => NavigationManager.NavigateTo("/logout", forceLoad: true);
 
     private void OnAppStateChanged() => InvokeAsync(StateHasChanged);
 

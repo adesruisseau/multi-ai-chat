@@ -1,0 +1,22 @@
+@page "/register"
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="my-12">
+    <MudPaper Class="pa-6 d-flex flex-column align-center" Elevation="2">
+        <MudText Typo="Typo.h6">Redirecting to registration...</MudText>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var registerUri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var relativeUrl = registerUri.PathAndQuery + registerUri.Fragment;
+        NavigationManager.NavigateTo(relativeUrl, forceLoad: true);
+    }
+}

@@ -3,42 +3,57 @@
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @{
     ViewData["Title"] = "Sign in";
+    ViewData["BodyClass"] = "auth-page";
 }
 
-<div class="container py-5">
-    <div class="row justify-content-center g-4">
-        <div class="col-12 col-lg-10">
+<div class="auth-shell">
+    <div class="auth-panel auth-panel--compact">
+        <section class="auth-hero">
+            <p class="auth-eyebrow">Agent Group Chat</p>
+            <h1 class="auth-display">Return to the room without losing the thread.</h1>
+            <p class="auth-lead">
+                Step back into your rooms, prompts, memory logs, and active scenes with the same identity that owns them.
+            </p>
+            <div class="auth-tags" aria-hidden="true">
+                <span class="auth-tag">Rooms</span>
+                <span class="auth-tag">Prompt Library</span>
+                <span class="auth-tag">Scene Memory</span>
+            </div>
+        </section>
+
+        <section class="auth-card">
+            <div class="auth-card-header">
+                <h2>Sign in</h2>
+                <p>Use your username and password to continue.</p>
+            </div>
+
             @if (!ViewContext.ModelState.IsValid)
             {
-                <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+                <div asp-validation-summary="All" class="auth-summary" role="alert"></div>
             }
-        </div>
 
-        <div class="col-12 col-md-5">
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    <h2 class="h4 mb-3">Login</h2>
-                    <p class="text-muted">Enter your username and password.</p>
+            <form method="post" asp-page-handler="Login" class="auth-form">
+                <input asp-for="ReturnUrl" type="hidden" />
 
-                    <form method="post" asp-page-handler="Login">
-                        <input asp-for="ReturnUrl" type="hidden" />
-
-                        <div class="mb-3">
-                            <label asp-for="LoginInput.UserName" class="form-label"></label>
-                            <input asp-for="LoginInput.UserName" class="form-control" autocomplete="username" />
-                            <span asp-validation-for="LoginInput.UserName" class="text-danger"></span>
-                        </div>
-
-                        <div class="mb-3">
-                            <label asp-for="LoginInput.Password" class="form-label"></label>
-                            <input asp-for="LoginInput.Password" class="form-control" autocomplete="current-password" />
-                            <span asp-validation-for="LoginInput.Password" class="text-danger"></span>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary w-100">Login</button>
-                    </form>
+                <div class="mb-3">
+                    <label asp-for="LoginInput.UserName" class="form-label auth-label"></label>
+                    <input asp-for="LoginInput.UserName" class="form-control auth-input" autocomplete="username" />
+                    <span asp-validation-for="LoginInput.UserName" class="text-danger"></span>
                 </div>
-            </div>
-        </div>
+
+                <div class="mb-3">
+                    <label asp-for="LoginInput.Password" class="form-label auth-label"></label>
+                    <input asp-for="LoginInput.Password" class="form-control auth-input" autocomplete="current-password" />
+                    <span asp-validation-for="LoginInput.Password" class="text-danger"></span>
+                </div>
+
+                <button type="submit" class="btn auth-submit-button">Login</button>
+            </form>
+
+            <p class="auth-alt-action">
+                Need an account?
+                <a asp-page="/Register" asp-route-returnUrl="@Model.ReturnUrl">Create one</a>
+            </p>
+        </section>
     </div>
 </div>
