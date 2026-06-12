@@ -1,8 +1,10 @@
 ﻿@page "/"
 @namespace AgentGroupChat.BlazorServer.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @{
     Layout = "_Layout";
+    Antiforgery.GetAndStoreTokens(HttpContext);
 }
 
 <component type="typeof(App)" render-mode="Server" />
