@@ -6,6 +6,6 @@ namespace AgentGroupChat.Infrastructure.Seeding
 {
     public interface IDataSeeder
     {
-        Task SeedAsync();
+        Task SeedAsync(string userId);
     }
 }

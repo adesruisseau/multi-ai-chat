@@ -8,4 +8,5 @@ public sealed class AiConnection
     public string Endpoint { get; set; } = string.Empty;
     public string ApiKey { get; set; } = string.Empty;
     public int SortOrder { get; set; }
+    public string UserId { get; set; } = string.Empty;
 }

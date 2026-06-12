@@ -14,7 +14,7 @@ public sealed class ImageModel
     public string NegativePrompt { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
     public int SortOrder { get; set; }
-
+    public string UserId { get; set; } = string.Empty;
     /// <summary>Resolved at runtime from connection. Not persisted.</summary>
     public string ConnectionName { get; set; } = string.Empty;
 }

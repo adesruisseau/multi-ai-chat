@@ -20,6 +20,7 @@ public sealed partial class ConversationRunner
     private readonly IPromptSampleRepository _promptSampleRepository;
     private readonly SceneRetrievalService _sceneRetrievalService;
     private readonly SpeechService _speechService;
+    
 
 
     private static readonly (string AccentHex, string BackgroundHex)[] NpcColorPresets =

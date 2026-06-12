@@ -22,15 +22,15 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
 
-    public async Task<PromptSample?> GetAsync(int id)
+    public async Task<PromptSample?> GetAsync(int id, string userId)
     {
-        var entity = await _db.PromptSamples.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+        var entity = await _db.PromptSamples.Where(p => p.UserId == userId).AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
         return entity is null ? null : EntityMapper.ToDomain(entity);
     }
 
     public async Task SaveAsync(PromptSample sample)
     {
-        var existing = await _db.PromptSamples.FirstOrDefaultAsync(p => p.Id == sample.Id);
+        var existing = await _db.PromptSamples.FirstOrDefaultAsync(p => p.Id == sample.Id && p.UserId == sample.UserId);
         var utcNow = DateTimeOffset.UtcNow;
         if (sample.CreatedAt == default)
             sample.CreatedAt = utcNow;
@@ -45,9 +45,9 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
         await _db.SaveChangesAsync();
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(int id, string userId)
     {
-        var entity = await _db.PromptSamples.FirstOrDefaultAsync(p => p.Id == id);
+        var entity = await _db.PromptSamples.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
         if (entity is not null)
         {
             _db.PromptSamples.Remove(entity);
@@ -55,24 +55,24 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
         }
     }
 
-    public async Task SeedBuiltInsIfEmptyAsync()
+    public async Task SeedBuiltInsIfEmptyAsync(string userId)
     {
-        if (await _db.PromptSamples.AnyAsync())
+        if (await _db.PromptSamples.Where(x => x.UserId == userId).AnyAsync())
             return;
 
-        var builtIns = CreateBuiltIns().Select(EntityMapper.ToEntity).ToList();
+        var builtIns = CreateBuiltIns(userId).Select(EntityMapper.ToEntity).ToList();
         _db.PromptSamples.AddRange(builtIns);
         await _db.SaveChangesAsync();
     }
 
-    private static IReadOnlyList<PromptSample> CreateBuiltIns()
+    private static IReadOnlyList<PromptSample> CreateBuiltIns(string userId)
     {
         var now = DateTimeOffset.UtcNow;
         return
         [
             new PromptSample
             {
-                
+                UserId = userId,
                 Name = "DM Narrator Guide",
                 Category = "DM",
                 Description = "Runs a scene with clear narration, momentum, and room for player agency.",
@@ -86,7 +86,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                
+                UserId = userId,
                 Name = "Optimist",
                 Category = "Companion",
                 Description = "Looks for practical hope, morale, and forward motion without becoming naive.",
@@ -100,7 +100,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                
+                UserId = userId,
                 Name = "Skeptic",
                 Category = "Debate",
                 Description = "Pressure-tests plans by surfacing hidden assumptions and failure modes.",
@@ -114,7 +114,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                
+                UserId = userId,
                 Name = "Interviewer",
                 Category = "Interview",
                 Description = "Pulls out detail with focused follow-up questions and concise summaries.",
@@ -128,7 +128,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                
+                UserId = userId,
                 Name = "Worldbuilding Assistant",
                 Category = "Worldbuilding",
                 Description = "Expands setting details while keeping tone and continuity coherent.",
@@ -142,7 +142,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
-                
+                UserId = userId,
                 Name = "Tactical Planner",
                 Category = "Planning",
                 Description = "Breaks goals into steps, contingencies, and resource-aware decisions.",
@@ -156,6 +156,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
+                UserId = userId,
                 Name = "Soft-Spoken Companion",
                 Category = "Companion",
                 Description = "Responds gently and empathetically while still contributing substance.",
@@ -169,6 +170,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             },
             new PromptSample
             {
+                UserId = userId,
                 Name = "Summarizer Agent",
                 Category = "Internal",
                 Description = "Summarizes transcript information into storage for retrieval and recall.",
@@ -195,6 +197,7 @@ Output exactly this and nothing else:
             },
             new PromptSample
             {
+                UserId = userId,
                 Name = "Elite DnD DM Template",
                 Category = "DnD",
                 Description = "",
@@ -309,6 +312,7 @@ NPCs may influence but not override players.
             },
             new PromptSample
             {
+                UserId = userId,
                 Name = "Elite DnD Player Template",
                 Category = "DnD",
                 Description = "",
@@ -439,6 +443,7 @@ However:
             },
             new PromptSample
             {
+                UserId = userId,
                 Name = "Elite Shared Room Memory Template",
                 Category = "DnD",
                 Description = "",
@@ -526,6 +531,7 @@ Additional Rules:
             },
             new PromptSample
             {
+                UserId = userId,
                 Name = "Elite Durable Memory Template",
                 Category = "DnD",
                 Description = "",

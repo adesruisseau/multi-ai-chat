@@ -49,6 +49,6 @@ public sealed class RoomConfig
     public int MaxConcurrentNpcs { get; set; } = 2;
     public int SortOrder { get; set; }
     public List<AgentConfig> Agents { get; set; } = new();
-    public List<HumanParticipantConfig> HumanParticipants { get; set; } = new();
     public List<DataTrackerConfig> DataTrackers { get; set; } = new();
+    public string UserId { get; set; }
 }

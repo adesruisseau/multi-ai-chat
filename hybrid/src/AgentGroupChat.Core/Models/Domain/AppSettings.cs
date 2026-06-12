@@ -20,4 +20,5 @@ public sealed class AppSettings
     public bool SetupRoomsCompleted { get; set; }
     public string SetupTtsStatus { get; set; } = "Pending";
     public bool HideSetupGuide { get; set; }
+    public string UserId { get; set; } = string.Empty;
 }

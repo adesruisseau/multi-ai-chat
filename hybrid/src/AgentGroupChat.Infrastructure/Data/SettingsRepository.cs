@@ -14,15 +14,15 @@ public sealed class SettingsRepository : ISettingsRepository
 
     public SettingsRepository(AppDbContext db) => _db = db;
 
-    public async Task<AppSettings> GetAsync()
+    public async Task<AppSettings> GetAsync(string userId)
     {
-        var entity = await _db.AppSettings.AsNoTracking().FirstOrDefaultAsync();
+        var entity = await _db.AppSettings.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == userId);
         return entity is null ? new AppSettings() : EntityMapper.ToDomain(entity);
     }
 
     public async Task SaveAsync(AppSettings settings)
     {
-        var entity = await _db.AppSettings.FirstOrDefaultAsync();
+        var entity = await _db.AppSettings.FirstOrDefaultAsync(x => x.UserId == settings.UserId);
         if (entity is null)
         {
             entity = new AppSettingsEntity();
@@ -37,15 +37,15 @@ public sealed class SettingsRepository : ISettingsRepository
         await _db.SaveChangesAsync();
     }
 
-    public async Task<List<AiConnection>> GetConnectionsAsync()
+    public async Task<List<AiConnection>> GetConnectionsAsync(string userId)
     {
-        var entities = await _db.AiConnections.OrderBy(c => c.SortOrder).AsNoTracking().ToListAsync();
+        var entities = await _db.AiConnections.Where(x => x.UserId == userId).OrderBy(c => c.SortOrder).AsNoTracking().ToListAsync();
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
 
     public async Task SaveConnectionAsync(AiConnection connection)
     {
-        var existing = await _db.AiConnections.FirstOrDefaultAsync(c => c.Id == connection.Id);
+        var existing = await _db.AiConnections.FirstOrDefaultAsync(c => c.Id == connection.Id && c.UserId == connection.UserId);
         var entity = EntityMapper.ToEntity(connection);
         if (existing is null)
             _db.AiConnections.Add(entity);
@@ -54,9 +54,9 @@ public sealed class SettingsRepository : ISettingsRepository
         await _db.SaveChangesAsync();
     }
 
-    public async Task DeleteConnectionAsync(string id)
+    public async Task DeleteConnectionAsync(string id, string userId)
     {
-        var entity = await _db.AiConnections.FirstOrDefaultAsync(c => c.Id == id);
+        var entity = await _db.AiConnections.FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
         if (entity is not null)
         {
             _db.AiConnections.Remove(entity);
@@ -64,15 +64,15 @@ public sealed class SettingsRepository : ISettingsRepository
         }
     }
 
-    public async Task<List<AiModel>> GetModelsAsync()
+    public async Task<List<AiModel>> GetModelsAsync(string userId)
     {
-        var entities = await _db.AiModels.OrderBy(m => m.SortOrder).AsNoTracking().ToListAsync();
+        var entities = await _db.AiModels.Where(x => x.UserId == userId).OrderBy(m => m.SortOrder).AsNoTracking().ToListAsync();
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
 
     public async Task SaveModelAsync(AiModel model)
     {
-        var existing = await _db.AiModels.FirstOrDefaultAsync(m => m.Id == model.Id);
+        var existing = await _db.AiModels.FirstOrDefaultAsync(m => m.Id == model.Id && m.UserId == model.UserId);
         var entity = EntityMapper.ToEntity(model);
         if (existing is null)
             _db.AiModels.Add(entity);
@@ -81,9 +81,9 @@ public sealed class SettingsRepository : ISettingsRepository
         await _db.SaveChangesAsync();
     }
 
-    public async Task DeleteModelAsync(string id)
+    public async Task DeleteModelAsync(string id, string userId)
     {
-        var entity = await _db.AiModels.FirstOrDefaultAsync(m => m.Id == id);
+        var entity = await _db.AiModels.FirstOrDefaultAsync(m => m.Id == id && m.UserId == userId);
         if (entity is not null)
         {
             _db.AiModels.Remove(entity);
@@ -91,15 +91,15 @@ public sealed class SettingsRepository : ISettingsRepository
         }
     }
 
-    public async Task<List<ImageConnection>> GetImageConnectionsAsync()
+    public async Task<List<ImageConnection>> GetImageConnectionsAsync(string userId)
     {
-        var entities = await _db.ImageConnections.OrderBy(c => c.SortOrder).AsNoTracking().ToListAsync();
+        var entities = await _db.ImageConnections.Where(x => x.UserId == userId).OrderBy(c => c.SortOrder).AsNoTracking().ToListAsync();
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
 
     public async Task SaveImageConnectionAsync(ImageConnection connection)
     {
-        var existing = await _db.ImageConnections.FirstOrDefaultAsync(c => c.Id == connection.Id);
+        var existing = await _db.ImageConnections.FirstOrDefaultAsync(c => c.Id == connection.Id && c.UserId == connection.UserId);
         var entity = EntityMapper.ToEntity(connection);
         if (existing is null)
             _db.ImageConnections.Add(entity);
@@ -108,9 +108,9 @@ public sealed class SettingsRepository : ISettingsRepository
         await _db.SaveChangesAsync();
     }
 
-    public async Task DeleteImageConnectionAsync(string id)
+    public async Task DeleteImageConnectionAsync(string id, string userId)
     {
-        var entity = await _db.ImageConnections.FirstOrDefaultAsync(c => c.Id == id);
+        var entity = await _db.ImageConnections.FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
         if (entity is not null)
         {
             _db.ImageConnections.Remove(entity);
@@ -118,9 +118,9 @@ public sealed class SettingsRepository : ISettingsRepository
         }
     }
 
-    public async Task<ImageConnection> GetImageConnectionAsync(string connectionId)
+    public async Task<ImageConnection> GetImageConnectionAsync(string connectionId, string userId)
     {
-        var entity = await _db.ImageConnections.Where(x => x.Id == connectionId).AsNoTracking().FirstOrDefaultAsync();
+        var entity = await _db.ImageConnections.Where(x => x.Id == connectionId && x.UserId == userId).AsNoTracking().FirstOrDefaultAsync();
         
         if (entity is not null)
         {
@@ -130,15 +130,15 @@ public sealed class SettingsRepository : ISettingsRepository
         return null;
     }
 
-    public async Task<List<ImageModel>> GetImageModelsAsync()
+    public async Task<List<ImageModel>> GetImageModelsAsync(string userId)
     {
-        var entities = await _db.ImageModels.OrderBy(m => m.SortOrder).AsNoTracking().ToListAsync();
+        var entities = await _db.ImageModels.Where(m => m.UserId == userId).OrderBy(m => m.SortOrder).AsNoTracking().ToListAsync();
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
     
-    public async Task<ImageModel> GetImageModelByIdAsync(string modelId)
+    public async Task<ImageModel> GetImageModelByIdAsync(string modelId, string userId)
     {
-        var entity = await _db.ImageModels.Where(x => x.Id == modelId || x.ModelId == modelId).AsNoTracking().FirstOrDefaultAsync();
+        var entity = await _db.ImageModels.Where(x => (x.Id == modelId || x.ModelId == modelId) && x.UserId == userId).AsNoTracking().FirstOrDefaultAsync();
         if (entity is not null)
         {
             var imageModel = EntityMapper.ToDomain(entity);
@@ -149,7 +149,7 @@ public sealed class SettingsRepository : ISettingsRepository
 
     public async Task SaveImageModelAsync(ImageModel model)
     {
-        var existing = await _db.ImageModels.FirstOrDefaultAsync(m => m.Id == model.Id);
+        var existing = await _db.ImageModels.FirstOrDefaultAsync(m => m.Id == model.Id && m.UserId == model.UserId);
         var entity = EntityMapper.ToEntity(model);
         if (existing is null)
             _db.ImageModels.Add(entity);
@@ -158,9 +158,9 @@ public sealed class SettingsRepository : ISettingsRepository
         await _db.SaveChangesAsync();
     }
 
-    public async Task DeleteImageModelAsync(string id)
+    public async Task DeleteImageModelAsync(string id, string userId)
     {
-        var entity = await _db.ImageModels.FirstOrDefaultAsync(m => m.Id == id);
+        var entity = await _db.ImageModels.FirstOrDefaultAsync(m => m.Id == id && m.UserId == userId);
         if (entity is not null)
         {
             _db.ImageModels.Remove(entity);
@@ -168,32 +168,32 @@ public sealed class SettingsRepository : ISettingsRepository
         }
     }
 
-    public async Task SeedAiConnectionsIfEmptyAsync()
+    public async Task SeedAiConnectionsIfEmptyAsync(string userId)
     {
-        if (await _db.AiConnections.AnyAsync())
+        if (await _db.AiConnections.Where(x => x.UserId == userId).AnyAsync())
         {
             return;
         }
 
-        var seedConnections = CreateConnectionSeeds().Select(EntityMapper.ToEntity).ToList();
+        var seedConnections = CreateConnectionSeeds(userId).Select(EntityMapper.ToEntity).ToList();
         _db.AiConnections.AddRange(seedConnections);
         await _db.SaveChangesAsync();
     }
 
-    public async Task SeedAiModelsIfEmptyAsync()
+    public async Task SeedAiModelsIfEmptyAsync(string userId)
     {
-        await SeedAiConnectionsIfEmptyAsync();
-        if (await _db.AiModels.AnyAsync())
+        await SeedAiConnectionsIfEmptyAsync(userId);
+        if (await _db.AiModels.Where(m => m.UserId == userId).AnyAsync())
         {
             return;
         }
-        var seedModels = await CreateModelSeeds();
+        var seedModels = await CreateModelSeeds(userId);
         var seedModelEntities = seedModels.Select(EntityMapper.ToEntity).ToList();
         _db.AiModels.AddRange(seedModelEntities);
         await _db.SaveChangesAsync();
     }
 
-    private static IReadOnlyList<AiConnection> CreateConnectionSeeds()
+    private static IReadOnlyList<AiConnection> CreateConnectionSeeds(string userId)
     {
         var now = DateTimeOffset.UtcNow;
         return
@@ -203,24 +203,28 @@ public sealed class SettingsRepository : ISettingsRepository
                     Name = "Groq",
                     Transport = LlmTransports.Groq,
                     Endpoint = "https://api.groq.com/openai/v1/chat/completions",
-                    ApiKey = "YOUR_KEY_HERE",
-                    SortOrder = 1
+                    ApiKey = "",
+                    SortOrder = 1,
+                    UserId = userId
                 },
                 new AiConnection
                 {
                     Name = "Gemini",
                     Transport = LlmTransports.Gemini,
                     Endpoint = "https://generativelanguage.googleapis.com/v1beta",
-                    ApiKey = "YOUR_KEY_HERE",
-                    SortOrder = 2
+                    ApiKey = "",
+                    SortOrder = 2,
+                    UserId = userId
                 }
             ];
     }
 
-    private async Task<IReadOnlyList<AiModel>> CreateModelSeeds()
+    private async Task<IReadOnlyList<AiModel>> CreateModelSeeds(string userId)
     {
         var now = DateTimeOffset.UtcNow;
-        var connections = await _db.AiConnections.Where(x => x.Transport == LlmTransports.Groq || x.Transport == LlmTransports.Gemini).ToListAsync();
+        var connections = await _db.AiConnections
+            .Where(x => x.UserId == userId)
+            .Where(x => x.Transport == LlmTransports.Groq || x.Transport == LlmTransports.Gemini).ToListAsync();
         if (connections.Count() == 0)
         {
             return null;
@@ -236,6 +240,7 @@ public sealed class SettingsRepository : ISettingsRepository
                 Notes = "",
                 SortOrder = 0,
                 ConnectionId = connections.Where(x => x.Transport == LlmTransports.Groq).FirstOrDefault()!.Id,
+                UserId = userId,
             },
             new AiModel
             {
@@ -246,6 +251,7 @@ public sealed class SettingsRepository : ISettingsRepository
                 Notes = "",
                 SortOrder = 0,
                 ConnectionId = connections.Where(x => x.Transport == LlmTransports.Groq).FirstOrDefault()!.Id,
+                UserId = userId,
             },
             new AiModel
             {
@@ -256,6 +262,7 @@ public sealed class SettingsRepository : ISettingsRepository
                 Notes = "",
                 SortOrder = 0,
                 ConnectionId = connections.Where(x => x.Transport == LlmTransports.Gemini).FirstOrDefault()!.Id,
+                UserId = userId,
             },
             new AiModel
             {
@@ -266,6 +273,7 @@ public sealed class SettingsRepository : ISettingsRepository
                 Notes = "",
                 SortOrder = 0,
                 ConnectionId = connections.Where(x => x.Transport == LlmTransports.Gemini).FirstOrDefault()!.Id,
+                UserId = userId,
             },
             ];
         

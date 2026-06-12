@@ -6,7 +6,6 @@ namespace AgentGroupChat.Infrastructure.Entities;
 [Table("AppSettings")]
 public class AppSettingsEntity
 {
-    //NEEDS KEY TO USER
     [Key]
     public int Id { get; set; } = 1;
     public string UiTheme { get; set; } = "System";
@@ -27,6 +26,10 @@ public class AppSettingsEntity
     public bool SetupRoomsCompleted { get; set; }
     public string SetupTtsStatus { get; set; } = "Pending";
     public bool HideSetupGuide { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    [ForeignKey("UserId")]
+    public ApplicationUser? User { get; set; }
+
 }
 
 [Table("AiConnections")]
@@ -40,12 +43,14 @@ public class AiConnectionEntity
     public string Endpoint { get; set; } = string.Empty;
     public string ApiKey { get; set; } = string.Empty;
     public int SortOrder { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    [ForeignKey("UserId")]
+    public ApplicationUser? User { get; set; }
 }
 
 [Table("AiModels")]
 public class AiModelEntity
 {
-    //NEEDS KEY TO USER
     [Key]
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -55,12 +60,14 @@ public class AiModelEntity
     public decimal Temperature { get; set; } = 0.7m;
     public int MaxTokens { get; set; } = 512;
     public int SortOrder { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    [ForeignKey("UserId")]
+    public ApplicationUser? User { get; set; }
 }
 
 [Table("ImageConnections")]
 public class ImageConnectionEntity
 {
-    //NEEDS KEY TO USER
     [Key]
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -68,12 +75,14 @@ public class ImageConnectionEntity
     public string Endpoint { get; set; } = string.Empty;
     public string ApiKey { get; set; } = string.Empty;
     public int SortOrder { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    [ForeignKey("UserId")]
+    public ApplicationUser? User { get; set; }
 }
 
 [Table("ImageModels")]
 public class ImageModelEntity
 {
-    //NEEDS KEY TO USER
     [Key]
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -87,12 +96,14 @@ public class ImageModelEntity
     public string NegativePrompt { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
     public int SortOrder { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    [ForeignKey("UserId")]
+    public ApplicationUser? User { get; set; }
 }
 
 [Table("PromptSamples")]
 public class PromptSampleEntity
 {
-    //NEEDS KEY TO USER
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int Id { get; set; }
@@ -107,13 +118,14 @@ public class PromptSampleEntity
     public int SortOrder { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    [ForeignKey("UserId")]
+    public ApplicationUser? User { get; set; }
 }
 
 [Table("Rooms")]
 public class RoomEntity
 {
-
-    //NEEDS KEY TO USER
     [Key]
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -163,6 +175,9 @@ public class RoomEntity
     public int SortOrder { get; set; }
     public List<AgentEntity> Agents { get; set; } = new();
     public List<DataTrackerEntity> DataTrackers { get; set; } = new();
+    public string UserId { get; set; } = string.Empty;
+    [ForeignKey("UserId")]
+    public ApplicationUser? User { get; set; }
 }
 
 [Table("Agents")]
@@ -192,8 +207,9 @@ public class AgentEntity
     public int PromptSampleId { get; set; } = 1;
     public bool UseShortTermMemoryStorage { get; set; } = true;
     public bool UseLongTermMemoryStorage { get; set; } = true;
+    [ForeignKey("RoomId")]
     public RoomEntity? Room { get; set; }
-    
+
 }
 
 [Table("TranscriptTurns")]
@@ -209,6 +225,8 @@ public class TranscriptTurnEntity
     public string AccentHex { get; set; } = string.Empty;
     public string BackgroundHex { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
+    [ForeignKey("RoomId")]
+    public RoomEntity? Room { get; set; }
 }
 
 [Table("MemoryBlocks")]
@@ -222,6 +240,8 @@ public class MemoryBlockEntity
     public string Kind { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public DateTimeOffset UpdatedAt { get; set; }
+    [ForeignKey("RoomId")]
+    public RoomEntity? Room { get; set; }
 }
 
 [Table("LogEntries")]
@@ -229,8 +249,6 @@ public class LogEntryEntity
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-
-    //NEEDS KEY TO ROOM OR USER
     public long Id { get; set; }
     public string Category { get; set; } = string.Empty;
     public string Source { get; set; } = string.Empty;
@@ -238,6 +256,9 @@ public class LogEntryEntity
     public string Detail { get; set; } = string.Empty;
     public long? DurationMs { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public string RoomId { get; set; } = string.Empty;
+    [ForeignKey("RoomId")]
+    public RoomEntity? Room { get; set; }
 }
 
 [Table("SceneArchives")]
@@ -254,6 +275,8 @@ public class SceneArchiveEntity
     public string DurableSnapshot { get; set; } = string.Empty;
     public bool IsMajor { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    [ForeignKey("RoomId")]
+    public RoomEntity? Room { get; set; }
 }
 [Table("DataTracking")]
 public class DataTrackerEntity
@@ -273,4 +296,5 @@ public class DataTrackerEntity
     public RoomEntity? Room { get; set; }
     public string PromptText { get; set; }
     public string PrivilegedAgentPrompt { get; set; }
+
 }

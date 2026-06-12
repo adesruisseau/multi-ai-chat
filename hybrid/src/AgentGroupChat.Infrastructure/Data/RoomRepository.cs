@@ -10,23 +10,23 @@ public sealed class RoomRepository : IRoomRepository
 
     public RoomRepository(AppDbContext db) => _db = db;
 
-    public async Task<List<RoomConfig>> GetAllAsync()
+    public async Task<List<RoomConfig>> GetAllAsync(string userId)
     {
-        var entities = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants).Include(r => r.DataTrackers)
+        var entities = await _db.Rooms.Where(r => r.UserId == userId).Include(r => r.Agents).Include(r => r.DataTrackers)
             .OrderBy(r => r.SortOrder).AsNoTracking().ToListAsync();
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
 
-    public async Task<RoomConfig?> GetAsync(string id)
+    public async Task<RoomConfig?> GetAsync(string id, string userId)
     {
-        var entity = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants)
+        var entity = await _db.Rooms.Where(r => r.UserId == userId).Include(r => r.Agents)
             .AsNoTracking().FirstOrDefaultAsync(r => r.Id == id);
         return entity is null ? null : EntityMapper.ToDomain(entity);
     }
 
     public async Task SaveAsync(RoomConfig room)
     {
-        var existing = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants).Include(d => d.DataTrackers)
+        var existing = await _db.Rooms.Where(r => r.UserId == room.UserId).Include(r => r.Agents).Include(d => d.DataTrackers)
             .FirstOrDefaultAsync(r => r.Id == room.Id);
 
         if (existing is null)
@@ -76,9 +76,9 @@ public sealed class RoomRepository : IRoomRepository
         await _db.SaveChangesAsync();
     }
 
-    public async Task DeleteAsync(string id)
+    public async Task DeleteAsync(string id, string userId)
     {
-        var entity = await _db.Rooms.Include(r => r.Agents).Include(r => r.HumanParticipants).FirstOrDefaultAsync(r => r.Id == id);
+        var entity = await _db.Rooms.Where(r => r.UserId == userId).Include(r => r.Agents).FirstOrDefaultAsync(r => r.Id == id);
         if (entity is not null)
         {
             _db.Rooms.Remove(entity);
@@ -86,19 +86,19 @@ public sealed class RoomRepository : IRoomRepository
         }
     }
 
-    public async Task SeedRoom()
+    public async Task SeedRoom(string userId)
     {
-        if (await _db.Rooms.AnyAsync())
+        if (await _db.Rooms.Where(x => x.UserId == userId).AnyAsync())
         {
             return;
         }
-        var seedRooms = await CreateRoomSeeds();
+        var seedRooms = await CreateRoomSeeds(userId);
         var seedRoomEntities = seedRooms.Select(EntityMapper.ToEntity).ToList();
         _db.Rooms.AddRange(seedRoomEntities);
         await _db.SaveChangesAsync();
     }
 
-    private async Task<IReadOnlyList<RoomConfig>> CreateRoomSeeds()
+    private async Task<IReadOnlyList<RoomConfig>> CreateRoomSeeds(string userId)
     {
         var aiModel = await _db.AiModels.Where(x => x.Name == "Groq 8b Instant").FirstOrDefaultAsync();
         if (aiModel is null || String.IsNullOrWhiteSpace(aiModel.Id))
@@ -204,7 +204,8 @@ public sealed class RoomRepository : IRoomRepository
                 },
                 SharedRoomMemoryPromptSampleId = prompts.Where(x => x.Name == "Summarizer Agent").FirstOrDefault()!.Id,
                 DurableMemoryPromptSampleId = prompts.Where(x => x.Name == "Summarizer Agent").FirstOrDefault()!.Id,
-                NpcPromptSampleId = prompts.Where(x => x.Name == "Optimist").FirstOrDefault()!.Id
+                NpcPromptSampleId = prompts.Where(x => x.Name == "Optimist").FirstOrDefault()!.Id,
+                UserId = userId
             }
             ];
     }

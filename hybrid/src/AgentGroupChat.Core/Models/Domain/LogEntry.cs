@@ -23,4 +23,5 @@ public sealed class LogEntry
     public string CategoryText => Category.ToString();
     public string DurationText => DurationMs is long v ? $"{v} ms" : string.Empty;
     public bool HasDetail => !string.IsNullOrWhiteSpace(Detail);
+    public string RoomId { get; set; }
 }

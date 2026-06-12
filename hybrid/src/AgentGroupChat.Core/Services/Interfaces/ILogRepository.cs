@@ -5,7 +5,7 @@ namespace AgentGroupChat.Core.Services.Interfaces;
 public interface ILogRepository
 {
     Task AppendAsync(LogEntry entry);
-    Task ClearAsync();
-    Task<List<LogEntry>> QueryAsync(string? category, string? source, int limit);
-    Task<List<string>> GetSourcesAsync();
+    Task ClearAsync(string roomId);
+    Task<List<LogEntry>> QueryAsync(string? category, string? source, int limit, string roomId);
+    Task<List<string>> GetSourcesAsync(string roomId);
 }

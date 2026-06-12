@@ -25,6 +25,7 @@ public static class EntityMapper
         SetupRoomsCompleted = e.SetupRoomsCompleted,
         SetupTtsStatus = e.SetupTtsStatus,
         HideSetupGuide = e.HideSetupGuide,
+        UserId = e.UserId,
     };
 
     public static void ApplyTo(AppSettings d, AppSettingsEntity e)
@@ -47,18 +48,21 @@ public static class EntityMapper
         e.SetupRoomsCompleted = d.SetupRoomsCompleted;
         e.SetupTtsStatus = d.SetupTtsStatus;
         e.HideSetupGuide = d.HideSetupGuide;
+        e.UserId = d.UserId;
     }
 
     public static AiConnection ToDomain(AiConnectionEntity e) => new()
     {
         Id = e.Id, Name = e.Name, Transport = e.Transport,
         Endpoint = e.Endpoint, ApiKey = e.ApiKey, SortOrder = e.SortOrder,
+        UserId = e.UserId
     };
 
     public static AiConnectionEntity ToEntity(AiConnection d) => new()
     {
         Id = d.Id, Name = d.Name, Transport = d.Transport,
         Endpoint = d.Endpoint, ApiKey = d.ApiKey, SortOrder = d.SortOrder,
+        UserId = d.UserId
     };
 
     public static AiModel ToDomain(AiModelEntity e) => new()
@@ -70,7 +74,9 @@ public static class EntityMapper
         Notes = e.Notes, 
         SortOrder = e.SortOrder,
         Temperature = e.Temperature,
-        MaxTokens = e.MaxTokens
+        MaxTokens = e.MaxTokens,
+        UserId = e.UserId,
+
     };
 
     public static AiModelEntity ToEntity(AiModel d) => new()
@@ -82,19 +88,22 @@ public static class EntityMapper
         Notes = d.Notes, 
         SortOrder = d.SortOrder,
         Temperature = d.Temperature,
-        MaxTokens = d.MaxTokens
+        MaxTokens = d.MaxTokens,
+        UserId = d.UserId,
     };
 
     public static ImageConnection ToDomain(ImageConnectionEntity e) => new()
     {
         Id = e.Id, Name = e.Name, Transport = e.Transport,
         Endpoint = e.Endpoint, ApiKey = e.ApiKey, SortOrder = e.SortOrder,
+        UserId = e.UserId   
     };
 
     public static ImageConnectionEntity ToEntity(ImageConnection d) => new()
     {
         Id = d.Id, Name = d.Name, Transport = d.Transport,
         Endpoint = d.Endpoint, ApiKey = d.ApiKey, SortOrder = d.SortOrder,
+        UserId = d.UserId
     };
 
     public static ImageModel ToDomain(ImageModelEntity e) => new()
@@ -111,6 +120,7 @@ public static class EntityMapper
         NegativePrompt = e.NegativePrompt,
         Notes = e.Notes,
         SortOrder = e.SortOrder,
+        UserId = e.UserId,
     };
 
     public static ImageModelEntity ToEntity(ImageModel d) => new()
@@ -127,6 +137,7 @@ public static class EntityMapper
         NegativePrompt = d.NegativePrompt,
         Notes = d.Notes,
         SortOrder = d.SortOrder,
+        UserId = d.UserId
     };
 
     public static PromptSample ToDomain(PromptSampleEntity e) => new()
@@ -143,6 +154,7 @@ public static class EntityMapper
         SortOrder = e.SortOrder,
         CreatedAt = e.CreatedAt,
         UpdatedAt = e.UpdatedAt,
+        UserId = e.UserId,
     };
 
     public static PromptSampleEntity ToEntity(PromptSample d) => new()
@@ -159,6 +171,7 @@ public static class EntityMapper
         SortOrder = d.SortOrder,
         CreatedAt = d.CreatedAt,
         UpdatedAt = d.UpdatedAt,
+        UserId = d.UserId,
     };
 
     public static AgentConfig ToDomain(AgentEntity e) => new()
@@ -201,30 +214,6 @@ public static class EntityMapper
         PromptSampleId = d.PromptSampleId,
     };
 
-    public static HumanParticipantConfig ToDomain(HumanParticipantEntity e) => new()
-    {
-        Id = e.Id, RoomId = e.RoomId, Name = e.Name,
-        IsPlayerCharacter = e.IsPlayerCharacter,
-        AppearanceSummary = e.AppearanceSummary,
-        TtsVoice = e.TtsVoice,
-        AccentHex = e.AccentHex, BackgroundHex = e.BackgroundHex,
-        ParticipationMode = Enum.TryParse<ParticipationMode>(e.ParticipationMode, out var pm) ? pm : ParticipationMode.TurnParticipant,
-        SortOrder = e.SortOrder,
-        IsEnabled = e.IsEnabled,
-    };
-
-    public static HumanParticipantEntity ToEntity(HumanParticipantConfig d) => new()
-    {
-        Id = d.Id, RoomId = d.RoomId, Name = d.Name,
-        IsPlayerCharacter = d.IsPlayerCharacter,
-        AppearanceSummary = d.AppearanceSummary,
-        TtsVoice = d.TtsVoice,
-        AccentHex = d.AccentHex, BackgroundHex = d.BackgroundHex,
-        ParticipationMode = d.ParticipationMode.ToString(),
-        SortOrder = d.SortOrder,
-        IsEnabled = d.IsEnabled,
-    };
-
     public static RoomConfig ToDomain(RoomEntity e) => new()
     {
         Id = e.Id, Name = e.Name, Topic = e.Topic,
@@ -264,11 +253,11 @@ public static class EntityMapper
         MaxConcurrentNpcs = e.MaxConcurrentNpcs,
         SortOrder = e.SortOrder,
         Agents = e.Agents.Select(ToDomain).OrderBy(a => a.SortOrder).ToList(),
-        HumanParticipants = e.HumanParticipants.Select(ToDomain).OrderBy(h => h.SortOrder).ToList(),
         DataTrackers = e.DataTrackers.Select(ToDomain).OrderBy(x => x.Id).ToList(),
         SharedRoomMemoryPromptSampleId = e.SharedRoomMemoryPromptSampleId,
         DurableMemoryPromptSampleId = e.DurableMemoryPromptSampleId,
-        NpcPromptSampleId = e.NpcPromptSampleId
+        NpcPromptSampleId = e.NpcPromptSampleId,
+        UserId = e.UserId,
     };
 
     public static RoomEntity ToEntity(RoomConfig d) => new()
@@ -309,11 +298,11 @@ public static class EntityMapper
         MaxConcurrentNpcs = d.MaxConcurrentNpcs,
         SortOrder = d.SortOrder,
         Agents = d.Agents.Select(ToEntity).ToList(),
-        HumanParticipants = d.HumanParticipants.Select(ToEntity).ToList(),
         DataTrackers = d.DataTrackers.Select(ToEntity).ToList(),
         SharedRoomMemoryPromptSampleId = d.SharedRoomMemoryPromptSampleId,
         DurableMemoryPromptSampleId = d.DurableMemoryPromptSampleId,
-        NpcPromptSampleId = d.NpcPromptSampleId
+        NpcPromptSampleId = d.NpcPromptSampleId,
+        UserId = d.UserId,
     };
 
     public static TranscriptTurn ToDomain(TranscriptTurnEntity e) => new()
@@ -335,12 +324,14 @@ public static class EntityMapper
         Id = e.Id, Category = Enum.TryParse<LogCategory>(e.Category, out var c) ? c : LogCategory.System,
         Source = e.Source, Message = e.Message, Detail = e.Detail,
         DurationMs = e.DurationMs, CreatedAt = e.CreatedAt,
+        RoomId = e.RoomId,
     };
 
     public static LogEntryEntity ToEntity(LogEntry d) => new()
     {
         Category = d.Category.ToString(), Source = d.Source, Message = d.Message,
         Detail = d.Detail, DurationMs = d.DurationMs, CreatedAt = d.CreatedAt,
+        RoomId = d.RoomId,
     };
 
     public static SceneArchive ToDomain(SceneArchiveEntity e) => new()
