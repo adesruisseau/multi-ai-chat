@@ -12,14 +12,27 @@ public sealed class RoomRepository : IRoomRepository
 
     public async Task<List<RoomConfig>> GetAllAsync(string userId)
     {
+
         var entities = await _db.Rooms.Where(r => r.UserId == userId).Include(r => r.Agents).Include(r => r.DataTrackers)
             .OrderBy(r => r.SortOrder).AsNoTracking().ToListAsync();
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
 
+    public async Task<List<RoomConfig>> GetInvitedToRooms(string userId)
+    {
+        var rooms = await _db.Agents.Where(x => x.UserId == userId && x.IsEnabled == true && x.IsHumanParticipant).Select(x => x.Room).ToListAsync();
+        var roomIds = rooms.Select(r => r.Id).ToHashSet();
+
+        var roomEntities = await _db.Rooms.Where(r => roomIds.Contains(r.Id)).Include(r => r.Agents).Include(r => r.DataTrackers)
+            .OrderBy(r => r.SortOrder).AsNoTracking().ToListAsync();
+
+        return roomEntities.Select(EntityMapper.ToDomain).ToList();
+    }
+
+
     public async Task<RoomConfig?> GetAsync(string id, string userId)
     {
-        var entity = await _db.Rooms.Where(r => r.UserId == userId).Include(r => r.Agents)
+        var entity = await _db.Rooms.Include(r => r.Agents)
             .AsNoTracking().FirstOrDefaultAsync(r => r.Id == id);
         return entity is null ? null : EntityMapper.ToDomain(entity);
     }
@@ -163,8 +176,6 @@ public sealed class RoomRepository : IRoomRepository
                         IsEnabled = true,
                         MaxTokensOverride = 512,
                         CompactionBudget = 300,
-                        AccentHex = "#6E5AA6",
-                        BackgroundHex = "#ECE6FA",
                         TtsVoice = "",
                         AppearanceSummary = "",
                         UseShortTermMemoryStorage = false,
@@ -178,6 +189,7 @@ public sealed class RoomRepository : IRoomRepository
                         SortOrder = 0,
                         IsHumanParticipant = false,
                         PromptSampleId = prompts.Where(x => x.Name == "Optimist").First().Id,
+                        ColorTheme = "Ocean"
                     },
                     new AgentConfig() {
                         Name = "The Companion",
@@ -186,8 +198,6 @@ public sealed class RoomRepository : IRoomRepository
                         IsEnabled = true,
                         MaxTokensOverride = 512,
                         CompactionBudget = 300,
-                        AccentHex = "#C56A54",
-                        BackgroundHex = "#F9E5DE",
                         TtsVoice = "",
                         AppearanceSummary = "",
                         UseShortTermMemoryStorage = false,
@@ -201,12 +211,12 @@ public sealed class RoomRepository : IRoomRepository
                         SortOrder = 0,
                         IsHumanParticipant = false,
                         PromptSampleId = prompts.Where(x => x.Name == "Soft-Spoken Companion").First().Id,
+                        ColorTheme = "Terracotta"
                     },
                 },
                 SharedRoomMemoryPromptSampleId = prompts.Where(x => x.Name == "Summarizer Agent").FirstOrDefault()!.Id,
                 DurableMemoryPromptSampleId = prompts.Where(x => x.Name == "Summarizer Agent").FirstOrDefault()!.Id,
-                NpcPromptSampleId = prompts.Where(x => x.Name == "Optimist").FirstOrDefault()!.Id,
-                UserId = userId
+                NpcPromptSampleId = prompts.Where(x => x.Name == "Optimist").FirstOrDefault()!.Id
             }
             ];
     }

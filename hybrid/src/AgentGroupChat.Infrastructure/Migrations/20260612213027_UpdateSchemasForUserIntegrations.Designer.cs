@@ -3,6 +3,7 @@ using System;
 using AgentGroupChat.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AgentGroupChat.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260612213027_UpdateSchemasForUserIntegrations")]
+    partial class UpdateSchemasForUserIntegrations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
@@ -22,11 +25,15 @@ namespace AgentGroupChat.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AccentHex")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("AppearanceSummary")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ColorTheme")
+                    b.Property<string>("BackgroundHex")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -94,9 +101,6 @@ namespace AgentGroupChat.Infrastructure.Migrations
 
                     b.Property<bool>("UseShortTermMemoryStorage")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -726,39 +730,6 @@ namespace AgentGroupChat.Infrastructure.Migrations
                     b.ToTable("Rooms");
                 });
 
-            modelBuilder.Entity("AgentGroupChat.Infrastructure.Entities.RoomInviteEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("CreatedDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset>("ExpirationDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("HostUserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RedeemedByUserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTimeOffset?>("RedeemedDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RoomId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RoomId");
-
-                    b.ToTable("RoomInvites");
-                });
-
             modelBuilder.Entity("AgentGroupChat.Infrastructure.Entities.SceneArchiveEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -809,7 +780,11 @@ namespace AgentGroupChat.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("ColorTheme")
+                    b.Property<string>("AccentHex")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackgroundHex")
                         .IsRequired()
                         .HasColumnType("TEXT");
 

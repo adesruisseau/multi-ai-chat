@@ -9,7 +9,7 @@ public interface ISettingsRepository
     Task<List<AiConnection>> GetConnectionsAsync(string userId);
     Task SaveConnectionAsync(AiConnection connection);
     Task DeleteConnectionAsync(string id, string userId);
-    Task<List<AiModel>> GetModelsAsync(string userId);
+    Task<List<AiModel>> GetModelsAsync(string userId, string? roomId = null);
     Task SaveModelAsync(AiModel model);
     Task DeleteModelAsync(string id, string userId);
     Task<List<ImageConnection>> GetImageConnectionsAsync(string userId);

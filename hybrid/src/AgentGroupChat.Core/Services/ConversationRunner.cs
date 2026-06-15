@@ -23,14 +23,17 @@ public sealed partial class ConversationRunner
     
 
 
-    private static readonly (string AccentHex, string BackgroundHex)[] NpcColorPresets =
+    private static readonly string[] NpcColorPresets =
     [
-        ("#C56A54", "#F9E5DE"),
-        ("#2E6799", "#DDE9F3"),
-        ("#984566", "#F3DFEA"),
-        ("#3A6C4C", "#DEF0E4"),
-        ("#8F6617", "#F5EDDA"),
-        ("#506070", "#E4E8EC"),
+        "Terracotta",
+        "Ocean",
+        "Berry",
+        "Plum",
+        "Forest",
+        "Mustard",
+        "Gold",
+        "Slate",
+        "Mono"
     ];
 
     
@@ -72,10 +75,11 @@ public sealed partial class ConversationRunner
     /// </summary>
     public Func<AgentConfig, string, CancellationToken, Task>? OnSpeechGate { get; set; }
 
+    private bool SummarizerWellConfigured = false;
     public async Task RunAsync(
         RoomConfig room,
         Func<AgentConfig, LlmRequestSettings> settingsResolver,
-        LlmRequestSettings baseSummarizerSettings,
+        LlmRequestSettings? baseSummarizerSettings,
         int maxIterations,
         int completedRounds,
         CancellationToken ct,
@@ -89,11 +93,21 @@ public sealed partial class ConversationRunner
             throw new InvalidOperationException("Enable at least one agent before running.");
 
         var sessionTurns = await _transcriptRepo.GetAsync(room.Id);
-        
-        var userMemoryRefreshed = await TryRefreshMemoryFromPendingUserTurnsAsync(
-            room, baseSummarizerSettings, enabledAgents, sessionTurns,
-            startFromAgentIndex, ct);
-
+        var userMemoryRefreshed = false;
+        if (room.UseSummarizer)
+        {
+            if (baseSummarizerSettings == null)
+            {
+                OnLog?.Invoke("Tried to run summarizer, but there is no model id supplied. Configure a model Id for your summarizer.");
+            }
+            else
+            {
+                SummarizerWellConfigured = true; //checked once and now we know their summarizer should be set up correctly.
+                userMemoryRefreshed = await TryRefreshMemoryFromPendingUserTurnsAsync(
+                    room, baseSummarizerSettings, enabledAgents, sessionTurns,
+                    startFromAgentIndex, ct);
+            }
+        }
         for (var iteration = 1; iteration <= maxIterations; iteration++)
         {
             var roundNumber = completedRounds + iteration;
@@ -180,8 +194,7 @@ public sealed partial class ConversationRunner
                     Round = roundNumber,
                     Speaker = agent.Name,
                     Content = response,
-                    AccentHex = agent.AccentHex,
-                    BackgroundHex = agent.BackgroundHex,
+                    ColorTheme = agent.ColorTheme
                 };
                 await _transcriptRepo.AppendAsync(turn);
                 sessionTurns.Add(turn);
@@ -229,7 +242,10 @@ public sealed partial class ConversationRunner
 
                 if (agentIndex == enabledAgents.Count - 1)
                 {
-                    endOfRoundWork = RefreshRoundMemoryAsync(room, baseSummarizerSettings, completedRounds, sessionTurns, userMemoryRefreshed, iteration, roundNumber, roundAnchor, agent, ct);
+                    if (SummarizerWellConfigured)
+                    {
+                        endOfRoundWork = RefreshRoundMemoryAsync(room, baseSummarizerSettings, completedRounds, sessionTurns, userMemoryRefreshed, iteration, roundNumber, roundAnchor, agent, ct);
+                    }
                 }
 
                 if (speechTask is not null)

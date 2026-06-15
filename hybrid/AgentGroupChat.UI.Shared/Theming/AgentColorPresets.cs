@@ -27,7 +27,7 @@ public static class AgentColorPresets
         new("Mustard",    "#CCCC66", "#606020"),
         new("Gold",       "#D6A44A", "#2E2410"),
         new("Slate",      "#96A7B5", "#1C2630"),
-        new("Mono",       "#262626", "#0D0D0D")
+        new("Mono",       "#0D0D0D", "#262626")
     ];
 
     public static ColorPreset[] GetPresets(bool isDarkMode) => isDarkMode ? DarkPresets : LightPresets;
@@ -37,6 +37,15 @@ public static class AgentColorPresets
         var presets = GetPresets(isDarkMode);
         foreach (var p in presets)
             if (string.Equals(p.AccentHex, accentHex, StringComparison.OrdinalIgnoreCase))
+                return p;
+        return presets[0];
+    }
+
+    public static ColorPreset FindByName(string colorName, bool isDarkMode)
+    {
+        var presets = GetPresets(isDarkMode);
+        foreach (var p in presets)
+            if (string.Equals(p.Name, colorName, StringComparison.OrdinalIgnoreCase))
                 return p;
         return presets[0];
     }

@@ -3,6 +3,7 @@ using System;
 using AgentGroupChat.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AgentGroupChat.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260613003602_PartyInviteSchema")]
+    partial class PartyInviteSchema
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
@@ -22,11 +25,15 @@ namespace AgentGroupChat.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AccentHex")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("AppearanceSummary")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ColorTheme")
+                    b.Property<string>("BackgroundHex")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
@@ -809,7 +816,11 @@ namespace AgentGroupChat.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("ColorTheme")
+                    b.Property<string>("AccentHex")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackgroundHex")
                         .IsRequired()
                         .HasColumnType("TEXT");
 

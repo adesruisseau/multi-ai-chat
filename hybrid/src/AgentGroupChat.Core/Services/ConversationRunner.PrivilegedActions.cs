@@ -778,7 +778,7 @@ namespace AgentGroupChat.Core.Services
         AppSettings? appSettings,
         IReadOnlyList<string> kokoroVoices)
         {
-            var (accentHex, backgroundHex) = ChooseNpcColors(room);
+            var colorTheme = ChooseNpcColors(room);
             var voice = ResolveNpcVoice(room, action, appSettings, kokoroVoices);
             var sortOrder = room.Agents.Count == 0 ? 0 : room.Agents.Max(a => a.SortOrder) + 1;
 
@@ -791,8 +791,7 @@ namespace AgentGroupChat.Core.Services
                 IsEnabled = true,
                 MaxTokensOverride = room.NpcMaxTokens,
                 CompactionBudget = room.NpcCompactionBudget > 0 ? room.NpcCompactionBudget : 300,
-                AccentHex = accentHex,
-                BackgroundHex = backgroundHex,
+                ColorTheme = colorTheme,
                 TtsVoice = string.IsNullOrWhiteSpace(voice) ? string.Empty : voice.Trim(),
                 IsNpc = true,
                 SpawnedByAgentId = sourceAgent.Id,
@@ -817,15 +816,15 @@ Character Description:
 """;
         }
 
-        private static (string AccentHex, string BackgroundHex) ChooseNpcColors(RoomConfig room)
+        private static string ChooseNpcColors(RoomConfig room)
         {
             var usedColors = new HashSet<string>(
-                room.Agents.Where(a => a.IsEnabled).Select(a => a.AccentHex),
+                room.Agents.Where(a => a.IsEnabled).Select(a => a.ColorTheme),
                 StringComparer.OrdinalIgnoreCase);
 
             foreach (var preset in NpcColorPresets)
             {
-                if (!usedColors.Contains(preset.AccentHex))
+                if (!usedColors.Contains(preset))
                     return preset;
             }
 

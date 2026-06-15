@@ -179,7 +179,6 @@ public static class EntityMapper
         Id = e.Id, RoomId = e.RoomId, Name = e.Name, ModelId = e.ModelId,
         SystemPrompt = e.SystemPrompt, IsEnabled = e.IsEnabled,
         MaxTokensOverride = e.MaxTokensOverride, CompactionBudget = e.CompactionBudget,
-        AccentHex = e.AccentHex, BackgroundHex = e.BackgroundHex,
         TtsVoice = e.TtsVoice, AppearanceSummary = e.AppearanceSummary,
         UseShortTermMemoryStorage = e.UseShortTermMemoryStorage,
         UseLongTermMemoryStorage = e.UseLongTermMemoryStorage,
@@ -192,6 +191,8 @@ public static class EntityMapper
         SortOrder = e.SortOrder,
         IsHumanParticipant = e.IsHumanParticipant,
         PromptSampleId = e.PromptSampleId,
+        UserId = e.UserId,
+        ColorTheme = e.ColorTheme
     };
 
     public static AgentEntity ToEntity(AgentConfig d) => new()
@@ -199,7 +200,6 @@ public static class EntityMapper
         Id = d.Id, RoomId = d.RoomId, Name = d.Name, ModelId = d.ModelId,
         SystemPrompt = d.SystemPrompt, IsEnabled = d.IsEnabled,
         MaxTokensOverride = d.MaxTokensOverride, CompactionBudget = d.CompactionBudget,
-        AccentHex = d.AccentHex, BackgroundHex = d.BackgroundHex,
         TtsVoice = d.TtsVoice, AppearanceSummary = d.AppearanceSummary,
         UseShortTermMemoryStorage = d.UseShortTermMemoryStorage,
         UseLongTermMemoryStorage = d.UseLongTermMemoryStorage,
@@ -212,7 +212,10 @@ public static class EntityMapper
         SortOrder = d.SortOrder,
         IsHumanParticipant = d.IsHumanParticipant,
         PromptSampleId = d.PromptSampleId,
-    };
+        UserId = d.UserId,
+        ColorTheme = d.ColorTheme
+            
+};
 
     public static RoomConfig ToDomain(RoomEntity e) => new()
     {
@@ -308,15 +311,15 @@ public static class EntityMapper
     public static TranscriptTurn ToDomain(TranscriptTurnEntity e) => new()
     {
         Id = e.Id, RoomId = e.RoomId, Round = e.Round, Speaker = e.Speaker,
-        Content = e.Content, AccentHex = e.AccentHex, BackgroundHex = e.BackgroundHex,
+        Content = e.Content, ColorTheme = e.ColorTheme,
         CreatedAt = e.CreatedAt,
     };
 
     public static TranscriptTurnEntity ToEntity(TranscriptTurn d) => new()
     {
         RoomId = d.RoomId, Round = d.Round, Speaker = d.Speaker,
-        Content = d.Content, AccentHex = d.AccentHex, BackgroundHex = d.BackgroundHex,
-        CreatedAt = d.CreatedAt,
+        Content = d.Content, ColorTheme = d.ColorTheme,
+        CreatedAt = d.CreatedAt
     };
 
     public static LogEntry ToDomain(LogEntryEntity e) => new()
@@ -379,5 +382,27 @@ public static class EntityMapper
         CreatedAt = d.CreatedAt,
         PromptText = d.PromptText,
         PrivilegedAgentPrompt = d.PrivilegedAgentPrompt
+    };
+
+    public static RoomInvite ToDomain(RoomInviteEntity e) => new()
+    {
+        Id = e.Id,
+        RedeemedByUserId = e.RedeemedByUserId,
+        RedeemedDate = e.RedeemedDate,
+        CreatedDate = e.CreatedDate,
+        ExpirationDate = e.ExpirationDate,
+        HostUserId = e.HostUserId,
+        RoomId = e.RoomId
+    };
+
+    public static RoomInviteEntity ToEntity(RoomInvite d) => new()
+    {
+        Id = d.Id,
+        RedeemedByUserId = d.RedeemedByUserId,
+        RedeemedDate = d.RedeemedDate,
+        CreatedDate = d.CreatedDate,
+        ExpirationDate = d.ExpirationDate,
+        HostUserId = d.HostUserId,
+        RoomId = d.RoomId
     };
 }

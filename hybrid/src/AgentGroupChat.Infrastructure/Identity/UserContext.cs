@@ -36,7 +36,7 @@ namespace AgentGroupChat.Infrastructure.Identity
 
             if (!IsAuthenticated || string.IsNullOrWhiteSpace(UserId))
             {
-                throw new InvalidOperationException("Authenticated user id is required.");
+                return "";
             }
 
             return UserId;

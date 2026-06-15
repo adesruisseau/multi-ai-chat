@@ -64,10 +64,23 @@ public sealed class SettingsRepository : ISettingsRepository
         }
     }
 
-    public async Task<List<AiModel>> GetModelsAsync(string userId)
+    public async Task<List<AiModel>> GetModelsAsync(string userId, string? roomId = null)
     {
+        //try to get models that are the room owners' first.
         var entities = await _db.AiModels.Where(x => x.UserId == userId).OrderBy(m => m.SortOrder).AsNoTracking().ToListAsync();
-        return entities.Select(EntityMapper.ToDomain).ToList();
+        //check and fall back to ai models which the user has access to initiate based upon room.
+        if (entities is not null)
+        {
+            return entities.Select(EntityMapper.ToDomain).ToList();
+        }
+        var availableModelIdsInRoom = await _db.Agents.Where(x => x.UserId == userId && x.RoomId == roomId).Select(x => x.ModelId).ToListAsync();
+        var modelIdHashes = new HashSet<string>(availableModelIdsInRoom);
+        var fallBackEntities = await _db.AiModels.Where(x => availableModelIdsInRoom.Contains(x.Id)).ToListAsync();
+        if (fallBackEntities is not null)
+        {
+            return fallBackEntities.Select(EntityMapper.ToDomain).ToList();
+        }
+        return null;
     }
 
     public async Task SaveModelAsync(AiModel model)

@@ -9,6 +9,7 @@ public sealed class RoomState
     private readonly IRoomRepository _roomRepo;
     private readonly IUserContext _userContext;
     public List<RoomConfig> Rooms { get; private set; } = new();
+    public List<RoomConfig> InvitedToRooms { get; private set; } = new();
     public RoomConfig? SelectedRoom { get; private set; }
 
     public event Action? OnChange;
@@ -22,9 +23,13 @@ public sealed class RoomState
     public async Task LoadAsync()
     {
         var userId = await _userContext.GetRequiredUserIdAsync();
+
         Rooms = await _roomRepo.GetAllAsync(userId);
+        Rooms.AddRange(await _roomRepo.GetInvitedToRooms(userId));
+
         if (SelectedRoom is not null)
             SelectedRoom = Rooms.FirstOrDefault(r => r.Id == SelectedRoom.Id);
+
         NotifyChanged();
     }
 

@@ -16,12 +16,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PromptSampleEntity> PromptSamples => Set<PromptSampleEntity>();
     public DbSet<RoomEntity> Rooms => Set<RoomEntity>();
     public DbSet<AgentEntity> Agents => Set<AgentEntity>();
-    public DbSet<HumanParticipantEntity> HumanParticipants => Set<HumanParticipantEntity>();
     public DbSet<TranscriptTurnEntity> TranscriptTurns => Set<TranscriptTurnEntity>();
     public DbSet<MemoryBlockEntity> MemoryBlocks => Set<MemoryBlockEntity>();
     public DbSet<LogEntryEntity> LogEntries => Set<LogEntryEntity>();
     public DbSet<SceneArchiveEntity> SceneArchives => Set<SceneArchiveEntity>();
     public DbSet<DataTrackerEntity> DataTrackers => Set<DataTrackerEntity>();
+    public DbSet<RoomInviteEntity> RoomInvites => Set<RoomInviteEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,12 +29,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasMany(r => r.Agents)
             .WithOne(a => a.Room)
             .HasForeignKey(a => a.RoomId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<RoomEntity>()
-            .HasMany(r => r.HumanParticipants)
-            .WithOne(h => h.Room)
-            .HasForeignKey(h => h.RoomId)
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<RoomEntity>()
@@ -92,6 +86,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(d => new { d.RoomId, d.DataKey })
             .IsUnique()
             .HasFilter("\"AgentId\" IS NULL");
+
+        modelBuilder.Entity<RoomInviteEntity>()
+            .HasIndex(i => i.RoomId);
 
         base.OnModelCreating(modelBuilder);
     }

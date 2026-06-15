@@ -1,11 +1,17 @@
 
 @inject PromptLibraryState PromptLibraryState
+@inject RoomInviteState RoomInviteState
+@inject RoomState RoomState
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-4 mb-3 flex-wrap">
     <MudText Typo="Typo.h4">Agents</MudText>
     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@($"{Room.Agents.Count} agents total")</MudChip>
-    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@($"{Room.HumanParticipants.Count} humans total")</MudChip>
     <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@($"{GetNpcCount(Room)} NPC")</MudChip>
 </MudStack>
 
@@ -15,17 +21,53 @@
     Human participants are named characters in the room who take turns alongside AI agents.
     When no human participants are defined, the local user speaks as "You" by default.
 </MudText>
+@if (!isNotRoomOwner)
+{
+    <br />
+    <br />
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mb-3 ml-2" OnClick="AddAiAgent" Disabled="@isNotRoomOwner">Add Agent</MudButton>
+
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mb-3 ml-2" OnClick="AddHumanParticipant" Disabled="@isNotRoomOwner">Add Human Participant</MudButton>
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3 ml-2" OnClick="InvitePlayer" Disabled="@isNotRoomOwner">Invite a Player!</MudButton>
+}
+
+@if (!isNotRoomOwner && RoomInviteState.RoomInvites.Count > 0)
+{
+    <br />
+    <br />
+    <MudDivider />
+    <MudStack>
+        <MudText Typo="Typo.h5">Current Invite Links</MudText>
+        @foreach (var invite in RoomInviteState.RoomInvites)
+        {
+            <MudGrid Class="ml-4">
+                <MudItem xs="6">
+                    <MudText Typo="Typo.h6">@invite.Id
+                        <MudIconButton Icon="@Icons.Material.Outlined.ContentCopy" OnClick="@(() => CopyToClipboard(invite.Id))" />
+                    </MudText> 
+                </MudItem>
+                <MudItem xs="3">
+                    <MudSpacer />
+                </MudItem>
+                <MudItem xs="3">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => RevokeInvite(@invite.Id))">Revoke</MudButton>
+                </MudItem>    
+            </MudGrid>
+        }
+    </MudStack>
+}
 <br />
-<MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mb-3" OnClick="AddAiAgent">Add Agent</MudButton>
-<MudButton Variant="Variant.Outlined" Color="Color.Primary" Class="mb-3" OnClick="AddHumanParticipant">Add Human Participant</MudButton>
+<br />
+<MudDivider />
+
 <MudExpansionPanels>
-
-
+    <MudText Typo="Typo.h5">Your Room Agents</MudText>
 @foreach (var agent in Room.Agents.OrderBy(x => x.SortOrder))
 {
     <MudExpansionPanel>
             <TitleContent>
-                <MudText Typo="Typo.h5">@agent.Name</MudText>
+                <MudText Typo="Typo.h6">@agent.Name</MudText>
                 <MudStack Row="true" Spacing="1" Class="mt-1">
                     @if (string.Equals(Room.PrivilegedAgentId, agent.Id, StringComparison.Ordinal))
                     {
@@ -54,7 +96,7 @@
     <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
         <MudGrid>
             <MudItem xs="12" md="4">
-                <MudTextField @bind-Value="agent.Name" Label="Agent Name" />
+                <MudTextField @bind-Value="agent.Name" Label="Agent Name" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)"/>
                 
                 @if (agent.IsTemporarilySuspended && !string.IsNullOrWhiteSpace(agent.SuspensionReason))
                 {
@@ -66,11 +108,11 @@
                 <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
 
                     <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowUp"
-                                   Disabled="@IsFirst(agent)"
+                                   Disabled="@(IsFirst(agent) || isNotRoomOwner)"
                                    OnClick="@(() => MoveUp(agent))" />
 
                     <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowDown"
-                                   Disabled="@IsLast(agent)"
+                                   Disabled="@(IsLast(agent) || isNotRoomOwner)"
                                    OnClick="@(() => MoveDown(agent))" />
 
                     <MudText Typo="Typo.body2">
@@ -82,7 +124,7 @@
             @if (!agent.IsHumanParticipant)
             {
                 <MudItem xs="12" md="4">
-                    <MudSelect @bind-Value="agent.ModelId" Label="Model">
+                    <MudSelect @bind-Value="agent.ModelId" Label="Model" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)">
                         @foreach (var model in Models)
                         {
                             <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
@@ -90,7 +132,7 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12">
-                    <MudTextField @bind-Value="agent.SystemPrompt" Label="System Prompt" Lines="12" />
+                    <MudTextField @bind-Value="agent.SystemPrompt" Label="System Prompt" Lines="12" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)" />
                 </MudItem>
                 <MudItem xs="12">
                     <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true">
@@ -105,7 +147,7 @@
                         {
                             <MudGrid>
                                 <MudItem xs="12" md="7">
-                                    <MudSelect T="int" @bind-Value="agent.PromptSampleId" Label="Library Prompt">
+                                    <MudSelect T="int" @bind-Value="agent.PromptSampleId" Label="Library Prompt" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)">
 
                                         @foreach (var sample in OrderedPromptSamples)
                                         {
@@ -123,25 +165,25 @@
             @if (Room.EnableSceneImageGeneration && Room.UseCreativeImageGeneration)
             {
                     <MudItem xs="12">
-                        <MudTextField @bind-Value="agent.AppearanceSummary" Label="Appearance / visual profile" Lines="4" />
+                        <MudTextField @bind-Value="agent.AppearanceSummary" Label="Appearance / visual profile" Lines="4" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)" />
                     </MudItem>
             }
             @if (!agent.IsHumanParticipant)
             {
                 <MudItem xs="12">
-                    <MudSwitch @bind-Value="agent.IsEnabled" Label="Enabled" Color="Color.Primary" />
+                    <MudSwitch @bind-Value="agent.IsEnabled" Label="Enabled" Color="Color.Primary" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)" />
                 </MudItem>
                 <MudItem xs="12" md="3">
-                    <MudNumericField @bind-Value="agent.MaxTokensOverride" Label="Max tokens override" />
+                    <MudNumericField @bind-Value="agent.MaxTokensOverride" Label="Max tokens override" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)" />
                 </MudItem>
                 <MudItem xs="12" md="3">
-                    <MudNumericField @bind-Value="agent.CompactionBudget" Label="Compaction budget" Min="80" />
+                    <MudNumericField @bind-Value="agent.CompactionBudget" Label="Compaction budget" Min="80" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)" />
                 </MudItem>
                 <MudItem xs="12" md="3">
-                    <MudSwitch @bind-Value="agent.UseShortTermMemoryStorage" Label="Use short-term memory" Color="Color.Primary" />
+                    <MudSwitch @bind-Value="agent.UseShortTermMemoryStorage" Label="Use short-term memory" Color="Color.Primary" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)" />
                 </MudItem>
                 <MudItem xs="12" md="3">
-                    <MudSwitch @bind-Value="agent.UseLongTermMemoryStorage" Label="Use long-term memory" Color="Color.Primary" />
+                    <MudSwitch @bind-Value="agent.UseLongTermMemoryStorage" Label="Use long-term memory" Color="Color.Primary" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)" />
                 </MudItem>
             }
             
@@ -150,7 +192,7 @@
             <MudItem xs="12" md="3">
                 @if (KokoroVoices.Count > 0)
                 {
-                    <MudSelect @bind-Value="agent.TtsVoice" Label="TTS Voice" ShrinkLabel="true" T="string">
+                    <MudSelect @bind-Value="agent.TtsVoice" Label="TTS Voice" ShrinkLabel="true" T="string" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)">
                         <MudSelectItem T="string" Value="@string.Empty">(Default)</MudSelectItem>
                         @foreach (var voice in KokoroVoices)
                         {
@@ -160,7 +202,7 @@
                 }
                 else
                 {
-                    <MudTextField @bind-Value="agent.TtsVoice" Label="TTS Voice" />
+                    <MudTextField @bind-Value="agent.TtsVoice" Label="TTS Voice" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)" />
                 }
             </MudItem>
             <MudItem xs="12" md="3">
@@ -168,11 +210,11 @@
                            Size="Size.Small"
                            Class="mt-4"
                            OnClick="@(() => OnTestAgentVoice.InvokeAsync(agent))"
-                           Disabled="IsPreviewingVoice">
+                           Disabled="@(IsPreviewingVoice || isNotRoomOwner && agent.UserId != accessingUserId)">
                     @(PreviewAgentId == agent.Id ? "Playing..." : "Test Voice")
                 </MudButton>
             </MudItem>
-            <MudItem xs="12" md="6">
+            <MudItem xs="12">
                 <MudText></MudText>
             </MudItem>
 
@@ -181,7 +223,8 @@
                            Value="GetSelectedPreset(agent)"
                            ValueChanged="@(preset => OnPresetChanged(agent, preset))"
                            ToStringFunc="p => p?.Name ?? string.Empty"
-                           Label="Chat Color">
+                           Label="Chat Color"
+                           Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)">
 
                     @foreach (var preset in AgentColorPresets.GetPresets(IsDark))
                     {
@@ -197,7 +240,7 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="12">
-                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => RemoveAgent(agent)" style="margin-left: auto;">Remove</MudButton>
+                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="() => RemoveAgent(agent)" style="margin-left: auto;" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)">Remove</MudButton>
             </MudItem>
         </MudGrid>
     </MudPaper>
@@ -215,9 +258,14 @@
     [Parameter] public string PreviewAgentId { get; set; } = string.Empty;
     [Parameter] public EventCallback<AgentConfig> OnTestAgentVoice { get; set; }
 
+    private string redeemCode = string.Empty;
+    private bool isNotRoomOwner = false;
+    private string accessingUserId = string.Empty;
+    public ClaimsPrincipal user;
+
     //OLD
     private List<PromptSample> OrderedPromptSamples => PromptLibraryState.Samples
-        .OrderByDescending(s => s.IsBuiltIn)
+    .OrderByDescending(s => s.IsBuiltIn)
         .ThenBy(s => s.SortOrder)
         .ThenBy(s => s.Name)
         .ToList();
@@ -226,6 +274,23 @@
     {
         if (!PromptLibraryState.IsLoaded)
             await PromptLibraryState.LoadAsync();
+
+        if (!RoomInviteState.IsLoaded)
+            await RoomInviteState.LoadAsync(Room.Id);
+
+        RoomState.OnChange += UpdateSelectedRoom;
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = state.User;
+        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
+    }
+
+    private void UpdateSelectedRoom()
+    {
+        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
+        StateHasChanged();
     }
 
     protected override void OnParametersSet()
@@ -247,9 +312,25 @@
             IsHumanParticipant = isHumanParticipant,
             UseShortTermMemoryStorage = !isHumanParticipant,
             UseLongTermMemoryStorage = !isHumanParticipant,
-            AccentHex = randomColor.AccentHex,
-            BackgroundHex = randomColor.BackgroundHex
+            ColorTheme = randomColor.Name
         });
+    }
+
+    private async Task InvitePlayer()
+    {
+        await RoomInviteState.CreateAsync(Room.Id);
+        StateHasChanged();
+    }
+    private async Task CopyToClipboard(Guid id)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", id);
+    }
+
+
+    private async Task RevokeInvite(Guid id)
+    {
+        await RoomInviteState.RevokeAsync(id, Room.Id);
+        StateHasChanged();
     }
 
     private void RemoveAgent(AgentConfig agent)
@@ -261,11 +342,10 @@
 
     }
 
-    private void OnAgentColorChanged(AgentConfig agent, string accentHex)
+    private void OnAgentColorChanged(AgentConfig agent, string colorTheme)
     {
-        var preset = AgentColorPresets.FindByAccent(accentHex, IsDark);
-        agent.AccentHex = preset.AccentHex;
-        agent.BackgroundHex = preset.BackgroundHex;
+        var preset = AgentColorPresets.FindByName(colorTheme, IsDark);
+        agent.ColorTheme = preset.Name;
     }
 
     private static int GetEnabledAgentCount(RoomConfig room) =>
@@ -289,7 +369,7 @@
     private AgentColorPresets.ColorPreset? GetSelectedPreset(AgentConfig agent)
     {
         return AgentColorPresets.GetPresets(IsDark)
-            .FirstOrDefault(x => x.AccentHex == agent.AccentHex);
+            .FirstOrDefault(x => x.Name == agent.ColorTheme);
     }
 
     private void MoveUp(AgentConfig agent)
@@ -334,8 +414,8 @@
         if (preset is null)
             return;
 
-        agent.AccentHex = preset.AccentHex;
-        OnAgentColorChanged(agent, preset.AccentHex);
+        agent.ColorTheme = preset.Name;
+        OnAgentColorChanged(agent, preset.Name);
     }
 
     

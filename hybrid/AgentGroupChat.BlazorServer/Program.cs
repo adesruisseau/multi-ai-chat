@@ -2,7 +2,6 @@ using AgentGroupChat.Core.Services;
 using AgentGroupChat.Core.Services.Interfaces;
 using AgentGroupChat.Infrastructure.Data;
 using AgentGroupChat.Infrastructure.Identity;
-using AgentGroupChat.Infrastructure.LegacyMigrations;
 using AgentGroupChat.Infrastructure.Seeding;
 using AgentGroupChat.UI.Shared.State;
 using Microsoft.AspNetCore.Identity;
@@ -42,6 +41,7 @@ builder.Services.AddScoped<ILogRepository, LogRepository>();
 builder.Services.AddScoped<IDataSeeder, DataSeeder>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserContext, UserContext>();
+builder.Services.AddScoped<IRoomInviteRepository, RoomInviteRepository>();
 // Legacy migration
 //builder.Services.AddScoped<ILegacyDataSource, LegacyJsonDataSource>();
 //builder.Services.AddScoped<DataMigrator>();
@@ -65,6 +65,7 @@ builder.Services.AddScoped<AppState>();
 builder.Services.AddScoped<RoomState>();
 builder.Services.AddScoped<PromptLibraryState>();
 builder.Services.AddScoped<ConversationState>();
+builder.Services.AddScoped<RoomInviteState>();
 
 // Identity
 builder.Services

@@ -10,8 +10,6 @@ public sealed class AgentConfig
     public bool IsEnabled { get; set; } = true;
     public int? MaxTokensOverride { get; set; }
     public int CompactionBudget { get; set; } = 420;
-    public string AccentHex { get; set; } = "#C56A54";
-    public string BackgroundHex { get; set; } = "#F9E5DE";
     public string TtsVoice { get; set; } = string.Empty;
     public string AppearanceSummary { get; set; } = string.Empty;
     public bool UseShortTermMemoryStorage { get; set; } = true;
@@ -25,4 +23,6 @@ public sealed class AgentConfig
     public int SortOrder { get; set; }
     public bool IsHumanParticipant { get; set; }
     public int PromptSampleId { get; set; } = 1;
+    public string? UserId { get; set; }
+    public string ColorTheme { get; set; } = "Terracotta";
 }

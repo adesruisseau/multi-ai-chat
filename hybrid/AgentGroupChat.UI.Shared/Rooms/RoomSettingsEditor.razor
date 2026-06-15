@@ -1,17 +1,23 @@
+@inject RoomState RoomState
 @inject AppState AppState
 @inject AgentGroupChat.Core.Services.SpeechService Speech
 @inject PromptLibraryState PromptLibraryState
+@using System.Security.Claims
 @using AgentGroupChat.Core.Services
 @using static AgentGroupChat.Core.TtsProviders
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
 
 
-<MudText Typo="Typo.h4" Class="mt-4 mb-2">Basics</MudText>
+<MudText Typo="Typo.h4" Class="mt-4 mb-2">
+    Basics
+</MudText>
 <MudItem Class="ml-4">
-<MudText Typo="Typo.caption" Class="mb-2">
-    These settings control room-specific behavior for your agents, and the overall quality and cadence of conversation.
+    <MudText Typo="Typo.caption" Class="mb-2">
+        These settings control room-specific behavior for your agents, and the overall quality and cadence of conversation.
     </MudText>
-<MudTextField @bind-Value="Room.Name" Label="Name" Class="mb-2" />
-<MudTextField @bind-Value="Room.Topic" Label="Topic" Lines="3" Class="mb-2" />
+    <MudTextField @bind-Value="Room.Name" Label="Name" Class="mb-2" Disabled="@isNotRoomOwner"/>
+    <MudTextField @bind-Value="Room.Topic" Label="Topic" Lines="3" Class="mb-2" Disabled="@isNotRoomOwner" />
 </MudItem>
 <br />
 <br />
@@ -21,18 +27,18 @@
             <MudText Typo="Typo.h5">Turn Flow</MudText>
         </TitleContent>
         <ChildContent>
-            <MudSwitch @bind-Value="Room.WaitForUserReply" Label="Wait for user reply" Color="Color.Primary" />
+            <MudSwitch @bind-Value="Room.WaitForUserReply" Label="Wait for Room Owner" Color="Color.Primary" Disabled="@isNotRoomOwner"/>
 
             <MudItem Class="ml-4">
                 <MudText Typo="Typo.body1" Class="mb-2">
-                    If enabled, the room will pause after each round of agent replies, waiting for the user to click "Continue" or send another message before proceeding.
-                    If disabled, the room will still pause based on the amount of 'Rounds' configured in the Chat tab.
+                    If enabled, the room will pause after each round of agent replies, waiting for the user/room owner to click "Continue" or send another message before proceeding.
+                    If disabled, the room will still pause based on the amount of 'Rounds' configured in the Chat tab, but can be run by any other users.
                 </MudText>
 
                 @if (Room.WaitForUserReply)
                 {
                     <MudItem Class="ml-4">
-                    <MudRadioGroup @bind-Value="Room.PauseAfterEveryReply" Class="mb-2">
+                        <MudRadioGroup @bind-Value="Room.PauseAfterEveryReply" Class="mb-2" Disabled="@isNotRoomOwner">
                         <MudRadio Value="false" Color="Color.Primary" T="bool">Pause at end of round</MudRadio>
                         <MudRadio Value="true" Color="Color.Primary" T="bool">Pause after every agent reply</MudRadio>
                     </MudRadioGroup>
@@ -41,7 +47,7 @@
                 <br />
                 <MudGrid>
                     <MudItem xs="6">
-                        <MudNumericField @bind-Value="Room.AgentDelaySeconds" Label="Seconds between agents" Min="1" />
+                        <MudNumericField @bind-Value="Room.AgentDelaySeconds" Label="Seconds between agents" Min="1" Disabled="@isNotRoomOwner" />
                         <MudText Typo="Typo.body1">
                             This adds a delay between each agent's turn within a single round.<br />
                             Raise this number to prevent throttling or rate limit issues with your AI provider, 
@@ -98,22 +104,22 @@
             </ul>
             <br />
 
-            <MudSwitch @bind-Value="Room.UseSummarizer" Label="Enable the memory summarizer agent" Color="Color.Primary" T="bool" />
+            <MudSwitch @bind-Value="Room.UseSummarizer" Label="Enable the memory summarizer agent" Color="Color.Primary" T="bool" Disabled="@isNotRoomOwner" />
             @if (Room.UseSummarizer)
             {
-                <MudSwitch @bind-Value="Room.StoreSharedRoomMemory" Label="Enable Shared Room Memory" Color="Color.Primary" T="bool" />
-                <MudSwitch @bind-Value="Room.StoreDurableMemory" Label="Enable Durable Memory" Color="Color.Primary" T="bool" />
-                <MudSwitch @bind-Value="Room.StoreLongTermArchives" Label="Enable Long Term Archival" Color="Color.Primary" T="bool" />
+                <MudSwitch @bind-Value="Room.StoreSharedRoomMemory" Label="Enable Shared Room Memory" Color="Color.Primary" T="bool" Disabled="@isNotRoomOwner" />
+                <MudSwitch @bind-Value="Room.StoreDurableMemory" Label="Enable Durable Memory" Color="Color.Primary" T="bool" Disabled="@isNotRoomOwner" />
+                <MudSwitch @bind-Value="Room.StoreLongTermArchives" Label="Enable Long Term Archival" Color="Color.Primary" T="bool" Disabled="@isNotRoomOwner" />
 
                 <MudItem Class="ml-4">
-                    <MudSelect @bind-Value="Room.SummarizerModelId" Label="Summarizer Model" ShrinkLabel="true" Class="mb-2">
+                    <MudSelect @bind-Value="Room.SummarizerModelId" Label="Summarizer Model" ShrinkLabel="true" Class="mb-2" Disabled="@isNotRoomOwner">
                         <MudSelectItem T="string" Value="@string.Empty">(Use global default)</MudSelectItem>
                         @foreach (var model in Models)
                         {
                             <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
                         }
                     </MudSelect>
-                    <MudSelect @bind-Value="Room.SummarizationLevel" Label="Compression Level" Class="mb-2">
+                    <MudSelect @bind-Value="Room.SummarizationLevel" Label="Compression Level" Class="mb-2" Disabled="@isNotRoomOwner">
                         <MudSelectItem T="string" Value="@("Aggressive")">Aggressive</MudSelectItem>
                         <MudSelectItem T="string" Value="@("Semi-Aggressive")">Semi-Aggressive</MudSelectItem>
                         <MudSelectItem T="string" Value="@("Moderate")">Moderate</MudSelectItem>
@@ -135,7 +141,7 @@
                     {
                         <MudGrid>
                             <MudItem xs="6">
-                                <MudNumericField @bind-Value="Room.SummarizerMaxTokens" Label="Summarizer max tokens" Min="140" />
+                                <MudNumericField @bind-Value="Room.SummarizerMaxTokens" Label="Summarizer max tokens" Min="140" Disabled="@isNotRoomOwner" />
                                 <MudText Typo="Typo.body1" Class="ml-4">
                                     The maximum number of tokens that an agent's summary can contain before being cut off. <br />
                                     Set this according to the typical length of replies you want, and the limits of your AI provider.
@@ -143,7 +149,7 @@
                                 </MudText>
                             </MudItem>
                             <MudItem xs="6">
-                                <MudNumericField @bind-Value="Room.SummarizerMaxLines" Label="Summarizer max lines" Min="12" />
+                                <MudNumericField @bind-Value="Room.SummarizerMaxLines" Label="Summarizer max lines" Min="12" Disabled="@isNotRoomOwner" />
                                 <MudText Typo="Typo.body1" Class="ml-4">
                                     The maximum number of lines that an agent's summary can generate. <br />
                                     Additional guardrail to prevent runaway token usage, since summaries can get very verbose.
@@ -153,7 +159,7 @@
 
                             <br />
                             <MudItem xs="6">
-                                <MudNumericField @bind-Value="Room.SummarizerMaxCharacters" Label="Summarizer max characters" Min="1800" />
+                                <MudNumericField @bind-Value="Room.SummarizerMaxCharacters" Label="Summarizer max characters" Min="1800" Disabled="@isNotRoomOwner" />
                                 <MudText Typo="Typo.body1" Class="ml-4">
                                     The maximum number of characters that an agent's summary can contain before being cut off. <br />
                                     Additional guardrail to prevent runaway token usage, since summaries can get very verbose.
@@ -184,7 +190,7 @@
                                 {
                                     <MudGrid>
                                         <MudItem xs="6">
-                                            <MudSelect T="int" @bind-Value="Room.SharedRoomMemoryPromptSampleId" Label="Shared Room Memory Prompt">
+                                            <MudSelect T="int" @bind-Value="Room.SharedRoomMemoryPromptSampleId" Label="Shared Room Memory Prompt" Disabled="@isNotRoomOwner">
 
                                                 @foreach (var sample in OrderedPromptSamples)
                                                 {
@@ -195,7 +201,7 @@
                                             </MudSelect>
                                         </MudItem>
                                         <MudItem xs="6">
-                                            <MudSelect T="int" @bind-Value="Room.DurableMemoryPromptSampleId" Label="Durable Memory Prompt">
+                                            <MudSelect T="int" @bind-Value="Room.DurableMemoryPromptSampleId" Label="Durable Memory Prompt" Disabled="@isNotRoomOwner">
 
                                                 @foreach (var sample in OrderedPromptSamples)
                                                 {
@@ -223,12 +229,12 @@
                 <MudText Typo="Typo.body1" Class="mb-2">
                     Keep speech behavior with the room instead of the Chat page. Rate and live pause or resume still stay in Chat, but the room now controls whether speech is on, which provider it uses, the room-wide fallback voice, and your own voice.
                 </MudText>
-                <MudSwitch Value="@GetResolvedSpeechEnabled()" Label="Enable speech in this room" Color="Color.Primary" T="bool" ValueChanged="OnSpeechEnabledChanged" />
+                <MudSwitch Value="@GetResolvedSpeechEnabled()" Label="Enable speech in this room" Color="Color.Primary" T="bool" ValueChanged="OnSpeechEnabledChanged" Disabled="@isNotRoomOwner" />
                 @if (Room.TtsEnabledOverride.HasValue && Room.TtsEnabledOverride == true)
                 {
                     <MudGrid>
                         <MudItem xs="12" md="6">
-                            <MudSelect Value="@Room.TtsProviderOverride" Label="Speech provider" ShrinkLabel="true" T="string" ValueChanged="OnSpeechProviderChanged">
+                            <MudSelect Value="@Room.TtsProviderOverride" Label="Speech provider" ShrinkLabel="true" T="string" ValueChanged="OnSpeechProviderChanged" Disabled="@isNotRoomOwner">
                                 <MudSelectItem T="string" Value="@string.Empty">(Use app default: @AppState.Settings.TtsProvider)</MudSelectItem>
                                 <MudSelectItem T="string" Value="@(Local)">Local</MudSelectItem>
                                 <MudSelectItem T="string" Value="@(Piper)">Piper</MudSelectItem>
@@ -240,16 +246,16 @@
                         </MudItem>
                         <MudItem xs="12" md="6">
                             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mt-2">
-                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="TestSpeechProviderAsync" Disabled="_testingSpeech">
+                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="TestSpeechProviderAsync" Disabled="_testingSpeech || isNotRoomOwner">
                                     @(_testingSpeech ? "Testing..." : "Test Provider")
                                 </MudButton>
                                 @if (UsesKokoro())
                                 {
-                                    <MudButton Variant="Variant.Outlined" OnClick="RefreshVoicesAsync" Disabled="_testingSpeech">Refresh Voices</MudButton>
+                                    <MudButton Variant="Variant.Outlined" OnClick="RefreshVoicesAsync" Disabled="_testingSpeech || isNotRoomOwner">Refresh Voices</MudButton>
                                 }
                                 @if (_canStartKokoroService)
                                 {
-                                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="StartKokoroService">Start Service</MudButton>
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="StartKokoroService" Disabled="@isNotRoomOwner">Start Service</MudButton>
                                 }
                             </MudStack>
                             @if (!string.IsNullOrWhiteSpace(_speechTestResult))
@@ -261,14 +267,14 @@
                             @if (UsesKokoro() && _kokoroVoices.Count > 0)
                             {
                                 <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
-                                    <MudSelect @bind-Value="Room.TtsFallbackVoice" Label="Room fallback voice" ShrinkLabel="true" T="string" Style="flex:1;">
+                                    <MudSelect @bind-Value="Room.TtsFallbackVoice" Label="Room fallback voice" ShrinkLabel="true" T="string" Style="flex:1;" Disabled="@isNotRoomOwner">
                                         <MudSelectItem T="string" Value="@string.Empty">(Use app default)</MudSelectItem>
                                         @foreach (var voice in _kokoroVoices)
                                         {
                                             <MudSelectItem T="string" Value="@voice">@voice</MudSelectItem>
                                         }
                                     </MudSelect>
-                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestFallbackVoiceAsync" Disabled="_previewingFallbackVoice || _testingSpeech">
+                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestFallbackVoiceAsync" Disabled="_previewingFallbackVoice || _testingSpeech || isNotRoomOwner">
                                         @(_previewingFallbackVoice ? "Playing..." : "Test")
                                     </MudButton>
                                 </MudStack>
@@ -276,8 +282,8 @@
                             else
                             {
                                 <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
-                                    <MudTextField @bind-Value="Room.TtsFallbackVoice" Label="Room fallback voice" Style="flex:1;" />
-                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestFallbackVoiceAsync" Disabled="_previewingFallbackVoice || _testingSpeech">
+                                    <MudTextField @bind-Value="Room.TtsFallbackVoice" Label="Room fallback voice" Style="flex:1;" Disabled="@isNotRoomOwner" />
+                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestFallbackVoiceAsync" Disabled="_previewingFallbackVoice || _testingSpeech || isNotRoomOwner">
                                         @(_previewingFallbackVoice ? "Playing..." : "Test")
                                     </MudButton>
                                 </MudStack>
@@ -290,14 +296,14 @@
                             @if (UsesKokoro() && _kokoroVoices.Count > 0)
                             {
                                 <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
-                                    <MudSelect @bind-Value="Room.TtsUserVoice" Label="Your voice" ShrinkLabel="true" T="string" Style="flex:1;">
+                                    <MudSelect @bind-Value="Room.TtsUserVoice" Label="Your voice" ShrinkLabel="true" T="string" Style="flex:1;" Disabled="@isNotRoomOwner">
                                         <MudSelectItem T="string" Value="@string.Empty">(Use room fallback)</MudSelectItem>
                                         @foreach (var voice in _kokoroVoices)
                                         {
                                             <MudSelectItem T="string" Value="@voice">@voice</MudSelectItem>
                                         }
                                     </MudSelect>
-                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestUserVoiceAsync" Disabled="_previewingUserVoice || _testingSpeech">
+                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestUserVoiceAsync" Disabled="_previewingUserVoice || _testingSpeech || isNotRoomOwner">
                                         @(_previewingUserVoice ? "Playing..." : "Test")
                                     </MudButton>
                                 </MudStack>
@@ -305,8 +311,8 @@
                             else
                             {
                                 <MudStack Row="true" AlignItems="AlignItems.Start" Spacing="2">
-                                    <MudTextField @bind-Value="Room.TtsUserVoice" Label="Your voice" Style="flex:1;" />
-                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestUserVoiceAsync" Disabled="_previewingUserVoice || _testingSpeech">
+                                    <MudTextField @bind-Value="Room.TtsUserVoice" Label="Your voice" Style="flex:1;" Disabled="@isNotRoomOwner" />
+                                    <MudButton Variant="Variant.Outlined" Class="mt-3" OnClick="TestUserVoiceAsync" Disabled="_previewingUserVoice || _testingSpeech || isNotRoomOwner">
                                         @(_previewingUserVoice ? "Playing..." : "Test")
                                     </MudButton>
                                 </MudStack>
@@ -326,7 +332,7 @@
         </TitleContent>
         <ChildContent>
             <MudItem Class="ml-4">
-            <MudSwitch @bind-Value="Room.EnableSceneImageGeneration" Label="Enable Scene Image Generation" Color="Color.Primary" />
+            <MudSwitch @bind-Value="Room.EnableSceneImageGeneration" Label="Enable Scene Image Generation" Color="Color.Primary" Disabled="@isNotRoomOwner" />
             <MudText Typo="Typo.body1" Class="mb-2 ml-8">
                 You must have ComfyUI or another image generation service set up.
                 When enabled, the app can use room and agent context to support manual scene image generation workflows.<br />
@@ -336,7 +342,7 @@
             {
                 @if (ImageModels.Count > 0)
                 {
-                    <MudSelect @bind-Value="Room.SceneImageModelId" Label="Default image model" ShrinkLabel="true" Class="mb-2">
+                        <MudSelect @bind-Value="Room.SceneImageModelId" Label="Default image model" ShrinkLabel="true" Class="mb-2" Disabled="@isNotRoomOwner">
                         <MudSelectItem T="string" Value="@string.Empty">(No room override)</MudSelectItem>
                         @foreach (var imageModel in ImageModels)
                         {
@@ -353,16 +359,16 @@
                 <MudSwitch @bind-Value="Room.UseCreativeImageGeneration"
                        Label="Use for creative image generation"
                        Color="Color.Primary"
-                       Disabled="@(!Room.EnableSceneImageGeneration)" />
+                       Disabled="@(!Room.EnableSceneImageGeneration || isNotRoomOwner)" />
                 <MudText Typo="Typo.body1" Class="mb-2  ml-8">
                     Turning this on displays appearance text boxes for each agent, which is mainly used for creative, role-playing, and scene-image workflows.
                 </MudText>
-                <MudTextField @bind-Value="Room.SceneImageStyleNotes" Label="Style notes" Lines="4" Class="mb-2" />
+                    <MudTextField @bind-Value="Room.SceneImageStyleNotes" Label="Style notes" Lines="4" Class="mb-2" Disabled="@isNotRoomOwner" />
                 <MudText Typo="Typo.body1" Class="mb-2  ml-8">
                      How you want the image generation agent to render scene images, 
                      such as art style, color palette, or composition notes.
                 </MudText>
-                <MudTextField @bind-Value="Room.SceneImageNegativePrompt" Label="Negative prompt / exclusions" Lines="4" />
+                    <MudTextField @bind-Value="Room.SceneImageNegativePrompt" Label="Negative prompt / exclusions" Lines="4" Disabled="@isNotRoomOwner" />
                 <MudText Typo="Typo.body1" Class="mb-2  ml-8">
                     Specific things you want the image generation agent to avoid when rendering scene images, 
                     such as "blurry", "low quality", or specific elements or colors.
@@ -384,10 +390,10 @@
                 such as spawning temporary agents to participate in the chat, as well as suspending long-term agents.<br />
                 The privileged agent should be the last enabled permanent agent in turn order for best results.
                 </MudText>
-            <MudSwitch @bind-Value="Room.EnablePrivilegedActions" Label="Enable Privileged Actions" Color="Color.Primary" />
+                <MudSwitch @bind-Value="Room.EnablePrivilegedActions" Label="Enable Privileged Actions" Color="Color.Primary" Disabled="@isNotRoomOwner" />
             @if (Room.EnablePrivilegedActions)
             {
-                <MudSelect @bind-Value="Room.PrivilegedAgentId" Label="Privileged Agent" ShrinkLabel="true" Class="mb-2 ml-8 mr-8" T="string">
+                    <MudSelect @bind-Value="Room.PrivilegedAgentId" Label="Privileged Agent" ShrinkLabel="true" Class="mb-2 ml-8 mr-8" T="string" Disabled="@isNotRoomOwner">
                     <MudSelectItem T="string" Value="@string.Empty">(Select agent)</MudSelectItem>
                     @foreach (var privilegedAgent in GetPermanentAgents(Room))
                     {
@@ -395,20 +401,13 @@
                     }
                 </MudSelect>
 
-                @if (!IsPrivilegedAgentLast(Room))
-                {
-                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
-                        For this MVP, the privileged agent should be the last enabled permanent agent in turn order.
-                    </MudAlert>
-                }
-    
-                <MudSwitch @bind-Value="Room.EnableNpcSpawning" Label="Generate Temporary Agents" Color="Color.Primary" />
+                <MudSwitch @bind-Value="Room.EnableNpcSpawning" Label="Generate Temporary Agents" Color="Color.Primary" Disabled="@isNotRoomOwner" />
                 <MudItem Class="ml-8">
                 @if (Room.EnableNpcSpawning)
                 {
                     <MudGrid Class="mt-2">
                         <MudItem xs="6">
-                            <MudSelect @bind-Value="Room.NpcModelId" Label="NPC Model" ShrinkLabel="true" T="string">
+                            <MudSelect @bind-Value="Room.NpcModelId" Label="NPC Model" ShrinkLabel="true" T="string" Disabled="@isNotRoomOwner">
                                 <MudSelectItem T="string" Value="@string.Empty">(Use privileged agent model)</MudSelectItem>
                                 @foreach (var model in Models)
                                 {
@@ -421,12 +420,12 @@
                             </MudText>
                         </MudItem>
                         <MudItem xs="6">
-                            <MudNumericField @bind-Value="Room.MaxConcurrentNpcs" Label="Max concurrent NPCs" Min="1" Max="4" />
+                            <MudNumericField @bind-Value="Room.MaxConcurrentNpcs" Label="Max concurrent NPCs" Min="1" Max="4" Disabled="@isNotRoomOwner" />
                             <MudText Typo="Typo.body1">Active NPCs: @GetActiveNpcCount(Room) / @Math.Max(1, Room.MaxConcurrentNpcs)</MudText>
                 
                         </MudItem>
                         <MudItem xs="6">
-                            <MudNumericField @bind-Value="Room.NpcMaxTokens" Label="NPC max tokens" Min="50" />
+                            <MudNumericField @bind-Value="Room.NpcMaxTokens" Label="NPC max tokens" Min="50" Disabled="@isNotRoomOwner" />
                             <MudText Typo="Typo.body1">
                                 The maximum number of tokens that an NPC agent's reply can contain before being cut off. 
                                 Set this according to the typical length of replies you want, and the limits of your AI provider.
@@ -434,19 +433,19 @@
                             </MudText>
                         </MudItem>
                         <MudItem xs="6">
-                            <MudNumericField @bind-Value="Room.NpcCompactionBudget" Label="NPC compaction budget" Min="80" />
+                            <MudNumericField @bind-Value="Room.NpcCompactionBudget" Label="NPC compaction budget" Min="80" Disabled="@isNotRoomOwner" />
                             <MudText Typo="Typo.body1">
                                 How many tokens an agent requests will be compacted to when context & memory is high.
                             </MudText>
                         </MudItem>
                         <MudItem xs="12">
-                            <MudTextField @bind-Value="Room.NpcBaseInstructions" Label="NPC agent instructions" Lines="6" />
+                            <MudTextField @bind-Value="Room.NpcBaseInstructions" Label="NPC agent instructions" Lines="6" Disabled="@isNotRoomOwner" />
                             <MudText Typo="Typo.body1">
                                 Additional instructional text to send the NPC in addition to the selected template, if defined.
                              </MudText>
                         </MudItem>
                         <MudItem xs="6">
-                            <MudSelect T="int" @bind-Value="Room.NpcPromptSampleId" Label="NPC Prompt Template">
+                                    <MudSelect T="int" @bind-Value="Room.NpcPromptSampleId" Label="NPC Prompt Template" Disabled="@isNotRoomOwner">
                                 @foreach (var sample in OrderedPromptSamples)
                                 {
                                     <MudSelectItem T="int" Value="@sample.Id">
@@ -486,7 +485,9 @@
     private string _speechTestResult = string.Empty;
     private bool _previewingFallbackVoice;
     private bool _previewingUserVoice;
-
+    private bool isNotRoomOwner = false;
+    public string accessingUserId = "";
+    public ClaimsPrincipal user;
 
     private List<PromptSample> OrderedPromptSamples => PromptLibraryState.Samples
     .OrderByDescending(s => s.IsBuiltIn)
@@ -498,6 +499,21 @@
     {
         if (!PromptLibraryState.IsLoaded)
             await PromptLibraryState.LoadAsync();
+
+
+        RoomState.OnChange += UpdateSelectedRoom;
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = state.User;
+        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
+    }
+
+    private void UpdateSelectedRoom()
+    {
+        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
+        StateHasChanged();
     }
     protected override async Task OnParametersSetAsync()
     {

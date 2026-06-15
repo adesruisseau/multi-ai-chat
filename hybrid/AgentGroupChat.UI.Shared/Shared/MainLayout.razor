@@ -95,7 +95,7 @@
 @code {
     [Inject] RoomState _roomState { get; set; } = default!;
     [Inject] AppState _appState { get; set; } = default!;
-    
+
     private MudThemeProvider _themeProvider = default!;
     private MudTheme _theme = AppTheme.Build();
     private bool _isDark;
@@ -162,6 +162,7 @@
         _theme = AppTheme.Build(accent);
         _appState.Settings.UiAccent = accent;
         await _appState.SaveSettingsAsync();
+        StateHasChanged();
     }
 
     private async Task OnDarkModeToggled(bool toggled)
@@ -169,6 +170,7 @@
         _isDark = toggled;
         _appState.Settings.UiTheme = toggled ? "Dark" : "Light";
         await _appState.SaveSettingsAsync();
+        StateHasChanged();
     }
 
     private void NavigateToLogin() => NavigationManager.NavigateTo("/login", forceLoad: true);

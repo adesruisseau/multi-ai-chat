@@ -7,8 +7,7 @@ public sealed class ChatMessage
 {
     public string Speaker { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
-    public string AccentHex { get; set; } = string.Empty;
-    public string BackgroundHex { get; set; } = string.Empty;
+    public string ColorTheme { get; set; } = "Terracotta";
     public bool IsSystem { get; set; }
     public bool IsUser { get; set; }
 }
@@ -30,15 +29,14 @@ public sealed class ConversationState
     }
 
     public void AddUserMessage(string text, string speakerName = "You",
-        string accentHex = "", string backgroundHex = "")
+        string colorTheme = "")
     {
         Messages.Add(new ChatMessage
         {
             Speaker = speakerName,
             Content = text,
             IsUser = false,
-            AccentHex = accentHex,
-            BackgroundHex = backgroundHex,
+            ColorTheme = colorTheme
         });
         SessionTurns.Add(new TranscriptTurn { Speaker = speakerName, Content = text });
         NotifyChanged();
@@ -50,8 +48,7 @@ public sealed class ConversationState
         {
             Speaker = agent.Name,
             Content = content,
-            AccentHex = agent.AccentHex,
-            BackgroundHex = agent.BackgroundHex,
+            ColorTheme = agent.ColorTheme
         });
         NotifyChanged();
     }
@@ -70,8 +67,7 @@ public sealed class ConversationState
             {
                 Speaker = agent.Name,
                 Content = content,
-                AccentHex = agent.AccentHex,
-                BackgroundHex = agent.BackgroundHex,
+                    ColorTheme = agent.ColorTheme
             });
         }
         SessionTurns.Add(new TranscriptTurn { Speaker = agent.Name, Content = content });
@@ -83,15 +79,14 @@ public sealed class ConversationState
         Messages.RemoveAll(m => m.Content == ChatPlaceholders.Thinking);
     }
 
-    public void AddTranscriptMessage(string speaker, string content, string accentHex, string backgroundHex, bool isUser)
+    public void AddTranscriptMessage(string speaker, string content, string colorTheme, bool isUser)
     {
         Messages.Add(new ChatMessage
         {
             Speaker = speaker,
             Content = content,
-            AccentHex = accentHex,
-            BackgroundHex = backgroundHex,
             IsUser = isUser,
+            ColorTheme = colorTheme
         });
     }
 

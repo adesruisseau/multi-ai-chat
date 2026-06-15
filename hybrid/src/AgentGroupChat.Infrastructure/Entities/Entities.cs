@@ -7,7 +7,8 @@ namespace AgentGroupChat.Infrastructure.Entities;
 public class AppSettingsEntity
 {
     [Key]
-    public int Id { get; set; } = 1;
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public int Id { get; set; }
     public string UiTheme { get; set; } = "System";
     public string UiAccent { get; set; } = "Terracotta";
     public bool TtsEnabled { get; set; }
@@ -192,8 +193,6 @@ public class AgentEntity
     public bool IsEnabled { get; set; } = true;
     public int? MaxTokensOverride { get; set; }
     public int CompactionBudget { get; set; } = 420;
-    public string AccentHex { get; set; } = "#C56A54";
-    public string BackgroundHex { get; set; } = "#F9E5DE";
     public string TtsVoice { get; set; } = string.Empty;
     public string AppearanceSummary { get; set; } = string.Empty;
     public bool IsNpc { get; set; }
@@ -209,6 +208,8 @@ public class AgentEntity
     public bool UseLongTermMemoryStorage { get; set; } = true;
     [ForeignKey("RoomId")]
     public RoomEntity? Room { get; set; }
+    public string? UserId { get; set; }
+    public string ColorTheme { get; set; } = "Terracotta";
 
 }
 
@@ -222,11 +223,10 @@ public class TranscriptTurnEntity
     public int Round { get; set; }
     public string Speaker { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
-    public string AccentHex { get; set; } = string.Empty;
-    public string BackgroundHex { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
     [ForeignKey("RoomId")]
     public RoomEntity? Room { get; set; }
+    public string ColorTheme { get; set; } = "Terracotta";
 }
 
 [Table("MemoryBlocks")]
@@ -296,5 +296,22 @@ public class DataTrackerEntity
     public RoomEntity? Room { get; set; }
     public string PromptText { get; set; }
     public string PrivilegedAgentPrompt { get; set; }
+
+}
+
+[Table("RoomInvites")]
+public class RoomInviteEntity
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public Guid Id { get; set; }
+    [Required]
+    public string HostUserId { get; set; }
+    [Required]
+    public string RoomId { get; set; }
+    public DateTimeOffset CreatedDate { get; set; }
+    public DateTimeOffset ExpirationDate { get; set; }
+    public string? RedeemedByUserId { get; set; }
+    public DateTimeOffset? RedeemedDate { get; set; }
 
 }
