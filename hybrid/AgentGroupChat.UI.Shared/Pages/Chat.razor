@@ -9,14 +9,16 @@
 @inject AgentGroupChat.Core.Services.SpeechService Speech
 @inject AgentGroupChat.Core.Services.LogService LogService
 @inject AgentGroupChat.Core.Services.ImageClient ImageClient
+@inject AgentGroupChat.Core.Services.RoomTurnPolicyService TurnPolicyService
 @using System.Security.Claims
 @using AgentGroupChat.Core.Models.Domain
-@using AgentGroupChat.Core.Models.Llm
 @using AgentGroupChat.Core.Services
 @using AgentGroupChat.UI.Shared.Theming
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
-
+@using AgentGroupChat.Core.Realtime
+@inject AgentGroupChat.Core.Realtime.IChatLiveUpdateNotifier ChatLiveUpdates
+@inject AgentGroupChat.Core.Realtime.ChatRealtimeService chatService
 @inject AuthenticationStateProvider AuthStateProvider
 
 @implements IDisposable
@@ -85,7 +87,7 @@ else
     <MudPaper Class="pa-4 mb-4" Elevation="1">
         @if (!_generatingImage)
         {
-            <MudTextField @bind-Value="_userInput" Label="@WhosMessage" Class="mb-3" OnKeyDown="OnKeyDown" Lines="8" Disabled="@(ConvoState.IsRunning || chatLocked)"
+            <MudTextField @bind-Value="_userInput" Label="@WhosMessage" Class="mb-3" OnKeyDown="OnKeyDown" Lines="8" Disabled="@(ConvoState.IsRunning || InputLocked)"
                           Immediate="true" />
         }
         else
@@ -107,7 +109,7 @@ else
             }
             else
             {
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Run" Disabled="ConvoState.IsRunning || awaitingTurn">Run</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Run" Disabled="@(ConvoState.IsRunning || RunLocked)">Run</MudButton>
                 @* <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Stop" Disabled="!ConvoState.IsRunning">Stop</MudButton> *@
             }
             
@@ -196,11 +198,17 @@ else
     private IJSRuntime JS { get; set; } = default!;
     private int _lastMessageCount;
     private string WhosMessage = "Message";
-    private bool awaitingTurn = true;
-    private bool chatLocked = false;
     private bool isNotRoomOwner = false;
     public string accessingUserId = "";
     public ClaimsPrincipal user;
+    private RoomTurnPolicy _turnPolicy = new();
+    private IDisposable? _chatLiveSubscription;
+
+    private bool InputLocked => !_turnPolicy.CanSendMessage;
+
+    private bool RunLocked => _turnPolicy.RequiresHumanMessage
+        ? !_turnPolicy.CanSendMessage || string.IsNullOrWhiteSpace(_userInput)
+        : !_turnPolicy.CanContinueRun;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -233,6 +241,11 @@ else
         if (RoomState.Rooms.Count == 0)
             await RoomState.LoadAsync();
 
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = state.User;
+        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
+
         if (RoomState.SelectedRoom is not null)
         {
             _selectedRoomId = RoomState.SelectedRoom.Id;
@@ -242,17 +255,46 @@ else
         {
             _selectedRoomId = RoomState.Rooms[0].Id;
         }
+        SubscribeToChatLiveUpdates(_selectedRoomId);
+        RefreshTurnPolicy();
+    }
 
-        var state = await AuthStateProvider.GetAuthenticationStateAsync();
-        user = state.User;
-        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
+    private void SubscribeToChatLiveUpdates(string? roomId)
+    {
+        _chatLiveSubscription?.Dispose();
+        _chatLiveSubscription = null;
+
+        if (string.IsNullOrWhiteSpace(roomId))
+            return;
+
+        _chatLiveSubscription = ChatLiveUpdates.Subscribe(roomId, HandleChatLiveUpdatesAsync);
+    }
+
+    private Task HandleChatLiveUpdatesAsync(ChatLiveEvent update)
+    {
+        return InvokeAsync(async () =>
+        {
+            switch (update.Kind)
+            {
+                case ChatLiveEventKinds.NewMessage:
+                case ChatLiveEventKinds.ChatCleared:
+                    {
+                        var selectedRoomId = update.RoomId;
+
+                        await LoadRoom();
+                        break;
+                    }
+                default:
+                    break;
+            }
+        });
     }
 
     private void UpdateSelectedRoom()
     {
         accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
+        RefreshTurnPolicy();
         StateHasChanged();
     }
 
@@ -302,7 +344,9 @@ else
         var turns = await TranscriptRepo.GetAsync(room.Id);
         foreach (var turn in turns)
         {
-            var isHuman = turn.Speaker == "Narrator";
+            var humanParticipant = room.Agents.FirstOrDefault(agent =>
+                agent.IsHumanParticipant && string.Equals(agent.Name, turn.Speaker, StringComparison.OrdinalIgnoreCase));
+            var isHuman = humanParticipant is not null || turn.Speaker == Core.SpeakerNames.DefaultHuman;
             if (isHuman)
             {
                 ConvoState.Messages.Add(new ChatMessage
@@ -310,7 +354,7 @@ else
                     Speaker = turn.Speaker,
                     Content = turn.Content,
                     IsUser = true,
-                    ColorTheme = AgentColorPresets.FindByName(AppState.Settings.UiAccent, AppState.Settings.UiTheme != "Light").Name ?? "Terracotta"
+                    ColorTheme = humanParticipant?.ColorTheme ?? AgentColorPresets.FindByName(AppState.Settings.UiAccent, AppState.Settings.UiTheme != "Light").Name ?? "Terracotta"
 
                 });
             }
@@ -327,29 +371,7 @@ else
             ConvoState.SessionTurns.Add(turn);
         }
         ConvoState.NotifyChanged();
-
-        if (ConvoState.Messages.Count <= 0 && RoomState.SelectedRoom.WaitForUserReply)
-        {
-            awaitingTurn = true;
-            chatLocked = true;
-        }
-        else if ((room.Agents.Where(x => x.SortOrder == ComputeResumeAgentIndex(room)).FirstOrDefault().UserId != accessingUserId))
-        {
-            chatLocked = true;
-            if (RoomState.SelectedRoom.WaitForUserReply)
-            {
-                awaitingTurn = true;
-            }
-            else
-            {
-                awaitingTurn = false;
-            }
-            chatLocked = true;
-        }
-        else {
-            awaitingTurn = false;
-            chatLocked = false;
-        }
+        RefreshTurnPolicy();
     }
 
     private async Task Run()
@@ -357,15 +379,38 @@ else
 
         if (RoomState.SelectedRoom is null) return;
         if (ConvoState.IsRunning) return;
-        ConvoState.IsRunning = true;
         var room = RoomState.SelectedRoom;
+        RefreshTurnPolicy();
+
+        if (_turnPolicy.RequiresHumanMessage)
+        {
+            if (!_turnPolicy.CanSendMessage)
+            {
+                ConvoState.SetStatus(_turnPolicy.WaitingMessage);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_userInput))
+            {
+                ConvoState.SetStatus(_turnPolicy.WaitingMessage);
+                return;
+            }
+        }
+        else if (!_turnPolicy.CanContinueRun)
+        {
+            ConvoState.SetStatus(_turnPolicy.WaitingMessage);
+            return;
+        }
+
+        ConvoState.IsRunning = true;
 
         if (!string.IsNullOrWhiteSpace(_userInput))
         {
-            var resumeIndex = ComputeResumeAgentIndex(room);
-            var speaker = GetActiveHumanSpeaker(room, resumeIndex);
+            var speaker = ResolveHumanSpeaker(room);
             ConvoState.AddUserMessage(_userInput, speaker.Name, speaker.ColorTheme);
-            await TranscriptRepo.AppendAsync(new TranscriptTurn
+            
+            //await TranscriptRepo.AppendAsync
+            await chatService.UpdateAsync(new TranscriptTurn
             {
                 RoomId = room.Id,
                 Speaker = speaker.Name,
@@ -396,20 +441,13 @@ else
 
         try
         {
-            // Determine which agent to resume from based on the last transcript turn
-            var resumeIndex = ComputeResumeAgentIndex(room);
-            var resumeAgent = room.Agents.First(x => x.SortOrder == resumeIndex);
-
-            await Runner.RunAsync(
+            var completedRounds = await Runner.RunAsync(
                 room,
-                agent => ResolveAgentSettings(resumeAgent),
-                ResolveSummarizerSettings(),
                 _iterations,
                 ConvoState.CompletedRounds,
-                _cts.Token,
-                resumeIndex);
+                _cts.Token);
 
-            ConvoState.CompletedRounds += _iterations;
+            ConvoState.CompletedRounds += completedRounds;
         }
         catch (OperationCanceledException)
         {
@@ -427,6 +465,7 @@ else
             ConvoState.RemoveThinkingPlaceholders();
             ConvoState.IsRunning = false;
             ConvoState.SetStatus("Ready");
+            RefreshTurnPolicy();
             ConvoState.NotifyChanged();
             _cts?.Dispose();
             _cts = null;
@@ -459,75 +498,6 @@ else
         }
     }
 
-    private LlmRequestSettings ResolveAgentSettings(AgentConfig agent)
-    {
-        //We've begun modifying this to separate agent and summarizers.. since we need the agents LlmRequestSettings and dont want to 'fall back' to the summarizer 
-        // which was an error we were previously making. Now however, we need the models themselves to be run based on the model catalog of the room host, and not the user.
-        // this means we need to update the AppState to get the models list from the host AND make sure they still have access to them .. ie to prevent 'theft'..
-        var modelId = agent?.ModelId;
-        var catalogEntry = AppState.Models.FirstOrDefault(m => m.Id == modelId)
-                        ?? AppState.Models.FirstOrDefault(m => string.Equals(m.Name, modelId, StringComparison.OrdinalIgnoreCase));
-        if (catalogEntry is null)
-            throw new InvalidOperationException($"Model '{modelId}' not found in catalog.");
-
-        var connection = AppState.Connections.FirstOrDefault(c => c.Id == catalogEntry.ConnectionId);
-        if (connection is null)
-            throw new InvalidOperationException($"Connection '{catalogEntry.ConnectionId}' not found.");
-
-        var provider = LlmProviderMapping.FromTransport(connection.Transport);
-        var maxCompletionTokens = agent?.MaxTokensOverride ?? catalogEntry.MaxTokens;
-
-        return new LlmRequestSettings(
-            provider,
-            connection.Endpoint,
-            catalogEntry.ModelId,
-            connection.ApiKey,
-            catalogEntry.Temperature,
-            maxCompletionTokens,
-            connection.Transport,
-            connection.Name);
-    }
-
-    private LlmRequestSettings? ResolveSummarizerSettings()
-    {
-        var modelId = RoomState.SelectedRoom?.SummarizerModelId;
-        if (String.IsNullOrWhiteSpace(modelId))
-        {
-            return null;
-        }
-        var catalogEntry = AppState.Models.FirstOrDefault(m => m.Id == modelId)
-                        ?? AppState.Models.FirstOrDefault(m => string.Equals(m.Name, modelId, StringComparison.OrdinalIgnoreCase));
-        if (catalogEntry is null)
-            throw new InvalidOperationException($"Model '{modelId}' not found in catalog.");
-
-        var connection = AppState.Connections.FirstOrDefault(c => c.Id == catalogEntry.ConnectionId);
-        if (connection is null)
-            throw new InvalidOperationException($"Connection '{catalogEntry.ConnectionId}' not found.");
-
-        var provider = LlmProviderMapping.FromTransport(connection.Transport);
-
-        var maxCompletionTokens = RoomState.SelectedRoom!.SummarizerMaxTokens;
-
-        return new LlmRequestSettings(
-            provider,
-            connection.Endpoint,
-            catalogEntry.ModelId,
-            connection.ApiKey,
-            catalogEntry.Temperature,
-            maxCompletionTokens,
-            connection.Transport,
-            connection.Name);
-    }
-
-    /// <summary>
-    /// Looks at the last transcript entries to figure out which enabled agent
-    /// should go next. If Agent 1 already spoke but Agent 2 hasn't, returns
-    /// the index of Agent 2 so the round resumes from there.
-    /// Returns 0 if a fresh round should start.
-    /// </summary>
-    private int ComputeResumeAgentIndex(RoomConfig room) =>
-        ConversationRunner.ComputeResumeAgentIndex(room.Agents, ConvoState.SessionTurns);
-
 
     private void OnAppStateChanged()
     {
@@ -536,30 +506,8 @@ else
 
     private void OnConvoChanged()
     {
-        var room = RoomState.SelectedRoom;
-        try 
-        {
-
-            if (ConvoState.Messages.Count <= 0 && room.WaitForUserReply)
-            {
-                WhosMessage = "Waiting for Room Owner to start room.";
-            }
-            else
-            {
-                var nextSpeaker = room.Agents.Any() 
-                    ? room.Agents.Where(x => x.SortOrder == ComputeResumeAgentIndex(room)).First().Name
-                    : "Speaker";
-                WhosMessage = $"{nextSpeaker}'s Message";    
-            }    
-
-            InvokeAsync(StateHasChanged);
-        }
-        catch
-        {
-            // In case of any error (like SelectedRoom being null), just default to "Message"
-            WhosMessage = "Message";
-            InvokeAsync(StateHasChanged);
-        }
+        RefreshTurnPolicy();
+        InvokeAsync(StateHasChanged);
     }
 
     private SpeechService.SpeechSettings BuildSpeechSettings(RoomConfig? room = null) =>
@@ -618,39 +566,7 @@ else
             // After last message, kick off a new round so conversation continues
             if (room is not null && !ConvoState.IsRunning)
             {
-                ConvoState.IsRunning = true;
-                ConvoState.SetStatus("Running");
-                _cts = new CancellationTokenSource();
-
-                try
-                {
-                    var resumeIndex = ComputeResumeAgentIndex(room);
-                    var resumeAgent = room.Agents.First(x => x.SortOrder == resumeIndex);
-                    await Runner.RunAsync(
-                        room,
-                        agent => ResolveAgentSettings(resumeAgent),
-                        ResolveSummarizerSettings(),
-                        _iterations,
-                        ConvoState.CompletedRounds,
-                        _cts.Token);
-
-                    ConvoState.CompletedRounds += _iterations;
-                }
-                catch (OperationCanceledException)
-                {
-                    ConvoState.AddSystemMessage("Stopped.");
-                }
-                catch (Exception ex)
-                {
-                    ConvoState.AddSystemMessage($"Error: {ex.Message}");
-                }
-                finally
-                {
-                    ConvoState.IsRunning = false;
-                    ConvoState.SetStatus("Ready");
-                    _cts?.Dispose();
-                    _cts = null;
-                }
+                await Run();
             }
         }
         catch (OperationCanceledException)
@@ -725,7 +641,8 @@ else
 
             _imagePreviewDataUrl = $"data:{imageResult.MimeType};base64,{Convert.ToBase64String(imageResult.ImageBytes)}";
 
-            await TranscriptRepo.AppendAsync(turn);
+            await chatService.UpdateAsync(turn);
+            //await TranscriptRepo.AppendAsync(turn);
         }
         catch (Exception ex)
         {
@@ -754,18 +671,36 @@ else
 
     private void OnSpeechStateChanged() => InvokeAsync(StateHasChanged);
 
+    private void RefreshTurnPolicy()
+    {
+        if (RoomState.SelectedRoom is null)
+        {
+            _turnPolicy = new RoomTurnPolicy();
+            WhosMessage = "Message";
+            return;
+        }
+
+        _turnPolicy = TurnPolicyService.Evaluate(RoomState.SelectedRoom, ConvoState.SessionTurns, accessingUserId);
+        WhosMessage = _turnPolicy.InputLabel;
+    }
+
+    private HumanSpeaker ResolveHumanSpeaker(RoomConfig room)
+    {
+        if (!string.IsNullOrWhiteSpace(_turnPolicy.ExpectedHumanParticipantId))
+        {
+            var participant = room.Agents.FirstOrDefault(agent => agent.Id == _turnPolicy.ExpectedHumanParticipantId);
+            if (participant is not null)
+            {
+                return new HumanSpeaker(participant.Name, participant.TtsVoice, participant.ColorTheme);
+            }
+        }
+
+        return _defaultSpeaker;
+    }
+
     private record HumanSpeaker(string Name, string TtsVoice, string ColorTheme);
 
     private static readonly HumanSpeaker _defaultSpeaker = new(Core.SpeakerNames.DefaultHuman, "", "");
-
-    private static HumanSpeaker GetActiveHumanSpeaker(RoomConfig room, int currentSortOrder)
-    {
-        var active = room.Agents.FirstOrDefault(h =>
-            h.SortOrder == currentSortOrder);
-        if (active is not null && active.IsHumanParticipant)
-            return new HumanSpeaker(active.Name, active.TtsVoice, active.ColorTheme);
-        return _defaultSpeaker;
-    }
 
     public void Dispose()
     {
@@ -776,6 +711,7 @@ else
         Runner.OnStatusChanged -= OnRunnerStatusChanged;
         Runner.OnLog -= OnRunnerLog;
         Speech.OnPlaybackStateChanged -= OnSpeechStateChanged;
+        _chatLiveSubscription?.Dispose();
         _cts?.Dispose();
         _playbackCts?.Dispose();
     }

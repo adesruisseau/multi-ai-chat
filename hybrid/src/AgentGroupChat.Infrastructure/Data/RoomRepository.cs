@@ -1,5 +1,8 @@
+using AgentGroupChat.Core;
 using AgentGroupChat.Core.Models.Domain;
+using AgentGroupChat.Core.Realtime;
 using AgentGroupChat.Core.Services.Interfaces;
+using AgentGroupChat.Infrastructure.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentGroupChat.Infrastructure.Data;
@@ -20,8 +23,10 @@ public sealed class RoomRepository : IRoomRepository
 
     public async Task<List<RoomConfig>> GetInvitedToRooms(string userId)
     {
-        var rooms = await _db.Agents.Where(x => x.UserId == userId && x.IsEnabled == true && x.IsHumanParticipant).Select(x => x.Room).ToListAsync();
-        var roomIds = rooms.Select(r => r.Id).ToHashSet();
+        var roomIds = await _db.RoomMemberships
+            .Where(x => x.UserId == userId)
+            .Select(x => x.RoomId)
+            .ToHashSetAsync();
 
         var roomEntities = await _db.Rooms.Where(r => roomIds.Contains(r.Id)).Include(r => r.Agents).Include(r => r.DataTrackers)
             .OrderBy(r => r.SortOrder).AsNoTracking().ToListAsync();
@@ -32,12 +37,16 @@ public sealed class RoomRepository : IRoomRepository
 
     public async Task<RoomConfig?> GetAsync(string id, string userId)
     {
-        var entity = await _db.Rooms.Include(r => r.Agents)
-            .AsNoTracking().FirstOrDefaultAsync(r => r.Id == id);
+        var entity = await _db.Rooms
+            .Include(r => r.Agents)
+            .Include(r => r.DataTrackers)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == id &&
+                (r.UserId == userId || _db.RoomMemberships.Any(m => m.RoomId == r.Id && m.UserId == userId)));
         return entity is null ? null : EntityMapper.ToDomain(entity);
     }
 
-    public async Task SaveAsync(RoomConfig room)
+    public async Task<RoomUpdateResult> SaveAsync(RoomConfig room)
     {
         var existing = await _db.Rooms.Where(r => r.UserId == room.UserId).Include(r => r.Agents).Include(d => d.DataTrackers)
             .FirstOrDefaultAsync(r => r.Id == room.Id);
@@ -45,17 +54,77 @@ public sealed class RoomRepository : IRoomRepository
         if (existing is null)
         {
             _db.Rooms.Add(EntityMapper.ToEntity(room));
+            _db.RoomMemberships.Add(new RoomMembershipEntity
+            {
+                RoomId = room.Id,
+                UserId = room.UserId,
+                Role = RoomMembershipRoles.Owner,
+                JoinedAt = DateTimeOffset.UtcNow
+            });
+
+            return new RoomUpdateResult(true, room.Id, null);
         }
         else
         {
             var entity = EntityMapper.ToEntity(room);
             _db.Entry(existing).CurrentValues.SetValues(entity);
 
+            var ownerMembership = await _db.RoomMemberships.FirstOrDefaultAsync(m => m.RoomId == room.Id && m.UserId == room.UserId);
+            if (ownerMembership is null)
+            {
+                _db.RoomMemberships.Add(new RoomMembershipEntity
+                {
+                    RoomId = room.Id,
+                    UserId = room.UserId,
+                    Role = RoomMembershipRoles.Owner,
+                    JoinedAt = DateTimeOffset.UtcNow
+                });
+            }
+            else if (!string.Equals(ownerMembership.Role, RoomMembershipRoles.Owner, StringComparison.Ordinal))
+            {
+                ownerMembership.Role = RoomMembershipRoles.Owner;
+            }
+
             var existingAgentIds = existing.Agents.Select(a => a.Id).ToHashSet();
             var incomingAgentIds = room.Agents.Select(a => a.Id).ToHashSet();
 
-            foreach (var removed in existing.Agents.Where(a => !incomingAgentIds.Contains(a.Id)).ToList())
+            var removedAgents = existing.Agents
+                .Where(a => !incomingAgentIds.Contains(a.Id))
+                .ToList();
+
+            foreach (var removed in removedAgents)
+            {
                 _db.Agents.Remove(removed);
+            }
+
+            var removedParticipantUserIds = removedAgents
+                .Where(a => a.IsHumanParticipant)
+                .Select(a => a.UserId)
+                .Where(userId => !string.IsNullOrWhiteSpace(userId))
+                .Cast<string>()
+                .ToHashSet(StringComparer.Ordinal);
+
+            removedParticipantUserIds.Remove(room.UserId);
+
+            var remainingParticipantUserIds = room.Agents
+                .Where(a => a.IsHumanParticipant)
+                .Select(a => a.UserId)
+                .Where(userId => !string.IsNullOrWhiteSpace(userId))
+                .Cast<string>()
+                .ToHashSet(StringComparer.Ordinal);
+
+            removedParticipantUserIds.ExceptWith(remainingParticipantUserIds);
+
+            if (removedParticipantUserIds.Count > 0)
+            {
+                var membershipsToRemove = await _db.RoomMemberships
+                    .Where(m => m.RoomId == room.Id)
+                    .Where(m => removedParticipantUserIds.Contains(m.UserId))
+                    .Where(m => m.Role == RoomMembershipRoles.Player)
+                    .ToListAsync();
+
+                _db.RoomMemberships.RemoveRange(membershipsToRemove);
+            }
 
             foreach (var agent in room.Agents)
             {
@@ -85,18 +154,25 @@ public sealed class RoomRepository : IRoomRepository
                 }
             }
         }
-
         await _db.SaveChangesAsync();
+        return new RoomUpdateResult(true, room.Id, null);
     }
 
-    public async Task DeleteAsync(string id, string userId)
+    public async Task<RoomDeleteResult> DeleteAsync(string id, string userId)
     {
         var entity = await _db.Rooms.Where(r => r.UserId == userId).Include(r => r.Agents).FirstOrDefaultAsync(r => r.Id == id);
         if (entity is not null)
         {
+            var memberships = await _db.RoomMemberships.Where(m => m.RoomId == id).ToListAsync();
+            if (memberships.Count > 0)
+            {
+                _db.RoomMemberships.RemoveRange(memberships);
+            }
             _db.Rooms.Remove(entity);
             await _db.SaveChangesAsync();
+            return new RoomDeleteResult(true, null, null);
         }
+        return new RoomDeleteResult(false, id, "The room was not found.");
     }
 
     public async Task SeedRoom(string userId)
@@ -108,6 +184,13 @@ public sealed class RoomRepository : IRoomRepository
         var seedRooms = await CreateRoomSeeds(userId);
         var seedRoomEntities = seedRooms.Select(EntityMapper.ToEntity).ToList();
         _db.Rooms.AddRange(seedRoomEntities);
+        _db.RoomMemberships.AddRange(seedRooms.Select(room => new RoomMembershipEntity
+        {
+            RoomId = room.Id,
+            UserId = room.UserId,
+            Role = RoomMembershipRoles.Owner,
+            JoinedAt = DateTimeOffset.UtcNow
+        }));
         await _db.SaveChangesAsync();
     }
 

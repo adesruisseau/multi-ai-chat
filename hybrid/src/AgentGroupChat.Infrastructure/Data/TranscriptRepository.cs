@@ -1,4 +1,5 @@
 using AgentGroupChat.Core.Models.Domain;
+using AgentGroupChat.Core.Realtime;
 using AgentGroupChat.Core.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,14 +21,32 @@ public sealed class TranscriptRepository : ITranscriptRepository
         return entities.Select(EntityMapper.ToDomain).ToList();
     }
 
-    public async Task AppendAsync(TranscriptTurn turn)
+    public async Task<ChatUpdateResult> AppendAsync(TranscriptTurn turn)
     {
-        _db.TranscriptTurns.Add(EntityMapper.ToEntity(turn));
-        await _db.SaveChangesAsync();
+        try
+        {
+            _db.TranscriptTurns.Add(EntityMapper.ToEntity(turn));
+            await _db.SaveChangesAsync();
+
+            return new ChatUpdateResult(true, turn.RoomId, null);
+        }
+        catch (Exception ex)
+        {
+            return new ChatUpdateResult(false, turn.RoomId, "Failed to append new message");
+        }
+    
     }
 
-    public async Task ClearAsync(string roomId)
+    public async Task<ChatUpdateResult> ClearAsync(string roomId)
     {
-        await _db.TranscriptTurns.Where(t => t.RoomId == roomId).ExecuteDeleteAsync();
+        try
+        {
+            await _db.TranscriptTurns.Where(t => t.RoomId == roomId).ExecuteDeleteAsync();
+            return new ChatUpdateResult(true, roomId, null);
+        }
+        catch (Exception ex) 
+        {
+            return new ChatUpdateResult(false, roomId, "Failed to clear log");
+        }
     }
 }

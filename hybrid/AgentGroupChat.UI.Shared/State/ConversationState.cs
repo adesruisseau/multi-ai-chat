@@ -35,7 +35,7 @@ public sealed class ConversationState
         {
             Speaker = speakerName,
             Content = text,
-            IsUser = false,
+            IsUser = true,
             ColorTheme = colorTheme
         });
         SessionTurns.Add(new TranscriptTurn { Speaker = speakerName, Content = text });

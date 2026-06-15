@@ -405,4 +405,22 @@ public static class EntityMapper
         HostUserId = d.HostUserId,
         RoomId = d.RoomId
     };
+
+    public static RoomMembership ToDomain(RoomMembershipEntity e) => new()
+    {
+        Id = e.Id,
+        RoomId = e.RoomId,
+        UserId = e.UserId,
+        Role = e.Role,
+        JoinedAt = e.JoinedAt,
+    };
+
+    public static RoomMembershipEntity ToEntity(RoomMembership d) => new()
+    {
+        Id = d.Id,
+        RoomId = d.RoomId,
+        UserId = d.UserId,
+        Role = d.Role,
+        JoinedAt = d.JoinedAt,
+    };
 }

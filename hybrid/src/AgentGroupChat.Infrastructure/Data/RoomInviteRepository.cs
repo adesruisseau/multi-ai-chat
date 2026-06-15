@@ -1,9 +1,12 @@
-﻿using AgentGroupChat.Core.Models.Domain;
+﻿using AgentGroupChat.Core;
+using AgentGroupChat.Core.Models.Domain;
+using AgentGroupChat.Core.Realtime;
 using AgentGroupChat.Core.Services.Interfaces;
+using AgentGroupChat.Infrastructure.Entities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
 
 namespace AgentGroupChat.Infrastructure.Data
@@ -18,17 +21,22 @@ namespace AgentGroupChat.Infrastructure.Data
             _db.RoomInvites.Add(EntityMapper.ToEntity(roomInvite));
             await _db.SaveChangesAsync();
         }
-        public async Task<bool> RedeemAsync(Guid id, string userId, string username)
+        public async Task<RoomInviteRedemptionResult> RedeemAsync(Guid id, string userId, string username)
         {
             var inviteEntity = await _db.RoomInvites
-                .Where(x => x.RedeemedByUserId == null)
-                .Where(x => x.RedeemedDate == null)
                 .Where(x => x.Id == id)
-                .Where(x => x.HostUserId != userId)
                 .FirstOrDefaultAsync();
             if (inviteEntity is null)
             {
-                return false;
+                return new RoomInviteRedemptionResult(false, null, "Redemption key was invalid.");
+            }
+            else if (inviteEntity.RedeemedByUserId != null || inviteEntity.RedeemedDate != null)
+            {
+                return new RoomInviteRedemptionResult(false, inviteEntity.RoomId.ToString(), "Key has already been redeemed.");
+            }
+            else if (inviteEntity.HostUserId == userId)
+            {
+                return new RoomInviteRedemptionResult(false, inviteEntity.RoomId.ToString(), "Hosts cannot redeem an invite to their own room.");
             }
             else
             {
@@ -44,26 +52,43 @@ namespace AgentGroupChat.Infrastructure.Data
                     
                     if (currRoom is null)
                     {
-                        return false;
+                        return new RoomInviteRedemptionResult(false, invite.RoomId, "The room was not found. Please try again with a new key.");
                     }
-                    int sortOrder = currRoom.Agents.Select(x => x.SortOrder).Max() + 1;
-                    AgentConfig agentToAdd = new AgentConfig()
+
+                    var membershipExists = await _db.RoomMemberships.AnyAsync(x => x.RoomId == updatedInviteEntity.RoomId && x.UserId == userId);
+                    if (!membershipExists)
                     {
-                        RoomId = updatedInviteEntity.RoomId,
-                        Name = username,
-                        SortOrder = sortOrder,
-                        IsHumanParticipant = true,
-                        UserId = userId
-                    };
-                    await _db.AddAsync(EntityMapper.ToEntity(agentToAdd));
+                        await _db.RoomMemberships.AddAsync(new RoomMembershipEntity
+                        {
+                            RoomId = updatedInviteEntity.RoomId,
+                            UserId = userId,
+                            Role = RoomMembershipRoles.Player,
+                            JoinedAt = DateTimeOffset.UtcNow
+                        });
+                    }
+
+                    var existingSeat = currRoom.Agents.FirstOrDefault(x => x.UserId == userId && x.IsHumanParticipant);
+                    if (existingSeat is null)
+                    {
+                        var sortOrder = currRoom.Agents.Count == 0 ? 0 : currRoom.Agents.Max(x => x.SortOrder) + 1;
+                        AgentConfig agentToAdd = new AgentConfig()
+                        {
+                            RoomId = updatedInviteEntity.RoomId,
+                            Name = username,
+                            SortOrder = sortOrder,
+                            IsHumanParticipant = true,
+                            UserId = userId
+                        };
+                        await _db.AddAsync(EntityMapper.ToEntity(agentToAdd));
+                    }
 
                     await _db.SaveChangesAsync();
 
-                    return true;
+                    return new RoomInviteRedemptionResult(true, invite.RoomId, null);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    return false;
+                    return new RoomInviteRedemptionResult(false, null, null);
                 }
             }
             
@@ -87,7 +112,13 @@ namespace AgentGroupChat.Infrastructure.Data
 
         public async Task<List<RoomInvite>> ListAsync(string userId, string roomId)
         {
-            var inviteEntities = await _db.RoomInvites.Where(x => x.HostUserId == userId && x.RoomId == roomId).ToListAsync();
+            var now = DateTime.Now;
+            var inviteEntities = await _db.RoomInvites
+                .Where(x => x.HostUserId == userId && x.RoomId == roomId)
+                .Where(x => x.RedeemedByUserId == null)
+                
+                .Where(x => x.RedeemedDate == null)
+                .ToListAsync();
             return inviteEntities.Select(EntityMapper.ToDomain).ToList();
         }
     }

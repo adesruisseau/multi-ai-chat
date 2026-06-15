@@ -1,3 +1,5 @@
+using AgentGroupChat.BlazorServer.Realtime;
+using AgentGroupChat.Core.Realtime;
 using AgentGroupChat.Core.Services;
 using AgentGroupChat.Core.Services.Interfaces;
 using AgentGroupChat.Infrastructure.Data;
@@ -47,6 +49,10 @@ builder.Services.AddScoped<IRoomInviteRepository, RoomInviteRepository>();
 //builder.Services.AddScoped<DataMigrator>();
 
 // Core services
+builder.Services.AddSingleton<IRoomLiveUpdateNotifier, RoomLiveUpdateBroker>();
+builder.Services.AddScoped<RoomRealtimeService>();
+builder.Services.AddSingleton<IChatLiveUpdateNotifier, ChatLiveUpdateBroker>();
+builder.Services.AddScoped<ChatRealtimeService>();
 builder.Services.AddSingleton<HttpClient>();
 builder.Services.AddSingleton<LlmClient>();
 builder.Services.AddSingleton<ImageClient>();
@@ -59,6 +65,7 @@ builder.Services.AddScoped<MemorySummarizer>();
 builder.Services.AddScoped<ConversationRunner>();
 builder.Services.AddScoped<SceneRetrievalService>();
 builder.Services.AddScoped<LogService>();
+builder.Services.AddScoped<RoomTurnPolicyService>();
 
 // State
 builder.Services.AddScoped<AppState>();

@@ -34,14 +34,14 @@
 
                     <MudDivider Class="mb-3" />
 
-                    <MudText Typo="Typo.subtitle1" Class="mb-2">Starter Samples (@StarterSamples.Count)</MudText>
-                    @if (StarterSamples.Count == 0)
+                    <MudText Typo="Typo.subtitle1" Class="mb-2">Starter Samples (@StarterSamples.Count() - 1)</MudText>
+                    @if (StarterSamples.Count == 1)
                     {
                         <MudText Typo="Typo.caption" Class="mb-3">No starter prompts matched the current filter.</MudText>
                     }
                     else
                     {
-                        @foreach (var sample in StarterSamples)
+                        @foreach (var sample in StarterSamples.Where(x => x.Name != "None"))
                         {
                             <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true" Style="cursor:pointer;"
                                       @onclick="() => SelectSample(sample.Id)">
@@ -63,7 +63,7 @@
                     <MudDivider Class="my-3" />
 
                     <MudText Typo="Typo.subtitle1" Class="mb-2">Saved Prompts (@SavedSamples.Count)</MudText>
-                    @if (SavedSamples.Count == 0)
+                    @if (SavedSamples.Count == 1)
                     {
                         <MudText Typo="Typo.caption">No saved prompts yet.</MudText>
                     }
@@ -182,8 +182,8 @@
         if (RoomState.Rooms.Count == 0)
             await RoomState.LoadAsync();
 
-        if (PromptLibraryState.Samples.Count > 0)
-            SelectSample(PromptLibraryState.Samples[0].Id);
+        if (PromptLibraryState.Samples.Count > 1)
+            SelectSample(PromptLibraryState.Samples[1].Id);
     }
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);

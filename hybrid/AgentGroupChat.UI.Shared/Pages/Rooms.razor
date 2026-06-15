@@ -7,9 +7,11 @@
 @using System.Security.Claims
 @using AgentGroupChat.Core.Services
 @using Microsoft.AspNetCore.Components.Authorization
+@using AgentGroupChat.Core.Realtime
 @inject AuthenticationStateProvider AuthStateProvider
+@inject AgentGroupChat.Core.Realtime.IRoomLiveUpdateNotifier RoomLiveUpdates
 
-@implements IDisposable
+@implements IDisposable //Future move to IAsyncDisposable?? TODO research
 @attribute [Authorize]
 
 <MudGrid Justify="Justify.Center">    
@@ -195,6 +197,7 @@
     private bool isNotRoomOwner = false;
     public string accessingUserId = "";
     public ClaimsPrincipal user;
+    private IDisposable? _roomLiveSubscription;
 
     protected override async Task OnInitializedAsync()
     {
@@ -208,6 +211,8 @@
         user = state.User;
         accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
+
+        SubscribeToRoomLiveUpdates(RoomState.SelectedRoom?.Id);
     }
 
     private void UpdateSelectedRoom()
@@ -217,10 +222,55 @@
         StateHasChanged();
     }
 
+    private void SubscribeToRoomLiveUpdates(string? roomId)
+    {
+        _roomLiveSubscription?.Dispose();
+        _roomLiveSubscription = null;
+
+        if (string.IsNullOrWhiteSpace(roomId))
+            return;
+
+        _roomLiveSubscription = RoomLiveUpdates.Subscribe(roomId, HandleRoomLiveUpdateAsync);
+    }
+
+    private Task HandleRoomLiveUpdateAsync(RoomLiveEvent update)
+    {
+        return InvokeAsync(async () =>
+        {
+            switch (update.Kind)
+            {
+                case RoomLiveEventKinds.RosterChanged:
+                case RoomLiveEventKinds.RoomUpdated:
+                case RoomLiveEventKinds.RoomDeleted:
+                    {
+                        var selectedRoomId = RoomState.SelectedRoom?.Id;
+
+                        await RoomState.LoadAsync();
+
+                        if (!string.IsNullOrWhiteSpace(selectedRoomId))
+                        {
+                            var selectedRoom = RoomState.Rooms.FirstOrDefault(r => r.Id == selectedRoomId);
+                            if (selectedRoom is not null)
+                            {
+                                _selectedRoomId = selectedRoom.Id;
+                                RoomState.SelectRoom(selectedRoom);
+                            }
+                        }
+                        StateHasChanged();
+                        break;
+                    }
+                default:
+                    break;
+            }
+            
+        });
+    }
+
     private async Task SelectRoomAsync(RoomConfig room)
     {
         _selectedRoomId = room.Id;
         RoomState.SelectRoom(room);
+        SubscribeToRoomLiveUpdates(room.Id);
         await RefreshKokoroVoicesAsync();
     }
 
@@ -264,21 +314,37 @@
     private async Task RedeemInvite()
     {
         try {
-            var success = await RoomInviteState.RedeemAsync(new Guid(redeemCode));
-            if (success)
+            var result = await RoomInviteState.RedeemAsync(new Guid(redeemCode));
+            if (result.Succeeded)
             {
+                await RoomState.LoadAsync();
+
+                var redeemedRoom = RoomState.Rooms.FirstOrDefault(r => r.Id == result.RoomId);
+                if (redeemedRoom is not null)
+                {
+                    _selectedRoomId = redeemedRoom.Id;
+                    RoomState.SelectRoom(redeemedRoom);
+                    SubscribeToRoomLiveUpdates(redeemedRoom.Id);
+                }
+
                 Snackbar.Add("Invite redeemed!", Severity.Success);
                 redeemCode = string.Empty;
             }
             else
             {
-                Snackbar.Add("Failed to redeem invite. Please check the code and try again.", Severity.Error);
+                Snackbar.Add(
+    string.IsNullOrWhiteSpace(result.FailureReason)
+        ? "Failed to redeem invite. Please check the code and try again."
+        : result.FailureReason,
+    Severity.Error);
             }
         }
         catch
         {
             Snackbar.Add("Failed to redeem invite. Please check the code and try again.", Severity.Error);
         }
+        await RoomState.LoadAsync();
+        StateHasChanged();
     }
 
     private async Task RefreshKokoroVoicesAsync()
@@ -326,7 +392,8 @@
 
     public void Dispose()
     {
-        RoomState.OnChange -= StateHasChanged;
+        RoomState.OnChange -= UpdateSelectedRoom;
+        _roomLiveSubscription?.Dispose();
     }
 
     private async Task AddDataTrackingPoint()

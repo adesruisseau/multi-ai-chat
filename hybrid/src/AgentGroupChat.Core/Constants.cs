@@ -56,6 +56,12 @@ public static class ActorKinds
     public const string AiAgent = "AiAgent";
 }
 
+public static class RoomMembershipRoles
+{
+    public const string Owner = "Owner";
+    public const string Player = "Player";
+}
+
 public static class SpeakerNames
 {
     public const string DefaultHuman = "Narrator";

@@ -1,4 +1,5 @@
 ﻿using AgentGroupChat.Core.Models.Domain;
+using AgentGroupChat.Core.Realtime;
 using AgentGroupChat.Core.Services.Interfaces;
 using AgentGroupChat.Infrastructure.Identity;
 using System;
@@ -11,15 +12,21 @@ namespace AgentGroupChat.UI.Shared.State
     {
         private readonly IRoomInviteRepository _inviteRepo;
         private readonly IUserContext _userContext;
+        private readonly RoomRealtimeService __roomRealtimeService;
+
 
         public List<RoomInvite> RoomInvites { get; private set; } = new();
         public bool IsLoaded { get; private set;  }
         public event Action? OnChange;
 
-        public RoomInviteState(IRoomInviteRepository inviteRepo, IUserContext userContext)
+        public RoomInviteState(
+            IRoomInviteRepository inviteRepo,
+            IUserContext userContext,
+            RoomRealtimeService roomRealtimeService)
         {
             _inviteRepo = inviteRepo;
             _userContext = userContext;
+            __roomRealtimeService = roomRealtimeService;
         }
 
         public async Task LoadAsync(string roomId)
@@ -37,18 +44,19 @@ namespace AgentGroupChat.UI.Shared.State
             {
                 HostUserId = userId,
                 RoomId = roomId,
-                CreatedDate = DateTimeOffset.UtcNow
+                CreatedDate = DateTimeOffset.UtcNow,
+                ExpirationDate = DateTimeOffset.UtcNow.AddDays(1)
             };
             await _inviteRepo.CreateAsync(invite);
 
             await LoadAsync(invite.RoomId);
         }
 
-        public async Task<bool> RedeemAsync(Guid id)
+        public async Task<RoomInviteRedemptionResult> RedeemAsync(Guid id)
         {
             var userId = await _userContext.GetRequiredUserIdAsync();
 
-            return await _inviteRepo.RedeemAsync(id, userId, _userContext.UserName ?? "New Player");
+            return await __roomRealtimeService.RedeemAsync(id, userId, _userContext.UserName ?? "New Player");
         }
 
         public async Task RevokeAsync(Guid id, string roomId)

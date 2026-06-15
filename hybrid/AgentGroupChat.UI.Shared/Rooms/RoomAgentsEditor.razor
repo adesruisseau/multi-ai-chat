@@ -123,45 +123,51 @@
             </MudItem>
             @if (!agent.IsHumanParticipant)
             {
-                <MudItem xs="12" md="4">
-                    <MudSelect @bind-Value="agent.ModelId" Label="Model" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)">
-                        @foreach (var model in Models)
-                        {
-                            <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12">
-                    <MudTextField @bind-Value="agent.SystemPrompt" Label="System Prompt" Lines="12" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)" />
-                </MudItem>
-                <MudItem xs="12">
-                    <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true">
-                        <MudText Typo="Typo.subtitle2" Class="mb-2">Prompt Library</MudText>
-                        @if (OrderedPromptSamples.Count == 0)
-                        {
-                            <MudAlert Severity="Severity.Info" Dense="true">
-                                No prompt samples are available yet.
-                            </MudAlert>
-                        }
-                        else
-                        {
-                            <MudGrid>
-                                <MudItem xs="12" md="7">
-                                    <MudSelect T="int" @bind-Value="agent.PromptSampleId" Label="Library Prompt" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)">
-
-                                        @foreach (var sample in OrderedPromptSamples)
+                            @if (!isNotRoomOwner)
+                            {
+                                <MudItem xs="12" md="4">
+                                    <MudSelect @bind-Value="agent.ModelId" Label="Model" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)">
+                                        @foreach (var model in Models)
                                         {
-                                            <MudSelectItem T="int" Value="@sample.Id">
-                                                @sample.Name
-                                            </MudSelectItem>
+                                            <MudSelectItem T="string" Value="@model.Id">@model.Name</MudSelectItem>
                                         }
                                     </MudSelect>
                                 </MudItem>
-                            </MudGrid>
+                            }
+                            <MudItem xs="12">
+                                <MudTextField @bind-Value="agent.SystemPrompt" Label="System Prompt" Lines="12" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)" />
+                            </MudItem>
+                            @if (!isNotRoomOwner)
+                            {
+                                <MudItem xs="12">
+                                    <MudPaper Class="pa-3 mb-2" Elevation="0" Outlined="true">
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2">Prompt Library</MudText>
+                                        @if (OrderedPromptSamples.Count == 0)
+                                        {
+                                            <MudAlert Severity="Severity.Info" Dense="true">
+                                                No prompt samples are available yet.
+                                            </MudAlert>
+                                        }
+                                        else
+                                        {
+                                            <MudGrid>
+                                                <MudItem xs="12" md="7">
+                                                    <MudSelect T="int" @bind-Value="agent.PromptSampleId" Label="Library Prompt" Disabled="@(isNotRoomOwner && agent.UserId != accessingUserId)">
+
+                                                        @foreach (var sample in OrderedPromptSamples)
+                                                        {
+                                                            <MudSelectItem T="int" Value="@sample.Id">
+                                                                @sample.Name
+                                                            </MudSelectItem>
+                                                        }
+                                                    </MudSelect>
+                                                </MudItem>
+                                            </MudGrid>
+                                        }
+                                    </MudPaper>
+                                </MudItem>
+                            }
                         }
-                    </MudPaper>
-                </MudItem>
-            }
             @if (Room.EnableSceneImageGeneration && Room.UseCreativeImageGeneration)
             {
                     <MudItem xs="12">
@@ -274,11 +280,7 @@
     {
         if (!PromptLibraryState.IsLoaded)
             await PromptLibraryState.LoadAsync();
-
-        if (!RoomInviteState.IsLoaded)
-            await RoomInviteState.LoadAsync(Room.Id);
-
-        RoomState.OnChange += UpdateSelectedRoom;
+        await RoomInviteState.LoadAsync(Room.Id);
 
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         user = state.User;
@@ -286,12 +288,20 @@
         isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
     }
 
-    private void UpdateSelectedRoom()
+    private string? _loadedInviteRoomId;
+
+    protected override async Task OnParametersSetAsync()
     {
-        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
-        StateHasChanged();
+        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        isNotRoomOwner = Room.UserId != accessingUserId;
+
+        if (!isNotRoomOwner && !string.Equals(_loadedInviteRoomId, Room.Id, StringComparison.Ordinal))
+        {
+            _loadedInviteRoomId = Room.Id;
+            await RoomInviteState.LoadAsync(Room.Id);
+        }
     }
+
 
     protected override void OnParametersSet()
     {
@@ -310,6 +320,7 @@
             Name = isHumanParticipant ? $"Player {Room.Agents.Where(x => x.IsHumanParticipant).Count() + 1}" : $"Agent {Room.Agents.Where(x => !x.IsHumanParticipant).Count() + 1}",
             SortOrder = Room.Agents.Count,
             IsHumanParticipant = isHumanParticipant,
+            UserId = isHumanParticipant ? accessingUserId : null,
             UseShortTermMemoryStorage = !isHumanParticipant,
             UseLongTermMemoryStorage = !isHumanParticipant,
             ColorTheme = randomColor.Name

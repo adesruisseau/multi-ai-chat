@@ -1,7 +1,7 @@
 using AgentGroupChat.Core.Models.Domain;
 using AgentGroupChat.Core.Models.Llm;
+using AgentGroupChat.Core.Realtime;
 using AgentGroupChat.Core.Services.Interfaces;
-using NAudio.MediaFoundation;
 using System.Text.RegularExpressions;
 using static AgentGroupChat.Core.ChatPlaceholders;
 using static AgentGroupChat.Core.XmlTags;
@@ -20,6 +20,8 @@ public sealed partial class ConversationRunner
     private readonly IPromptSampleRepository _promptSampleRepository;
     private readonly SceneRetrievalService _sceneRetrievalService;
     private readonly SpeechService _speechService;
+    private readonly RoomTurnPolicyService _turnPolicyService;
+    private readonly ChatRealtimeService _chatService;
     
 
 
@@ -48,7 +50,9 @@ public sealed partial class ConversationRunner
         ISettingsRepository settingsRepo,
         IPromptSampleRepository promptSampleRepository,
         SceneRetrievalService sceneRetrievalService,
-        SpeechService speechService)
+        SpeechService speechService,
+        RoomTurnPolicyService turnPolicyService,
+        ChatRealtimeService chatService)
     {
         _promptComposer = promptComposer;
         _turnExecutor = turnExecutor;
@@ -60,6 +64,8 @@ public sealed partial class ConversationRunner
         _promptSampleRepository = promptSampleRepository;
         _sceneRetrievalService = sceneRetrievalService;
         _speechService = speechService;
+        _turnPolicyService = turnPolicyService;
+        _chatService = chatService;
     }
 
     public event Action<string>? OnSystemMessage;
@@ -76,21 +82,23 @@ public sealed partial class ConversationRunner
     public Func<AgentConfig, string, CancellationToken, Task>? OnSpeechGate { get; set; }
 
     private bool SummarizerWellConfigured = false;
-    public async Task RunAsync(
+    public async Task<int> RunAsync(
         RoomConfig room,
-        Func<AgentConfig, LlmRequestSettings> settingsResolver,
-        LlmRequestSettings? baseSummarizerSettings,
         int maxIterations,
         int completedRounds,
-        CancellationToken ct,
-        int startFromAgentIndex = 0)
+        CancellationToken ct)
     {
-        await AutoResumeExpiredSuspensionsAsync(room, completedRounds + 1);
-        var appSettings = await _settingsRepo.GetAsync(GetRequiredUserId(room));
+        SummarizerWellConfigured = false;
+        var roomOwnerUserId = GetRequiredUserId(room);
 
-        var enabledAgents = GetActiveAgents(room);
-        if (enabledAgents.Count == 0)
-            throw new InvalidOperationException("Enable at least one agent before running.");
+        await AutoResumeExpiredSuspensionsAsync(room, completedRounds + 1);
+        var appSettings = await _settingsRepo.GetAsync(roomOwnerUserId);
+        var modelCatalog = await LoadModelCatalogAsync(roomOwnerUserId);
+        var baseSummarizerSettings = ResolveSummarizerSettings(room, modelCatalog);
+
+        var enabledAiAgents = GetActiveAiAgents(room);
+        if (enabledAiAgents.Count == 0)
+            throw new InvalidOperationException("Enable at least one AI agent before running.");
 
         var sessionTurns = await _transcriptRepo.GetAsync(room.Id);
         var userMemoryRefreshed = false;
@@ -102,38 +110,59 @@ public sealed partial class ConversationRunner
             }
             else
             {
-                SummarizerWellConfigured = true; //checked once and now we know their summarizer should be set up correctly.
+                SummarizerWellConfigured = true;
                 userMemoryRefreshed = await TryRefreshMemoryFromPendingUserTurnsAsync(
-                    room, baseSummarizerSettings, enabledAgents, sessionTurns,
-                    startFromAgentIndex, ct);
+                    room, baseSummarizerSettings, enabledAiAgents, sessionTurns, ct);
             }
         }
+
+        var completedRoundsThisRun = 0;
         for (var iteration = 1; iteration <= maxIterations; iteration++)
         {
-            var roundNumber = completedRounds + iteration;
+            var roundNumber = completedRounds + completedRoundsThisRun + 1;
             await AutoResumeExpiredSuspensionsAsync(room, roundNumber);
 
-            enabledAgents = GetActiveAgents(room);
-            if (enabledAgents.Count == 0)
-                throw new InvalidOperationException("No active agents are available for this round.");
+            var activeParticipants = RoomTurnPolicyService.GetOrderedParticipants(room);
+            enabledAiAgents = activeParticipants.Where(agent => !agent.IsHumanParticipant).ToList();
+            if (enabledAiAgents.Count == 0)
+                throw new InvalidOperationException("No active AI agents are available for this round.");
 
-            var agentStart = (iteration == 1)
-                ? Math.Clamp(startFromAgentIndex, 0, Math.Max(0, enabledAgents.Count - 1))
-                : 0;
-            OnSystemMessage?.Invoke(agentStart > 0
-                ? $"Resuming round {iteration} of {maxIterations} from agent {agentStart + 1}."
+            var nextParticipant = iteration == 1
+                ? RoomTurnPolicyService.GetNextParticipant(room, sessionTurns)
+                : activeParticipants.FirstOrDefault();
+            if (nextParticipant is null)
+                return completedRoundsThisRun;
+
+            if (nextParticipant.IsHumanParticipant)
+            {
+                OnSystemMessage?.Invoke($"Waiting for {nextParticipant.Name} to reply.");
+                OnStatusChanged?.Invoke("Waiting for player");
+                return completedRoundsThisRun;
+            }
+
+            var participantStart = activeParticipants.FindIndex(agent => agent.Id == nextParticipant.Id);
+            if (participantStart < 0)
+            {
+                participantStart = 0;
+            }
+
+            OnSystemMessage?.Invoke(participantStart > 0
+                ? $"Resuming round {iteration} of {maxIterations} from {nextParticipant.Name}."
                 : $"Round {iteration} of {maxIterations}.");
             var roundAnchor = sessionTurns.Count;
 
             IReadOnlyList<SceneArchive>? roundRecalledScenes = null;
-            if (room.StoreLongTermArchives)
+            if (room.StoreLongTermArchives && baseSummarizerSettings is not null)
             {
                 try
                 {
                     var retrievalMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
-                    var retrievalTurns = sessionTurns.Where(x => !x.Speaker.Trim().Equals("Image", StringComparison.OrdinalIgnoreCase)).TakeLast(Math.Max(room.RecentTurnsWindow, 3)).ToList();
+                    var retrievalTurns = sessionTurns
+                        .Where(x => !x.Speaker.Trim().Equals("Image", StringComparison.OrdinalIgnoreCase))
+                        .TakeLast(Math.Max(room.RecentTurnsWindow, 3))
+                        .ToList();
                     roundRecalledScenes = await _sceneRetrievalService.RetrieveAsync(
-                        room, baseSummarizerSettings, retrievalMemory ?? "", retrievalTurns,
+                        room, baseSummarizerSettings, retrievalMemory ?? string.Empty, retrievalTurns,
                         maxRecall: 2, s => OnLog?.Invoke(s), ct);
                 }
                 catch (OperationCanceledException) { throw; }
@@ -146,11 +175,19 @@ public sealed partial class ConversationRunner
             var pendingActions = new List<RequestedPrivilegedAction>();
             Task<(string Response, string ShortTermMemory, string LongTermMemory, string PrivilegedActions, LlmCompletionResult RawResult)>? prefetchTask = null;
             Task? endOfRoundWork = null;
-            for (var agentIndex = agentStart; agentIndex < enabledAgents.Count; agentIndex++)
+
+            for (var participantIndex = participantStart; participantIndex < activeParticipants.Count; participantIndex++)
             {
                 ct.ThrowIfCancellationRequested();
 
-                var agent = enabledAgents[agentIndex];
+                var agent = activeParticipants[participantIndex];
+                if (agent.IsHumanParticipant)
+                {
+                    OnSystemMessage?.Invoke($"Waiting for {agent.Name} to reply.");
+                    OnStatusChanged?.Invoke("Waiting for player");
+                    return completedRoundsThisRun;
+                }
+
                 string response;
                 string shortTermMemory;
                 string longTermMemory;
@@ -159,35 +196,31 @@ public sealed partial class ConversationRunner
 
                 if (prefetchTask is not null)
                 {
-                    // Use the prefetched result — "Thinking..." was already shown
                     try
                     {
                         (response, shortTermMemory, longTermMemory, privilegedActions, rawResult) = await prefetchTask;
                     }
                     catch
                     {
-                        // Prefetch failed (e.g. rate limit) — retry normally
                         prefetchTask = null;
                         OnStatusChanged?.Invoke($"{agent.Name} thinking");
                         (response, shortTermMemory, longTermMemory, privilegedActions, rawResult) = await ExecuteAgentTurnInternalAsync(
-                            room, agent, settingsResolver, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
+                            room, agent, modelCatalog, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
                     }
                     prefetchTask = null;
                 }
                 else
                 {
-                    // No prefetch available — execute normally
                     OnStatusChanged?.Invoke($"{agent.Name} thinking");
                     OnAgentMessageStarted?.Invoke(agent, Thinking);
 
                     (response, shortTermMemory, longTermMemory, privilegedActions, rawResult) = await ExecuteAgentTurnInternalAsync(
-                        room, agent, settingsResolver, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
+                        room, agent, modelCatalog, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
                 }
 
                 if (!string.IsNullOrWhiteSpace(privilegedActions))
                     pendingActions.AddRange(ParsePrivilegedActions(room, agent, privilegedActions));
 
-                // Persist transcript
                 var turn = new TranscriptTurn
                 {
                     RoomId = room.Id,
@@ -196,7 +229,8 @@ public sealed partial class ConversationRunner
                     Content = response,
                     ColorTheme = agent.ColorTheme
                 };
-                await _transcriptRepo.AppendAsync(turn);
+                await _chatService.UpdateAsync(turn);
+                //await _transcriptRepo.AppendAsync(turn);
                 sessionTurns.Add(turn);
                 await UpdateAgentShortMemoryAsync(room, agent, shortTermMemory);
                 await UpdateAgentLongMemoryAsync(room, agent, longTermMemory);
@@ -208,30 +242,24 @@ public sealed partial class ConversationRunner
                 var shouldSpeak = currentSpeechGate is not null || RoomSpeechResolver.IsSpeechEnabled(room, appSettings);
                 Task? speechTask = null;
 
-                // Speech gate with lookahead prefetch for the next agent
                 if (shouldSpeak)
                 {
                     OnStatusChanged?.Invoke($"{agent.Name} speaking");
-
-                    // Start speech (will run concurrently with prefetch below)
                     speechTask = currentSpeechGate is not null
                         ? currentSpeechGate(agent, response, ct)
                         : SpeakWithRoomSettingsAsync(room, agent, response, appSettings, ct);
 
-                    // While this agent speaks, fire the next agent's API call
-                    // Skip prefetch if PauseAfterEveryReply is on (user wants to interject)
-                    if (agentIndex + 1 < enabledAgents.Count && !room.PauseAfterEveryReply)
+                    var nextParticipantInOrder = participantIndex + 1 < activeParticipants.Count
+                        ? activeParticipants[participantIndex + 1]
+                        : null;
+                    if (nextParticipantInOrder is not null && !nextParticipantInOrder.IsHumanParticipant && !room.PauseAfterEveryReply)
                     {
-                        var nextAgent = enabledAgents[agentIndex + 1];
-                        if (!nextAgent.IsHumanParticipant)
-                        {
-                            OnAgentMessageStarted?.Invoke(nextAgent, Thinking);
-                            OnStatusChanged?.Invoke($"{nextAgent.Name} thinking");
-                        }
+                        OnAgentMessageStarted?.Invoke(nextParticipantInOrder, Thinking);
+                        OnStatusChanged?.Invoke($"{nextParticipantInOrder.Name} thinking");
                         try
                         {
                             prefetchTask = ExecuteAgentTurnInternalAsync(
-                                room, nextAgent, settingsResolver, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
+                                room, nextParticipantInOrder, modelCatalog, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
                         }
                         catch
                         {
@@ -240,17 +268,14 @@ public sealed partial class ConversationRunner
                     }
                 }
 
-                if (agentIndex == enabledAgents.Count - 1)
+                var isLastAiInRound = !activeParticipants.Skip(participantIndex + 1).Any(participant => !participant.IsHumanParticipant);
+                if (isLastAiInRound && SummarizerWellConfigured && baseSummarizerSettings is not null)
                 {
-                    if (SummarizerWellConfigured)
-                    {
-                        endOfRoundWork = RefreshRoundMemoryAsync(room, baseSummarizerSettings, completedRounds, sessionTurns, userMemoryRefreshed, iteration, roundNumber, roundAnchor, agent, ct);
-                    }
+                    endOfRoundWork = RefreshRoundMemoryAsync(room, baseSummarizerSettings, completedRounds + completedRoundsThisRun, sessionTurns, userMemoryRefreshed, iteration, roundNumber, roundAnchor, agent, ct);
                 }
 
                 if (speechTask is not null)
                 {
-                    // Wait for speech to finish before showing the next agent's result
                     await speechTask;
                 }
 
@@ -266,30 +291,42 @@ public sealed partial class ConversationRunner
                     }
                 }
 
-                // PauseAfterEveryReply: pause after each agent, let user interject
-                if (room.PauseAfterEveryReply && agentIndex < enabledAgents.Count - 1)
+                var nextParticipantAfterAgent = participantIndex + 1 < activeParticipants.Count
+                    ? activeParticipants[participantIndex + 1]
+                    : null;
+                if (nextParticipantAfterAgent?.IsHumanParticipant == true)
+                {
+                    OnSystemMessage?.Invoke($"Waiting for {nextParticipantAfterAgent.Name} to reply.");
+                    OnStatusChanged?.Invoke("Waiting for player");
+                    return completedRoundsThisRun;
+                }
+
+                if (room.PauseAfterEveryReply && nextParticipantAfterAgent is not null)
                 {
                     OnSystemMessage?.Invoke("Agent replied. Add a message or click Continue.");
-                    OnStatusChanged?.Invoke("Waiting for you");
-                    return;
+                    OnStatusChanged?.Invoke(room.WaitForUserReply ? "Waiting for room host" : "Waiting to continue");
+                    return completedRoundsThisRun;
                 }
-                
-                else if (room.AgentDelaySeconds > 0 && speechTask is null)
+
+                if (room.AgentDelaySeconds > 0 && speechTask is null)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(room.AgentDelaySeconds), ct);
                 }
             }
 
+            completedRoundsThisRun++;
+
             if (room.WaitForUserReply)
             {
-                OnSystemMessage?.Invoke("Round complete. Add a user reply or click Continue.");
-                OnStatusChanged?.Invoke("Waiting for you");
-                return;
+                OnSystemMessage?.Invoke("Round complete. Click Continue when ready.");
+                OnStatusChanged?.Invoke("Waiting for room host");
+                return completedRoundsThisRun;
             }
         }
 
         OnSystemMessage?.Invoke("Run complete.");
         OnStatusChanged?.Invoke("Complete");
+        return completedRoundsThisRun;
     }
 
     private static string GetRequiredUserId(RoomConfig room)
@@ -336,10 +373,9 @@ public sealed partial class ConversationRunner
         LlmRequestSettings baseSummarizerSettings,
         IReadOnlyList<AgentConfig> enabledAgents,
         IReadOnlyList<TranscriptTurn> sessionTurns,
-        int startFromAgentIndex,
         CancellationToken ct)
     {
-        if (startFromAgentIndex != 0 || sessionTurns.Count == 0)
+        if (sessionTurns.Count == 0)
             return false;
 
         var agentNames = new HashSet<string>(
@@ -373,14 +409,14 @@ public sealed partial class ConversationRunner
     private async Task<(string Response, string ShortTermMemory, string LongTermMemory, string PrivilegedActions, LlmCompletionResult RawResult)> ExecuteAgentTurnInternalAsync(
         RoomConfig room,
         AgentConfig agent,
-        Func<AgentConfig, LlmRequestSettings> settingsResolver,
+        ModelCatalog modelCatalog,
         List<TranscriptTurn> sessionTurns,
         int iteration,
         int maxIterations,
         CancellationToken ct,
         IReadOnlyList<SceneArchive>? roundRecalledScenes = null)
     {
-        var enabledAgents = GetActiveAgents(room);
+        var enabledAgents = GetActiveAiAgents(room);
         var agentIndex = enabledAgents.FindIndex(a => a.Id == agent.Id);
         var includeDurableMemory = agentIndex == enabledAgents.Count - 1;
         var sharedRoomMemory = await _memoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
@@ -404,7 +440,7 @@ public sealed partial class ConversationRunner
             room, agent, promptText, iteration, maxIterations,
             sharedRoomMemory, durableMemory, agentLongMemory, agentShortMemory,
             recentTurns, includeDurableMemory, agentRecalledScenes);
-        var agentSettings = settingsResolver(agent);
+        var agentSettings = ResolveAgentSettings(modelCatalog, agent);
 
         return await _turnExecutor.ExecuteAgentTurnAsync(room.Id, agent, agentSettings, prompt, IsPrivilegedAgent(room, agent), ct);
     }
@@ -521,11 +557,74 @@ public sealed partial class ConversationRunner
         OnLog?.Invoke($"Updated {agent.Name} long memory ({sanitizedLongMemory.Length} chars).");
     }
 
-    private static List<AgentConfig> GetActiveAgents(RoomConfig room) =>
-        room.Agents
-            .Where(a => a.IsEnabled && !a.IsTemporarilySuspended)
-            .OrderBy(a => a.SortOrder)
+    private static List<AgentConfig> GetActiveAiAgents(RoomConfig room) =>
+        RoomTurnPolicyService.GetOrderedParticipants(room)
+            .Where(agent => !agent.IsHumanParticipant)
             .ToList();
+
+    private async Task<ModelCatalog> LoadModelCatalogAsync(string userId)
+    {
+        var connections = await _settingsRepo.GetConnectionsAsync(userId);
+        var models = await _settingsRepo.GetModelsAsync(userId);
+        return new ModelCatalog(connections, models);
+    }
+
+    private static LlmRequestSettings ResolveAgentSettings(ModelCatalog modelCatalog, AgentConfig agent)
+    {
+        var modelId = agent.ModelId;
+        var catalogEntry = modelCatalog.Models.FirstOrDefault(model => model.Id == modelId)
+            ?? modelCatalog.Models.FirstOrDefault(model => string.Equals(model.Name, modelId, StringComparison.OrdinalIgnoreCase));
+        if (catalogEntry is null)
+            throw new InvalidOperationException($"Model '{modelId}' not found in the room owner's catalog.");
+
+        var connection = modelCatalog.Connections.FirstOrDefault(candidate => candidate.Id == catalogEntry.ConnectionId);
+        if (connection is null)
+            throw new InvalidOperationException($"Connection '{catalogEntry.ConnectionId}' not found for model '{catalogEntry.Name}'.");
+
+        var provider = LlmProviderMapping.FromTransport(connection.Transport);
+        var maxCompletionTokens = agent.MaxTokensOverride ?? catalogEntry.MaxTokens;
+
+        return new LlmRequestSettings(
+            provider,
+            connection.Endpoint,
+            catalogEntry.ModelId,
+            connection.ApiKey,
+            catalogEntry.Temperature,
+            maxCompletionTokens,
+            connection.Transport,
+            connection.Name);
+    }
+
+    private static LlmRequestSettings? ResolveSummarizerSettings(RoomConfig room, ModelCatalog modelCatalog)
+    {
+        var modelId = room.SummarizerModelId;
+        if (string.IsNullOrWhiteSpace(modelId))
+        {
+            return null;
+        }
+
+        var catalogEntry = modelCatalog.Models.FirstOrDefault(model => model.Id == modelId)
+            ?? modelCatalog.Models.FirstOrDefault(model => string.Equals(model.Name, modelId, StringComparison.OrdinalIgnoreCase));
+        if (catalogEntry is null)
+            throw new InvalidOperationException($"Summarizer model '{modelId}' was not found in the room owner's catalog.");
+
+        var connection = modelCatalog.Connections.FirstOrDefault(candidate => candidate.Id == catalogEntry.ConnectionId);
+        if (connection is null)
+            throw new InvalidOperationException($"Connection '{catalogEntry.ConnectionId}' not found for summarizer model '{catalogEntry.Name}'.");
+
+        var provider = LlmProviderMapping.FromTransport(connection.Transport);
+        return new LlmRequestSettings(
+            provider,
+            connection.Endpoint,
+            catalogEntry.ModelId,
+            connection.ApiKey,
+            catalogEntry.Temperature,
+            room.SummarizerMaxTokens,
+            connection.Transport,
+            connection.Name);
+    }
+
+    private sealed record ModelCatalog(IReadOnlyList<AiConnection> Connections, IReadOnlyList<AiModel> Models);
 
     public static int ComputeResumeAgentIndex(
         IReadOnlyList<AgentConfig> agents,

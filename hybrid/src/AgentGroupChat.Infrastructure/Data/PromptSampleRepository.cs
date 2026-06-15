@@ -31,7 +31,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
 
     public async Task SaveAsync(PromptSample sample)
     {
-        var existing = await _db.PromptSamples.FirstOrDefaultAsync(p => p.Id == sample.Id && p.UserId == sample.UserId);
+        var existing = await _db.PromptSamples.FirstOrDefaultAsync(p => p.Id == sample.Id && p.UserId == sample.UserId && p.Name != "None");
         var utcNow = DateTimeOffset.UtcNow;
         if (sample.CreatedAt == default)
             sample.CreatedAt = utcNow;
@@ -48,7 +48,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
 
     public async Task DeleteAsync(int id, string userId)
     {
-        var entity = await _db.PromptSamples.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+        var entity = await _db.PromptSamples.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId && p.Name != "None");
         if (entity is not null)
         {
             _db.PromptSamples.Remove(entity);
@@ -74,6 +74,20 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
             new PromptSample
             {
                 UserId = userId,
+                Name = "None",
+                Category = "None",
+                Description = "An empty prompt body",
+                PromptText = "",
+                Tags = "empty" ,
+                IsBuiltIn = true,
+                SourceLabel = "Built-in starter",
+                SortOrder = 0,
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            new PromptSample
+            {
+                UserId = userId,
                 Name = "DM Narrator Guide",
                 Category = "DM",
                 Description = "Runs a scene with clear narration, momentum, and room for player agency.",
@@ -81,7 +95,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
                 Tags = "dm,narrator,roleplay,starter",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 0,
+                SortOrder = 1,
                 CreatedAt = now,
                 UpdatedAt = now,
             },
@@ -95,7 +109,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
                 Tags = "optimist,companion,morale,starter",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 1,
+                SortOrder = 2,
                 CreatedAt = now,
                 UpdatedAt = now,
             },
@@ -109,7 +123,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
                 Tags = "skeptic,debate,risk,starter",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 2,
+                SortOrder = 3,
                 CreatedAt = now,
                 UpdatedAt = now,
             },
@@ -123,7 +137,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
                 Tags = "interviewer,facilitator,questions,starter",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 3,
+                SortOrder = 4,
                 CreatedAt = now,
                 UpdatedAt = now,
             },
@@ -137,7 +151,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
                 Tags = "worldbuilding,lore,setting,starter",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 4,
+                SortOrder = 5,
                 CreatedAt = now,
                 UpdatedAt = now,
             },
@@ -151,7 +165,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
                 Tags = "planner,tactics,operations,starter",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 5,
+                SortOrder = 6,
                 CreatedAt = now,
                 UpdatedAt = now,
             },
@@ -165,7 +179,7 @@ public sealed class PromptSampleRepository : IPromptSampleRepository
                 Tags = "companion,empathetic,gentle,starter",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 6,
+                SortOrder = 7,
                 CreatedAt = now,
                 UpdatedAt = now,
             },
@@ -192,7 +206,7 @@ Output exactly this and nothing else:
                 Tags = "companion,empathetic,gentle,starter",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 6,
+                SortOrder = 8,
                 CreatedAt = now,
                 UpdatedAt = now,
             },
@@ -205,7 +219,7 @@ Output exactly this and nothing else:
                 Tags = "",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 7,
+                SortOrder = 9,
                 CreatedAt = now,
                 UpdatedAt = now,
                 PromptText = 
@@ -320,7 +334,7 @@ NPCs may influence but not override players.
                 Tags = "",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 8,
+                SortOrder = 10,
                 CreatedAt = now,
                 UpdatedAt = now,
                 PromptText = 
@@ -451,7 +465,7 @@ However:
                 Tags = "",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 9,
+                SortOrder = 11,
                 CreatedAt = now,
                 UpdatedAt = now,
                 PromptText = 
@@ -539,7 +553,7 @@ Additional Rules:
                 Tags = "",
                 IsBuiltIn = true,
                 SourceLabel = "Built-in starter",
-                SortOrder = 11,
+                SortOrder = 12,
                 CreatedAt = now,
                 UpdatedAt = now,
                 PromptText = 

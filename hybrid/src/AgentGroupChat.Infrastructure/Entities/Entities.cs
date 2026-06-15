@@ -1,3 +1,4 @@
+using AgentGroupChat.Core;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -314,4 +315,19 @@ public class RoomInviteEntity
     public string? RedeemedByUserId { get; set; }
     public DateTimeOffset? RedeemedDate { get; set; }
 
+}
+
+[Table("RoomMemberships")]
+public class RoomMembershipEntity
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public int Id { get; set; }
+    [Required]
+    public string RoomId { get; set; } = string.Empty;
+    [Required]
+    public string UserId { get; set; } = string.Empty;
+    [Required]
+    public string Role { get; set; } = RoomMembershipRoles.Player;
+    public DateTimeOffset JoinedAt { get; set; } = DateTimeOffset.UtcNow;
 }

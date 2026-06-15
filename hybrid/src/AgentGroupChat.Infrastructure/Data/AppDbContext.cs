@@ -22,6 +22,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<SceneArchiveEntity> SceneArchives => Set<SceneArchiveEntity>();
     public DbSet<DataTrackerEntity> DataTrackers => Set<DataTrackerEntity>();
     public DbSet<RoomInviteEntity> RoomInvites => Set<RoomInviteEntity>();
+    public DbSet<RoomMembershipEntity> RoomMemberships => Set<RoomMembershipEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -89,6 +90,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<RoomInviteEntity>()
             .HasIndex(i => i.RoomId);
+
+        modelBuilder.Entity<RoomMembershipEntity>()
+            .HasIndex(m => m.RoomId);
+
+        modelBuilder.Entity<RoomMembershipEntity>()
+            .HasIndex(m => new { m.RoomId, m.UserId })
+            .IsUnique();
 
         base.OnModelCreating(modelBuilder);
     }
