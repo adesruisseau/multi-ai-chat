@@ -93,7 +93,7 @@
             }
             else
             {
-                @foreach (var agent in RoomState.SelectedRoom.Agents)
+                @foreach (var agent in RoomState.SelectedRoom.Agents.Where(x => !x.IsHumanParticipant))
                 {
                     var shortBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentShort);
                     var longBlock = FindMemoryBlock(agent.Id, MemoryKind.AgentLong);

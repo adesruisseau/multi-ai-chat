@@ -85,6 +85,7 @@ else
         </div>
 
     <MudPaper Class="pa-4 mb-4" Elevation="1">
+
         @if (!_generatingImage)
         {
             <MudTextField @bind-Value="_userInput" Label="@WhosMessage" Class="mb-3" OnKeyDown="OnKeyDown" Lines="8" Disabled="@(ConvoState.IsRunning || InputLocked)"
@@ -249,7 +250,6 @@ else
         if (RoomState.SelectedRoom is not null)
         {
             _selectedRoomId = RoomState.SelectedRoom.Id;
-            await LoadRoom();
         }
         else if (RoomState.Rooms.Count > 0)
         {
