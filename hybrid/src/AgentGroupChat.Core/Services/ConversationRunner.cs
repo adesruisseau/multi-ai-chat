@@ -70,7 +70,7 @@ public sealed partial class ConversationRunner
 
     public event Action<string>? OnSystemMessage;
     public event Action<AgentConfig, string>? OnAgentMessageStarted;
-    public event Action<AgentConfig, string>? OnAgentMessageCompleted;
+    public event Action<AgentConfig, TranscriptTurn>? OnAgentMessageCompleted;
     public event Action<string>? OnStatusChanged;
     public event Action<string>? OnLog;
 
@@ -173,7 +173,7 @@ public sealed partial class ConversationRunner
             }
 
             var pendingActions = new List<RequestedPrivilegedAction>();
-            Task<(string Response, string ShortTermMemory, string LongTermMemory, string PrivilegedActions, LlmCompletionResult RawResult)>? prefetchTask = null;
+            Task<AgentTurnExecution>? prefetchTask = null;
             Task? endOfRoundWork = null;
 
             for (var participantIndex = participantStart; participantIndex < activeParticipants.Count; participantIndex++)
@@ -188,55 +188,29 @@ public sealed partial class ConversationRunner
                     return completedRoundsThisRun;
                 }
 
-                string response;
-                string shortTermMemory;
-                string longTermMemory;
-                string privilegedActions;
-                LlmCompletionResult rawResult;
+                var execution = await ResolveAgentTurnAsync(
+                    room,
+                    agent,
+                    modelCatalog,
+                    sessionTurns,
+                    iteration,
+                    maxIterations,
+                    ct,
+                    roundRecalledScenes,
+                    prefetchTask);
+                prefetchTask = null;
 
-                if (prefetchTask is not null)
-                {
-                    try
-                    {
-                        (response, shortTermMemory, longTermMemory, privilegedActions, rawResult) = await prefetchTask;
-                    }
-                    catch
-                    {
-                        prefetchTask = null;
-                        OnStatusChanged?.Invoke($"{agent.Name} thinking");
-                        (response, shortTermMemory, longTermMemory, privilegedActions, rawResult) = await ExecuteAgentTurnInternalAsync(
-                            room, agent, modelCatalog, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
-                    }
-                    prefetchTask = null;
-                }
-                else
-                {
-                    OnStatusChanged?.Invoke($"{agent.Name} thinking");
-                    OnAgentMessageStarted?.Invoke(agent, Thinking);
+                if (!string.IsNullOrWhiteSpace(execution.PrivilegedActions))
+                    pendingActions.AddRange(ParsePrivilegedActions(room, agent, execution.PrivilegedActions));
 
-                    (response, shortTermMemory, longTermMemory, privilegedActions, rawResult) = await ExecuteAgentTurnInternalAsync(
-                        room, agent, modelCatalog, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
-                }
-
-                if (!string.IsNullOrWhiteSpace(privilegedActions))
-                    pendingActions.AddRange(ParsePrivilegedActions(room, agent, privilegedActions));
-
-                var turn = new TranscriptTurn
-                {
-                    RoomId = room.Id,
-                    Round = roundNumber,
-                    Speaker = agent.Name,
-                    Content = response,
-                    ColorTheme = agent.ColorTheme
-                };
-                await _chatService.UpdateAsync(turn);
-                //await _transcriptRepo.AppendAsync(turn);
-                sessionTurns.Add(turn);
-                await UpdateAgentShortMemoryAsync(room, agent, shortTermMemory);
-                await UpdateAgentLongMemoryAsync(room, agent, longTermMemory);
-
-                OnAgentMessageCompleted?.Invoke(agent, response);
-                OnLog?.Invoke($"{agent.Name}: {rawResult.UsageSummary ?? "no usage info"}");
+                var persistedTurn = await PersistCompletedTurnAsync(
+                    room,
+                    agent,
+                    roundNumber,
+                    execution,
+                    sessionTurns,
+                    ct);
+                OnLog?.Invoke($"{agent.Name}: {execution.RawResult.UsageSummary ?? "no usage info"}");
 
                 var currentSpeechGate = OnSpeechGate;
                 var shouldSpeak = currentSpeechGate is not null || RoomSpeechResolver.IsSpeechEnabled(room, appSettings);
@@ -246,26 +220,21 @@ public sealed partial class ConversationRunner
                 {
                     OnStatusChanged?.Invoke($"{agent.Name} speaking");
                     speechTask = currentSpeechGate is not null
-                        ? currentSpeechGate(agent, response, ct)
-                        : SpeakWithRoomSettingsAsync(room, agent, response, appSettings, ct);
+                        ? currentSpeechGate(agent, persistedTurn.Content, ct)
+                        : SpeakWithRoomSettingsAsync(room, agent, persistedTurn.Content, appSettings, ct);
 
                     var nextParticipantInOrder = participantIndex + 1 < activeParticipants.Count
                         ? activeParticipants[participantIndex + 1]
                         : null;
-                    if (nextParticipantInOrder is not null && !nextParticipantInOrder.IsHumanParticipant && !room.PauseAfterEveryReply)
-                    {
-                        OnAgentMessageStarted?.Invoke(nextParticipantInOrder, Thinking);
-                        OnStatusChanged?.Invoke($"{nextParticipantInOrder.Name} thinking");
-                        try
-                        {
-                            prefetchTask = ExecuteAgentTurnInternalAsync(
-                                room, nextParticipantInOrder, modelCatalog, sessionTurns, iteration, maxIterations, ct, roundRecalledScenes);
-                        }
-                        catch
-                        {
-                            prefetchTask = null;
-                        }
-                    }
+                    prefetchTask = TryPrefetchNextAgentTurn(
+                        room,
+                        nextParticipantInOrder,
+                        modelCatalog,
+                        sessionTurns,
+                        iteration,
+                        maxIterations,
+                        ct,
+                        roundRecalledScenes);
                 }
 
                 var isLastAiInRound = !activeParticipants.Skip(participantIndex + 1).Any(participant => !participant.IsHumanParticipant);
@@ -335,6 +304,140 @@ public sealed partial class ConversationRunner
             throw new InvalidOperationException("Room is missing its owning user id.");
 
         return room.UserId;
+    }
+
+    private async Task<AgentTurnExecution> ResolveAgentTurnAsync(
+        RoomConfig room,
+        AgentConfig agent,
+        ModelCatalog modelCatalog,
+        List<TranscriptTurn> sessionTurns,
+        int iteration,
+        int maxIterations,
+        CancellationToken ct,
+        IReadOnlyList<SceneArchive>? roundRecalledScenes,
+        Task<AgentTurnExecution>? prefetchedTurnTask)
+    {
+        if (prefetchedTurnTask is not null)
+        {
+            try
+            {
+                return await prefetchedTurnTask;
+            }
+            catch
+            {
+                OnStatusChanged?.Invoke($"{agent.Name} thinking");
+            }
+        }
+        else
+        {
+            OnStatusChanged?.Invoke($"{agent.Name} thinking");
+            OnAgentMessageStarted?.Invoke(agent, Thinking);
+        }
+
+        return await ExecuteAgentTurnAsync(
+            room,
+            agent,
+            modelCatalog,
+            sessionTurns,
+            iteration,
+            maxIterations,
+            ct,
+            roundRecalledScenes);
+    }
+
+    private async Task<AgentTurnExecution> ExecuteAgentTurnAsync(
+        RoomConfig room,
+        AgentConfig agent,
+        ModelCatalog modelCatalog,
+        List<TranscriptTurn> sessionTurns,
+        int iteration,
+        int maxIterations,
+        CancellationToken ct,
+        IReadOnlyList<SceneArchive>? roundRecalledScenes)
+    {
+        var (response, shortTermMemory, longTermMemory, privilegedActions, rawResult) =
+            await ExecuteAgentTurnInternalAsync(
+                room,
+                agent,
+                modelCatalog,
+                sessionTurns,
+                iteration,
+                maxIterations,
+                ct,
+                roundRecalledScenes);
+
+        return new AgentTurnExecution(response, shortTermMemory, longTermMemory, privilegedActions, rawResult);
+    }
+
+    private async Task<TranscriptTurn> PersistCompletedTurnAsync(
+        RoomConfig room,
+        AgentConfig agent,
+        int roundNumber,
+        AgentTurnExecution execution,
+        List<TranscriptTurn> sessionTurns,
+        CancellationToken ct)
+    {
+        var result = await _chatService.AppendAsync(
+            new TranscriptTurn
+            {
+                RoomId = room.Id,
+                Round = roundNumber,
+                Speaker = agent.Name,
+                Content = execution.Response,
+                ColorTheme = agent.ColorTheme
+            },
+            ct);
+
+        if (!result.Succeeded || result.Turn is null)
+        {
+            throw new InvalidOperationException(
+                string.IsNullOrWhiteSpace(result.FailureReason)
+                    ? $"Failed to append transcript turn for {agent.Name}."
+                    : result.FailureReason);
+        }
+
+        var persistedTurn = result.Turn;
+        sessionTurns.Add(persistedTurn);
+
+        await UpdateAgentShortMemoryAsync(room, agent, execution.ShortTermMemory);
+        await UpdateAgentLongMemoryAsync(room, agent, execution.LongTermMemory);
+
+        OnAgentMessageCompleted?.Invoke(agent, persistedTurn);
+        return persistedTurn;
+    }
+
+    private Task<AgentTurnExecution>? TryPrefetchNextAgentTurn(
+        RoomConfig room,
+        AgentConfig? nextParticipant,
+        ModelCatalog modelCatalog,
+        List<TranscriptTurn> sessionTurns,
+        int iteration,
+        int maxIterations,
+        CancellationToken ct,
+        IReadOnlyList<SceneArchive>? roundRecalledScenes)
+    {
+        if (nextParticipant is null || nextParticipant.IsHumanParticipant || room.PauseAfterEveryReply)
+            return null;
+
+        OnAgentMessageStarted?.Invoke(nextParticipant, Thinking);
+        OnStatusChanged?.Invoke($"{nextParticipant.Name} thinking");
+
+        try
+        {
+            return ExecuteAgentTurnAsync(
+                room,
+                nextParticipant,
+                modelCatalog,
+                sessionTurns,
+                iteration,
+                maxIterations,
+                ct,
+                roundRecalledScenes);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private Task SpeakWithRoomSettingsAsync(
@@ -625,6 +728,13 @@ public sealed partial class ConversationRunner
     }
 
     private sealed record ModelCatalog(IReadOnlyList<AiConnection> Connections, IReadOnlyList<AiModel> Models);
+
+    private sealed record AgentTurnExecution(
+        string Response,
+        string ShortTermMemory,
+        string LongTermMemory,
+        string PrivilegedActions,
+        LlmCompletionResult RawResult);
 
     public static int ComputeResumeAgentIndex(
         IReadOnlyList<AgentConfig> agents,

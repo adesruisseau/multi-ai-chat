@@ -1,8 +1,5 @@
 ﻿using AgentGroupChat.Core.Models.Domain;
 using AgentGroupChat.Core.Services.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace AgentGroupChat.Core.Realtime
 {
@@ -17,15 +14,17 @@ namespace AgentGroupChat.Core.Realtime
             _liveUpdates = liveUpdates;
         }
 
-        public async Task<ChatUpdateResult> UpdateAsync(TranscriptTurn turn, CancellationToken cancellationToken = default)
+        public async Task<ChatUpdateResult> AppendAsync(TranscriptTurn turn, CancellationToken cancellationToken = default)
         {
             var result = await _transcriptRepository.AppendAsync(turn);
-            if (!result.Succeeded || string.IsNullOrWhiteSpace(result.RoomId))
+            if (!result.Succeeded || result.Turn is null || string.IsNullOrWhiteSpace(result.RoomId))
             {
                 return result;
             }
 
-            await _liveUpdates.PublishAsync(new ChatLiveEvent(result.RoomId, ChatLiveEventKinds.NewMessage), cancellationToken);
+            await _liveUpdates.PublishAsync(
+                new ChatLiveEvent(result.RoomId, ChatLiveEventKinds.NewMessage, result.Turn),
+                cancellationToken);
 
             return result;
         }
@@ -37,15 +36,22 @@ namespace AgentGroupChat.Core.Realtime
             {
                 return result;
             }
-            await _liveUpdates.PublishAsync(new ChatLiveEvent(result.RoomId, ChatLiveEventKinds.ChatCleared), cancellationToken);
+
+            await _liveUpdates.PublishAsync(
+                new ChatLiveEvent(result.RoomId, ChatLiveEventKinds.ChatCleared),
+                cancellationToken);
 
             return result;
         }
     }
 
-    public sealed record ChatUpdateResult(bool Succeeded, string? RoomId, string? FailureReason)
+    public sealed record ChatUpdateResult(bool Succeeded, string? RoomId, TranscriptTurn? Turn, string? FailureReason)
     {
-        public static ChatUpdateResult Success(string roomId) => new(true, roomId, null);
-        public static ChatUpdateResult Failure(string? reason = null, string? roomId = null) => new(false, roomId, reason);
+        public static ChatUpdateResult Success(TranscriptTurn turn) => new(true, turn.RoomId, turn, null);
+
+        public static ChatUpdateResult Success(string roomId) => new(true, roomId, null, null);
+
+        public static ChatUpdateResult Failure(string? reason = null, string? roomId = null) =>
+            new(false, roomId, null, reason);
     }
 }

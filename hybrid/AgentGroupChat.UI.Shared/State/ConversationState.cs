@@ -1,5 +1,6 @@
 using AgentGroupChat.Core;
 using AgentGroupChat.Core.Models.Domain;
+using AgentGroupChat.UI.Shared.Theming;
 
 namespace AgentGroupChat.UI.Shared.State;
 
@@ -28,66 +29,61 @@ public sealed class ConversationState
         NotifyChanged();
     }
 
-    public void AddUserMessage(string text, string speakerName = "You",
-        string colorTheme = "")
-    {
-        Messages.Add(new ChatMessage
-        {
-            Speaker = speakerName,
-            Content = text,
-            IsUser = true,
-            ColorTheme = colorTheme
-        });
-        SessionTurns.Add(new TranscriptTurn { Speaker = speakerName, Content = text });
-        NotifyChanged();
-    }
-
-    public void AddAgentMessage(AgentConfig agent, string content)
+    public void ShowAgentThinking(AgentConfig agent)
     {
         Messages.Add(new ChatMessage
         {
             Speaker = agent.Name,
-            Content = content,
+            Content = ChatPlaceholders.Thinking,
             ColorTheme = agent.ColorTheme
         });
         NotifyChanged();
     }
 
-    public void CompleteAgentMessage(AgentConfig agent, string content)
+    public void LoadTranscript(IEnumerable<TranscriptTurn> turns, RoomConfig room, AppSettings settings)
     {
-        var placeholder = Messages.LastOrDefault(
-            m => m.Speaker == agent.Name && m.Content == ChatPlaceholders.Thinking);
+        Messages.Clear();
+        SessionTurns.Clear();
+
+        foreach (var turn in turns)
+        {
+            SessionTurns.Add(turn);
+            Messages.Add(CreateTranscriptMessage(turn, room, settings));
+        }
+
+        NotifyChanged();
+    }
+
+    public void ApplyPersistedTurn(TranscriptTurn turn, RoomConfig room, AppSettings settings)
+    {
+        if (turn.Id > 0 && SessionTurns.Any(existingTurn => existingTurn.Id == turn.Id))
+            return;
+
+        SessionTurns.Add(turn);
+
+        var message = CreateTranscriptMessage(turn, room, settings);
+        var placeholder = Messages.LastOrDefault(existingMessage =>
+            existingMessage.Speaker == turn.Speaker &&
+            existingMessage.Content == ChatPlaceholders.Thinking);
+
         if (placeholder is not null)
         {
-            placeholder.Content = content;
+            placeholder.Content = message.Content;
+            placeholder.ColorTheme = message.ColorTheme;
+            placeholder.IsUser = message.IsUser;
+            placeholder.IsSystem = message.IsSystem;
         }
         else
         {
-            Messages.Add(new ChatMessage
-            {
-                Speaker = agent.Name,
-                Content = content,
-                    ColorTheme = agent.ColorTheme
-            });
+            Messages.Add(message);
         }
-        SessionTurns.Add(new TranscriptTurn { Speaker = agent.Name, Content = content });
+
         NotifyChanged();
     }
 
     public void RemoveThinkingPlaceholders()
     {
         Messages.RemoveAll(m => m.Content == ChatPlaceholders.Thinking);
-    }
-
-    public void AddTranscriptMessage(string speaker, string content, string colorTheme, bool isUser)
-    {
-        Messages.Add(new ChatMessage
-        {
-            Speaker = speaker,
-            Content = content,
-            IsUser = isUser,
-            ColorTheme = colorTheme
-        });
     }
 
     public void Clear()
@@ -103,6 +99,44 @@ public sealed class ConversationState
     {
         Status = status;
         NotifyChanged();
+    }
+
+    private static ChatMessage CreateTranscriptMessage(TranscriptTurn turn, RoomConfig room, AppSettings settings)
+    {
+        var humanParticipant = room.Agents.FirstOrDefault(agent =>
+            agent.IsHumanParticipant &&
+            string.Equals(agent.Name, turn.Speaker, StringComparison.OrdinalIgnoreCase));
+        var isHuman = humanParticipant is not null || turn.Speaker == Core.SpeakerNames.DefaultHuman;
+
+        return new ChatMessage
+        {
+            Speaker = turn.Speaker,
+            Content = turn.Content,
+            IsUser = isHuman,
+            ColorTheme = ResolveColorTheme(turn, room, humanParticipant, settings, isHuman)
+        };
+    }
+
+    private static string ResolveColorTheme(
+        TranscriptTurn turn,
+        RoomConfig room,
+        AgentConfig? humanParticipant,
+        AppSettings settings,
+        bool isHuman)
+    {
+        if (!string.IsNullOrWhiteSpace(turn.ColorTheme))
+            return turn.ColorTheme;
+
+        if (isHuman)
+        {
+            return humanParticipant?.ColorTheme
+                ?? AgentColorPresets.FindByName(settings.UiAccent, settings.UiTheme != "Light").Name
+                ?? "Terracotta";
+        }
+
+        return room.Agents.FirstOrDefault(agent =>
+                   string.Equals(agent.Name, turn.Speaker, StringComparison.OrdinalIgnoreCase))?.ColorTheme
+               ?? "Terracotta";
     }
 
     public void NotifyChanged() => OnChange?.Invoke();

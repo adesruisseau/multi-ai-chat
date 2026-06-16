@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using AgentGroupChat.Core.Models.Domain;
 
 namespace AgentGroupChat.Core.Realtime
 {
-    public sealed record ChatLiveEvent(string RoomId, string Kind);
+    public sealed record ChatLiveEvent(string RoomId, string Kind, TranscriptTurn? Turn = null);
 }

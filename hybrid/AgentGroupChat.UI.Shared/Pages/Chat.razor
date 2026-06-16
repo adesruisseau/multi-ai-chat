@@ -76,7 +76,7 @@ else
                                     </div>
                                     <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small"
                                                    OnClick="@(() => PlayFromMessage(idx))" Disabled="_isPlayingFrom"
-                                                   Title="Play from here" />
+                                                   title="Play from here" />
                                 </MudStack>
                             </MudPaper>
                         }
@@ -160,8 +160,8 @@ else
                                             <MudProgressLinear Color="Color.Primary"
                                                                Style="height: 20px"
                                                                Value="@double.Parse(tracker.Value)"
-                                                               Min="@tracker.MinValue.Value"
-                                                               Max="@tracker.MaxValue.Value" />
+                                                               Min="@(tracker.MinValue ?? 0)"
+                                                               Max="@(tracker.MaxValue ?? 100)" />
 
                                             <MudText Typo="Typo.caption">
                                                 Current: @tracker.Value / @tracker.MaxValue
@@ -201,7 +201,7 @@ else
     private string WhosMessage = "Message";
     private bool isNotRoomOwner = false;
     public string accessingUserId = "";
-    public ClaimsPrincipal user;
+    public ClaimsPrincipal user = new(new ClaimsIdentity());
     private RoomTurnPolicy _turnPolicy = new();
     private IDisposable? _chatLiveSubscription;
 
@@ -223,7 +223,10 @@ else
             }
             catch
             {
-                await LogService.LogAsync(RoomState.SelectedRoom.Id, LogCategory.System, "Focus Chat JS", "An error occurred while trying to focus the chat window.");
+                if (RoomState.SelectedRoom is not null)
+                {
+                    await LogService.LogAsync(RoomState.SelectedRoom.Id, LogCategory.System, "Focus Chat JS", "An error occurred while trying to focus the chat window.");
+                }
             }
         }
     }
@@ -244,7 +247,7 @@ else
 
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         user = state.User;
-        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
 
         if (RoomState.SelectedRoom is not null)
@@ -272,27 +275,32 @@ else
 
     private Task HandleChatLiveUpdatesAsync(ChatLiveEvent update)
     {
-        return InvokeAsync(async () =>
+        return InvokeAsync(() =>
         {
+            var room = RoomState.SelectedRoom;
+            if (room is null || !string.Equals(room.Id, update.RoomId, StringComparison.Ordinal))
+                return;
+
             switch (update.Kind)
             {
-                case ChatLiveEventKinds.NewMessage:
+                case ChatLiveEventKinds.NewMessage when update.Turn is not null:
+                    ConvoState.ApplyPersistedTurn(update.Turn, room, AppState.Settings);
+                    break;
                 case ChatLiveEventKinds.ChatCleared:
-                    {
-                        var selectedRoomId = update.RoomId;
-
-                        await LoadRoom();
-                        break;
-                    }
+                    ConvoState.Clear();
+                    break;
                 default:
                     break;
             }
+
+            RefreshTurnPolicy();
+            StateHasChanged();
         });
     }
 
     private void UpdateSelectedRoom()
     {
-        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        accessingUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         isNotRoomOwner = RoomState.SelectedRoom?.UserId != accessingUserId;
         RefreshTurnPolicy();
         StateHasChanged();
@@ -302,19 +310,26 @@ else
     {
         // System messages are tracked internally but not shown in chat
         ConvoState.SetStatus(msg);
-        _ = LogService.LogAsync(RoomState.SelectedRoom.Id, LogCategory.System, "Runner", msg);
+        if (RoomState.SelectedRoom is not null)
+        {
+            _ = LogService.LogAsync(RoomState.SelectedRoom.Id, LogCategory.System, "Runner", msg);
+        }
         InvokeAsync(StateHasChanged);
     }
 
     private void OnRunnerAgentStarted(AgentConfig agent, string msg)
     {
-        ConvoState.AddAgentMessage(agent, msg);
+        ConvoState.ShowAgentThinking(agent);
         InvokeAsync(StateHasChanged);
     }
 
-    private void OnRunnerAgentCompleted(AgentConfig agent, string msg)
+    private void OnRunnerAgentCompleted(AgentConfig agent, TranscriptTurn turn)
     {
-        ConvoState.CompleteAgentMessage(agent, msg);
+        var room = RoomState.SelectedRoom;
+        if (room is null || !string.Equals(room.Id, turn.RoomId, StringComparison.Ordinal))
+            return;
+
+        ConvoState.ApplyPersistedTurn(turn, room, AppState.Settings);
         InvokeAsync(StateHasChanged);
     }
 
@@ -330,7 +345,10 @@ else
         var category = message.Contains("memory", StringComparison.OrdinalIgnoreCase)
             ? LogCategory.Memory
             : LogCategory.Response;
-        _ = LogService.LogAsync(RoomState.SelectedRoom.Id, category, "Runner", message);
+        if (RoomState.SelectedRoom is not null)
+        {
+            _ = LogService.LogAsync(RoomState.SelectedRoom.Id, category, "Runner", message);
+        }
     }
 
     private async Task LoadRoom()
@@ -338,39 +356,12 @@ else
         var room = RoomState.Rooms.FirstOrDefault(r => r.Id == _selectedRoomId);
         if (room is null) return;
         RoomState.SelectRoom(room);
+        SubscribeToChatLiveUpdates(room.Id);
         ConvoState.Clear();
 
 
         var turns = await TranscriptRepo.GetAsync(room.Id);
-        foreach (var turn in turns)
-        {
-            var humanParticipant = room.Agents.FirstOrDefault(agent =>
-                agent.IsHumanParticipant && string.Equals(agent.Name, turn.Speaker, StringComparison.OrdinalIgnoreCase));
-            var isHuman = humanParticipant is not null || turn.Speaker == Core.SpeakerNames.DefaultHuman;
-            if (isHuman)
-            {
-                ConvoState.Messages.Add(new ChatMessage
-                {
-                    Speaker = turn.Speaker,
-                    Content = turn.Content,
-                    IsUser = true,
-                    ColorTheme = humanParticipant?.ColorTheme ?? AgentColorPresets.FindByName(AppState.Settings.UiAccent, AppState.Settings.UiTheme != "Light").Name ?? "Terracotta"
-
-                });
-            }
-            else
-            {
-                var agent = room.Agents.FirstOrDefault(a => a.Name == turn.Speaker);
-                ConvoState.Messages.Add(new ChatMessage
-                {
-                    Speaker = turn.Speaker,
-                    Content = turn.Content,
-                    ColorTheme = agent?.ColorTheme ?? "Terracotta"
-                });
-            }
-            ConvoState.SessionTurns.Add(turn);
-        }
-        ConvoState.NotifyChanged();
+        ConvoState.LoadTranscript(turns, room, AppState.Settings);
         RefreshTurnPolicy();
     }
 
@@ -407,17 +398,14 @@ else
         if (!string.IsNullOrWhiteSpace(_userInput))
         {
             var speaker = ResolveHumanSpeaker(room);
-            ConvoState.AddUserMessage(_userInput, speaker.Name, speaker.ColorTheme);
-            
-            //await TranscriptRepo.AppendAsync
-            await chatService.UpdateAsync(new TranscriptTurn
+            var persistedUserTurn = await AppendTurnAsync(new TranscriptTurn
             {
                 RoomId = room.Id,
                 Speaker = speaker.Name,
                 Content = _userInput,
                 ColorTheme = speaker.ColorTheme
             });
-            var userTextToNarrate = _userInput;
+            var userTextToNarrate = persistedUserTurn.Content;
             _userInput = string.Empty;
             // Narrate user message before agents start
             var ttsSettings = BuildSpeechSettings(room);
@@ -482,7 +470,10 @@ else
     private async Task ClearRoom()
     {
         if (RoomState.SelectedRoom is null) return;
-        await TranscriptRepo.ClearAsync(RoomState.SelectedRoom.Id);
+        var result = await chatService.ClearAsync(RoomState.SelectedRoom.Id);
+        if (!result.Succeeded)
+            throw new InvalidOperationException(result.FailureReason ?? "Failed to clear chat transcript.");
+
         await MemoryRepo.ClearAllForRoomAsync(RoomState.SelectedRoom.Id);
         await SceneArchiveRepo.DeleteAllForRoomAsync(RoomState.SelectedRoom.Id);
         await LogService.ClearAsync(RoomState.SelectedRoom.Id);
@@ -583,33 +574,36 @@ else
     }
     private string _imagePreviewDataUrl = string.Empty;
     private bool _generatingImage = false;
-    private ImageConnection imageConnection;
-    private ImageModel imageModel;
-    private string imagePrompt;
+    private ImageConnection? imageConnection;
+    private ImageModel? imageModel;
+    private string imagePrompt = string.Empty;
     private async Task GenerateImagePromptAsync()
     {
+        var room = RoomState.SelectedRoom;
+        if (room is null)
+            return;
+
         _generatingImage = true;
-        imageModel = AppState.ImageModels.Where(x => x.Id == RoomState.SelectedRoom.SceneImageModelId).First();
+        imageModel = AppState.ImageModels.FirstOrDefault(x => x.Id == room.SceneImageModelId);
         if (imageModel is null)
         {
-            await LogService.LogAsync(RoomState.SelectedRoom.Id, LogCategory.System, "Image Generation", "The model was not retrieved during the image generation process.");
+            await LogService.LogAsync(room.Id, LogCategory.System, "Image Generation", "The model was not retrieved during the image generation process.");
             _generatingImage = false;
             return;
 
         }
-        imageConnection = AppState.ImageConnections.Where(x => x.Id == imageModel.ConnectionId).First();
+        imageConnection = AppState.ImageConnections.FirstOrDefault(x => x.Id == imageModel.ConnectionId);
         if (imageConnection is null)
         {
-            await LogService.LogAsync(RoomState.SelectedRoom.Id, LogCategory.System, "Image Generation", "The connection was not retrieved during the image generation process.");
+            await LogService.LogAsync(room.Id, LogCategory.System, "Image Generation", "The connection was not retrieved during the image generation process.");
             _generatingImage = false;
             return;
 
         }
-        imagePrompt = "";
-        imagePrompt += RoomState.SelectedRoom!.SceneImageStyleNotes;
-        if (RoomState.SelectedRoom.UseCreativeImageGeneration)
+        imagePrompt = room.SceneImageStyleNotes;
+        if (room.UseCreativeImageGeneration)
         {
-            RoomState.SelectedRoom.Agents.ForEach(x =>
+            room.Agents.ForEach(x =>
             {
                 if (!String.IsNullOrWhiteSpace(x.AppearanceSummary) && !x.IsTemporarilySuspended && x.IsEnabled)
                 {
@@ -617,16 +611,25 @@ else
                 }
             });
 
-            string narrativeText = ConvoState.Messages.Where(x => x.Speaker.Trim().ToUpper().Equals("DM") || x.Speaker.Trim().ToUpper().Equals("NARRATOR")).Last().Content;
-            imagePrompt += $"\r\nLast Narrative Text: {narrativeText}";
+            var narrativeText = ConvoState.Messages
+                .LastOrDefault(x => x.Speaker.Trim().ToUpper().Equals("DM") || x.Speaker.Trim().ToUpper().Equals("NARRATOR"))
+                ?.Content;
+            if (!string.IsNullOrWhiteSpace(narrativeText))
+            {
+                imagePrompt += $"\r\nLast Narrative Text: {narrativeText}";
+            }
         }
 
-        string currentRoomStateActions = await MemoryRepo.GetAsync(RoomState.SelectedRoom.Id, null, MemoryKind.SharedRoom);
+        string currentRoomStateActions = await MemoryRepo.GetAsync(room.Id, null, MemoryKind.SharedRoom);
         imagePrompt += $"\r\nCurrent Room Information: {currentRoomStateActions}";
     }
 
     private async Task GenerateImageAsync()
     {
+        var room = RoomState.SelectedRoom;
+        if (room is null || imageConnection is null || imageModel is null)
+            return;
+
         try
         {
             var imageResult = await ImageClient.GenerateTestImageAsync(imageConnection, imageModel, imagePrompt, CancellationToken.None);
@@ -636,17 +639,16 @@ else
             var isDark = AppState.Settings.UiTheme == "Dark";
             turn.ColorTheme = AgentColorPresets.FindByName(AppState.Settings.UiAccent, isDark).Name ?? "Terracotta";
             turn.CreatedAt = DateTimeOffset.Now;
-            turn.RoomId = RoomState.SelectedRoom.Id;
+            turn.RoomId = room.Id;
             turn.Round = ConvoState.CompletedRounds;
 
             _imagePreviewDataUrl = $"data:{imageResult.MimeType};base64,{Convert.ToBase64String(imageResult.ImageBytes)}";
 
-            await chatService.UpdateAsync(turn);
-            //await TranscriptRepo.AppendAsync(turn);
+            await AppendTurnAsync(turn);
         }
         catch (Exception ex)
         {
-            await LogService.LogAsync(RoomState.SelectedRoom.Id, LogCategory.System, "Image Generation Failure", "The image failed to return", ex.Message);
+            await LogService.LogAsync(room.Id, LogCategory.System, "Image Generation Failure", "The image failed to return", ex.Message);
             _imagePreviewDataUrl = string.Empty;
 
         }
@@ -701,6 +703,23 @@ else
     private record HumanSpeaker(string Name, string TtsVoice, string ColorTheme);
 
     private static readonly HumanSpeaker _defaultSpeaker = new(Core.SpeakerNames.DefaultHuman, "", "");
+
+    private async Task<TranscriptTurn> AppendTurnAsync(TranscriptTurn turn, CancellationToken cancellationToken = default)
+    {
+        var result = await chatService.AppendAsync(turn, cancellationToken);
+        if (!result.Succeeded || result.Turn is null)
+        {
+            throw new InvalidOperationException(result.FailureReason ?? "Failed to append transcript turn.");
+        }
+
+        var room = RoomState.SelectedRoom;
+        if (room is not null && string.Equals(room.Id, result.Turn.RoomId, StringComparison.Ordinal))
+        {
+            ConvoState.ApplyPersistedTurn(result.Turn, room, AppState.Settings);
+        }
+
+        return result.Turn;
+    }
 
     public void Dispose()
     {

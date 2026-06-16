@@ -25,14 +25,15 @@ public sealed class TranscriptRepository : ITranscriptRepository
     {
         try
         {
-            _db.TranscriptTurns.Add(EntityMapper.ToEntity(turn));
+            var entity = EntityMapper.ToEntity(turn);
+            _db.TranscriptTurns.Add(entity);
             await _db.SaveChangesAsync();
 
-            return new ChatUpdateResult(true, turn.RoomId, null);
+            return ChatUpdateResult.Success(EntityMapper.ToDomain(entity));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return new ChatUpdateResult(false, turn.RoomId, "Failed to append new message");
+            return ChatUpdateResult.Failure("Failed to append new message", turn.RoomId);
         }
     
     }
@@ -42,11 +43,11 @@ public sealed class TranscriptRepository : ITranscriptRepository
         try
         {
             await _db.TranscriptTurns.Where(t => t.RoomId == roomId).ExecuteDeleteAsync();
-            return new ChatUpdateResult(true, roomId, null);
+            return ChatUpdateResult.Success(roomId);
         }
-        catch (Exception ex) 
+        catch (Exception) 
         {
-            return new ChatUpdateResult(false, roomId, "Failed to clear log");
+            return ChatUpdateResult.Failure("Failed to clear log", roomId);
         }
     }
 }
